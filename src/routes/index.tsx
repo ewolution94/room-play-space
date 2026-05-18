@@ -1,26 +1,437 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Trash2, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  component: RoomPlanner,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
+type Item = {
+  id: string;
+  name: string;
+  width: number; // cm
+  length: number; // cm
+  color: string;
+  x: number; // cm from left
+  y: number; // cm from top
+};
+
+type Opening = {
+  id: string;
+  wall: "top" | "bottom" | "left" | "right";
+  position: number; // cm along the wall
+  width: number; // cm
+  kind: "door" | "window";
+};
+
+const PX_PER_CM_BASE = 1.2; // will be scaled to fit
+
+function RoomPlanner() {
+  const [roomW, setRoomW] = useState(400);
+  const [roomL, setRoomL] = useState(300);
+  const [items, setItems] = useState<Item[]>([
+    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20 },
+    { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110 },
+  ]);
+  const [openings, setOpenings] = useState<Opening[]>([
+    { id: crypto.randomUUID(), wall: "bottom", position: 50, width: 90, kind: "door" },
+    { id: crypto.randomUUID(), wall: "top", position: 220, width: 120, kind: "window" },
+  ]);
+
+  // new item form
+  const [nName, setNName] = useState("");
+  const [nW, setNW] = useState(80);
+  const [nL, setNL] = useState(40);
+  const [nColor, setNColor] = useState("#5cbdb9");
+
+  // new opening form
+  const [oKind, setOKind] = useState<"door" | "window">("door");
+  const [oWall, setOWall] = useState<Opening["wall"]>("top");
+  const [oPos, setOPos] = useState(50);
+  const [oWidth, setOWidth] = useState(90);
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState({ w: 600, h: 400 });
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setStageSize({ w: el.clientWidth, h: el.clientHeight });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // compute scale to fit room into stage with padding
+  const pad = 40;
+  const scale = Math.min(
+    (stageSize.w - pad * 2) / roomW,
+    (stageSize.h - pad * 2) / roomL,
+  );
+  const cm = (v: number) => v * scale;
+  const roomPxW = cm(roomW);
+  const roomPxL = cm(roomL);
+  const offsetX = (stageSize.w - roomPxW) / 2;
+  const offsetY = (stageSize.h - roomPxL) / 2;
+
+  const addItem = () => {
+    if (!nName.trim()) return;
+    setItems((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        name: nName.trim(),
+        width: nW,
+        length: nL,
+        color: nColor,
+        x: 10,
+        y: 10,
+      },
+    ]);
+    setNName("");
+  };
+
+  const removeItem = (id: string) =>
+    setItems((p) => p.filter((i) => i.id !== id));
+  const updateItem = (id: string, patch: Partial<Item>) =>
+    setItems((p) => p.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+
+  const addOpening = () => {
+    setOpenings((p) => [
+      ...p,
+      { id: crypto.randomUUID(), kind: oKind, wall: oWall, position: oPos, width: oWidth },
+    ]);
+  };
+  const removeOpening = (id: string) =>
+    setOpenings((p) => p.filter((o) => o.id !== id));
+
+  // Drag handling
+  const dragRef = useRef<{
+    id: string;
+    startMouseX: number;
+    startMouseY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent, item: Item) => {
+    (e.target as Element).setPointerCapture(e.pointerId);
+    dragRef.current = {
+      id: item.id,
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startX: item.x,
+      startY: item.y,
+    };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = (e.clientX - d.startMouseX) / scale;
+    const dy = (e.clientY - d.startMouseY) / scale;
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id !== d.id) return i;
+        const nx = Math.max(0, Math.min(roomW - i.width, d.startX + dx));
+        const ny = Math.max(0, Math.min(roomL - i.length, d.startY + dy));
+        return { ...i, x: nx, y: ny };
+      }),
+    );
+  };
+  const onPointerUp = () => {
+    dragRef.current = null;
+  };
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Room Planner</h1>
+            <p className="text-sm text-muted-foreground">
+              Sketch your home office and drag furniture to find the right layout.
+            </p>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Room: {roomW} × {roomL} cm
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[340px_1fr]">
+        {/* Sidebar */}
+        <aside className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Room</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Width (cm)</Label>
+                  <Input
+                    type="number"
+                    value={roomW}
+                    min={50}
+                    onChange={(e) => setRoomW(Math.max(50, +e.target.value || 0))}
+                  />
+                </div>
+                <div>
+                  <Label>Length (cm)</Label>
+                  <Input
+                    type="number"
+                    value={roomL}
+                    min={50}
+                    onChange={(e) => setRoomL(Math.max(50, +e.target.value || 0))}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Doors & Windows</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Type</Label>
+                  <select
+                    className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    value={oKind}
+                    onChange={(e) => setOKind(e.target.value as "door" | "window")}
+                  >
+                    <option value="door">Door</option>
+                    <option value="window">Window</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Wall</Label>
+                  <select
+                    className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                    value={oWall}
+                    onChange={(e) => setOWall(e.target.value as Opening["wall"])}
+                  >
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Position (cm)</Label>
+                  <Input type="number" value={oPos} onChange={(e) => setOPos(+e.target.value || 0)} />
+                </div>
+                <div>
+                  <Label>Width (cm)</Label>
+                  <Input type="number" value={oWidth} onChange={(e) => setOWidth(+e.target.value || 0)} />
+                </div>
+              </div>
+              <Button onClick={addOpening} size="sm" className="w-full">
+                <Plus className="mr-1 h-4 w-4" /> Add opening
+              </Button>
+              <Separator />
+              <ul className="space-y-1 text-sm">
+                {openings.map((o) => (
+                  <li key={o.id} className="flex items-center justify-between rounded-md border px-2 py-1">
+                    <span className="capitalize">
+                      {o.kind} · {o.wall} · {o.position}cm · {o.width}cm
+                    </span>
+                    <Button variant="ghost" size="icon" onClick={() => removeOpening(o.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+                {openings.length === 0 && (
+                  <li className="text-xs text-muted-foreground">No openings yet.</li>
+                )}
+              </ul>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Add Furniture</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label>Name</Label>
+                <Input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="e.g. Bookshelf" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Width (cm)</Label>
+                  <Input type="number" value={nW} onChange={(e) => setNW(+e.target.value || 0)} />
+                </div>
+                <div>
+                  <Label>Length (cm)</Label>
+                  <Input type="number" value={nL} onChange={(e) => setNL(+e.target.value || 0)} />
+                </div>
+              </div>
+              <div>
+                <Label>Color</Label>
+                <input
+                  type="color"
+                  value={nColor}
+                  onChange={(e) => setNColor(e.target.value)}
+                  className="h-9 w-full cursor-pointer rounded-md border bg-background"
+                />
+              </div>
+              <Button onClick={addItem} className="w-full" size="sm">
+                <Plus className="mr-1 h-4 w-4" /> Add item
+              </Button>
+            </CardContent>
+          </Card>
+
+          {items.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Items</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {items.map((it) => (
+                  <div key={it.id} className="space-y-2 rounded-md border p-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={it.color}
+                        onChange={(e) => updateItem(it.id, { color: e.target.value })}
+                        className="h-7 w-7 cursor-pointer rounded border"
+                      />
+                      <Input
+                        value={it.name}
+                        onChange={(e) => updateItem(it.id, { name: e.target.value })}
+                        className="h-8"
+                      />
+                      <Button variant="ghost" size="icon" onClick={() => removeItem(it.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="number"
+                        value={it.width}
+                        onChange={(e) => updateItem(it.id, { width: +e.target.value || 0 })}
+                        className="h-8"
+                      />
+                      <Input
+                        type="number"
+                        value={it.length}
+                        onChange={(e) => updateItem(it.id, { length: +e.target.value || 0 })}
+                        className="h-8"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </aside>
+
+        {/* Stage */}
+        <main>
+          <div
+            ref={stageRef}
+            className="relative h-[75vh] w-full overflow-hidden rounded-lg border bg-muted/30"
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+          >
+            {scale > 0 && (
+              <div
+                className="absolute border-2 border-foreground bg-background shadow-sm"
+                style={{
+                  left: offsetX,
+                  top: offsetY,
+                  width: roomPxW,
+                  height: roomPxL,
+                }}
+              >
+                {/* openings */}
+                {openings.map((o) => {
+                  const thick = 6;
+                  const isH = o.wall === "top" || o.wall === "bottom";
+                  const wpx = cm(o.width);
+                  const ppx = cm(o.position);
+                  const style: React.CSSProperties = {
+                    position: "absolute",
+                    background: o.kind === "door" ? "var(--background)" : "#bcdcff",
+                    border: o.kind === "window" ? "1px solid #3b82f6" : "none",
+                  };
+                  if (isH) {
+                    style.width = wpx;
+                    style.height = thick;
+                    style.left = ppx;
+                    style[o.wall] = -thick / 2;
+                  } else {
+                    style.height = wpx;
+                    style.width = thick;
+                    style.top = ppx;
+                    style[o.wall] = -thick / 2;
+                  }
+                  return (
+                    <div key={o.id} style={style} title={`${o.kind} (${o.width}cm)`} />
+                  );
+                })}
+
+                {/* items */}
+                {items.map((it) => (
+                  <div
+                    key={it.id}
+                    onPointerDown={(e) => onPointerDown(e, it)}
+                    className="absolute flex cursor-grab items-center justify-center rounded-sm border border-foreground/30 text-center text-xs font-medium shadow-sm active:cursor-grabbing"
+                    style={{
+                      left: cm(it.x),
+                      top: cm(it.y),
+                      width: cm(it.width),
+                      height: cm(it.length),
+                      background: it.color,
+                      color: readableText(it.color),
+                      touchAction: "none",
+                      userSelect: "none",
+                    }}
+                  >
+                    <span className="pointer-events-none px-1 leading-tight">
+                      {it.name}
+                      <br />
+                      <span className="text-[10px] opacity-80">
+                        {it.width}×{it.length}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Drag items to reposition. They're clamped to the room's walls. Scale: 1cm ≈ {scale.toFixed(2)}px.
+          </p>
+        </main>
+      </div>
     </div>
   );
 }
 
-function Index() {
-  return <PlaceholderIndex />;
+function readableText(hex: string): string {
+  const c = hex.replace("#", "");
+  if (c.length !== 6) return "#000";
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 150 ? "#111" : "#fff";
 }
+
+// silence unused
+void PX_PER_CM_BASE;
