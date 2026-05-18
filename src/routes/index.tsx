@@ -201,21 +201,29 @@ function RoomPlanner() {
                   <Label>Width (cm)</Label>
                   <Input
                     type="number"
-                    value={roomW}
+                    value={draftW}
                     min={50}
-                    onChange={(e) => setRoomW(Math.max(50, +e.target.value || 0))}
+                    onChange={(e) => setDraftW(e.target.value)}
                   />
                 </div>
                 <div>
                   <Label>Length (cm)</Label>
                   <Input
                     type="number"
-                    value={roomL}
+                    value={draftL}
                     min={50}
-                    onChange={(e) => setRoomL(Math.max(50, +e.target.value || 0))}
+                    onChange={(e) => setDraftL(e.target.value)}
                   />
                 </div>
               </div>
+              <Button
+                onClick={applyRoom}
+                size="sm"
+                className="w-full"
+                disabled={!dirty}
+              >
+                Apply dimensions
+              </Button>
             </CardContent>
           </Card>
 
