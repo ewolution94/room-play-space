@@ -10,7 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Download, Upload } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   component: RoomPlanner,
@@ -172,6 +173,71 @@ function RoomPlanner() {
     dragRef.current = null;
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const exportJSON = () => {
+    const payload = {
+      version: 1,
+      room: { width: roomW, length: roomL },
+      openings,
+      items,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `room-planner-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Exported planner state");
+  };
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const w = Number(data?.room?.width);
+      const l = Number(data?.room?.length);
+      if (!Number.isFinite(w) || !Number.isFinite(l) || !Array.isArray(data.items) || !Array.isArray(data.openings)) {
+        throw new Error("Invalid file format");
+      }
+      const nextW = Math.max(50, Math.round(w));
+      const nextL = Math.max(50, Math.round(l));
+      setRoomW(nextW);
+      setRoomL(nextL);
+      setDraftW(String(nextW));
+      setDraftL(String(nextL));
+      setOpenings(
+        data.openings.map((o: Opening) => ({
+          id: o.id || crypto.randomUUID(),
+          wall: o.wall,
+          position: Number(o.position) || 0,
+          width: Number(o.width) || 0,
+          kind: o.kind,
+        })),
+      );
+      setItems(
+        data.items.map((i: Item) => ({
+          id: i.id || crypto.randomUUID(),
+          name: String(i.name ?? "Item"),
+          width: Number(i.width) || 0,
+          length: Number(i.length) || 0,
+          color: i.color || "#5cbdb9",
+          x: Number(i.x) || 0,
+          y: Number(i.y) || 0,
+        })),
+      );
+      toast.success("Planner state imported");
+    } catch (err) {
+      toast.error("Could not import file: " + (err as Error).message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -182,8 +248,23 @@ function RoomPlanner() {
               Sketch your home office and drag furniture to find the right layout.
             </p>
           </div>
-          <div className="text-sm text-muted-foreground">
-            Room: {roomW} × {roomL} cm
+          <div className="flex items-center gap-2">
+            <span className="hidden text-sm text-muted-foreground sm:inline">
+              Room: {roomW} × {roomL} cm
+            </span>
+            <Button variant="outline" size="sm" onClick={exportJSON}>
+              <Download className="mr-1 h-4 w-4" /> Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="mr-1 h-4 w-4" /> Import
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={onImportFile}
+            />
           </div>
         </div>
       </header>
