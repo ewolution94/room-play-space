@@ -183,8 +183,23 @@ function RoomPlanner() {
               Sketch your home office and drag furniture to find the right layout.
             </p>
           </div>
-          <div className="text-sm text-muted-foreground">
-            Room: {roomW} × {roomL} cm
+          <div className="flex items-center gap-2">
+            <span className="hidden text-sm text-muted-foreground sm:inline">
+              Room: {roomW} × {roomL} cm
+            </span>
+            <Button variant="outline" size="sm" onClick={exportJSON}>
+              <Download className="mr-1 h-4 w-4" /> Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="mr-1 h-4 w-4" /> Import
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={onImportFile}
+            />
           </div>
         </div>
       </header>
