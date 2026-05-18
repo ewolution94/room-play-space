@@ -39,6 +39,25 @@ const PX_PER_CM_BASE = 1.2; // will be scaled to fit
 function RoomPlanner() {
   const [roomW, setRoomW] = useState(400);
   const [roomL, setRoomL] = useState(300);
+  const [draftW, setDraftW] = useState("400");
+  const [draftL, setDraftL] = useState("300");
+  const dirty = draftW !== String(roomW) || draftL !== String(roomL);
+  const applyRoom = () => {
+    const w = Math.max(50, parseInt(draftW, 10) || 0);
+    const l = Math.max(50, parseInt(draftL, 10) || 0);
+    setRoomW(w);
+    setRoomL(l);
+    setDraftW(String(w));
+    setDraftL(String(l));
+    // clamp items inside new bounds
+    setItems((prev) =>
+      prev.map((i) => ({
+        ...i,
+        x: Math.max(0, Math.min(w - i.width, i.x)),
+        y: Math.max(0, Math.min(l - i.length, i.y)),
+      })),
+    );
+  };
   const [items, setItems] = useState<Item[]>([
     { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20 },
     { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110 },
