@@ -12,10 +12,13 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, Download, Upload, RotateCw } from "lucide-react";
 import { toast } from "sonner";
+import chairBaseUrl from "@/assets/chair-base.png";
 
 export const Route = createFileRoute("/")({
   component: RoomPlanner,
 });
+
+type ItemKind = "furniture" | "chair";
 
 type Item = {
   id: string;
@@ -26,6 +29,7 @@ type Item = {
   x: number; // cm from left (top-left of unrotated rectangle)
   y: number; // cm from top
   rotation: number; // degrees, rotated around center
+  kind: ItemKind;
 };
 
 // Axis-aligned bounding box of a rotated rectangle, in cm.
@@ -82,8 +86,8 @@ function RoomPlanner() {
     );
   };
   const [items, setItems] = useState<Item[]>([
-    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20, rotation: 0 },
-    { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110, rotation: 0 },
+    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20, rotation: 0, kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Office chair", width: 65, length: 65, color: "#3B6FA0", x: 60, y: 110, rotation: 0, kind: "chair" },
   ]);
   const [openings, setOpenings] = useState<Opening[]>([
     { id: crypto.randomUUID(), wall: "bottom", position: 50, width: 90, kind: "door" },
@@ -95,6 +99,7 @@ function RoomPlanner() {
   const [nW, setNW] = useState(80);
   const [nL, setNL] = useState(40);
   const [nColor, setNColor] = useState("#5cbdb9");
+  const [nKind, setNKind] = useState<ItemKind>("furniture");
 
   // new opening form
   const [oKind, setOKind] = useState<"door" | "window">("door");
@@ -140,6 +145,7 @@ function RoomPlanner() {
         x: 10,
         y: 10,
         rotation: 0,
+        kind: nKind,
       },
     ]);
     setNName("");
@@ -251,7 +257,7 @@ function RoomPlanner() {
         })),
       );
       setItems(
-        data.items.map((i: Item) => ({
+        data.items.map((i: Partial<Item>) => ({
           id: i.id || crypto.randomUUID(),
           name: String(i.name ?? "Item"),
           width: Number(i.width) || 0,
@@ -259,7 +265,8 @@ function RoomPlanner() {
           color: i.color || "#5cbdb9",
           x: Number(i.x) || 0,
           y: Number(i.y) || 0,
-          rotation: Number(i.rotation) || 0,
+          rotation: Number.isFinite(Number(i.rotation)) ? Number(i.rotation) : 0,
+          kind: i.kind === "chair" ? "chair" : "furniture",
         })),
       );
       toast.success("Planner state imported");
@@ -405,6 +412,17 @@ function RoomPlanner() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
+                <Label>Type</Label>
+                <select
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                  value={nKind}
+                  onChange={(e) => setNKind(e.target.value as ItemKind)}
+                >
+                  <option value="furniture">Furniture (box)</option>
+                  <option value="chair">Office chair</option>
+                </select>
+              </div>
+              <div>
                 <Label>Name</Label>
                 <Input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="e.g. Bookshelf" />
               </div>
@@ -499,7 +517,7 @@ function RoomPlanner() {
         </aside>
 
         {/* Stage */}
-        <main>
+        <main className="lg:sticky lg:top-6 lg:self-start lg:h-fit">
           <div
             ref={stageRef}
             className="relative h-[75vh] w-full overflow-hidden rounded-lg border bg-muted/30"
@@ -544,33 +562,55 @@ function RoomPlanner() {
                 })}
 
                 {/* items */}
-                {items.map((it) => (
-                  <div
-                    key={it.id}
-                    onPointerDown={(e) => onPointerDown(e, it)}
-                    className="absolute flex cursor-grab items-center justify-center rounded-sm border border-foreground/30 text-center text-xs font-medium shadow-sm active:cursor-grabbing"
-                    style={{
-                      left: cm(it.x),
-                      top: cm(it.y),
-                      width: cm(it.width),
-                      height: cm(it.length),
-                      background: it.color,
-                      color: readableText(it.color),
-                      touchAction: "none",
-                      userSelect: "none",
-                      transform: `rotate(${it.rotation}deg)`,
-                      transformOrigin: "center center",
-                    }}
-                  >
-                    <span className="pointer-events-none px-1 leading-tight">
-                      {it.name}
-                      <br />
-                      <span className="text-[10px] opacity-80">
-                        {it.width}×{it.length}
+                {items.map((it) => {
+                  const isChair = it.kind === "chair";
+                  return (
+                    <div
+                      key={it.id}
+                      onPointerDown={(e) => onPointerDown(e, it)}
+                      className={
+                        "absolute flex cursor-grab items-center justify-center rounded-sm text-center text-xs font-medium active:cursor-grabbing " +
+                        (isChair
+                          ? "border-0"
+                          : "border border-foreground/30 shadow-sm")
+                      }
+                      style={{
+                        left: cm(it.x),
+                        top: cm(it.y),
+                        width: cm(it.width),
+                        height: cm(it.length),
+                        background: isChair ? "transparent" : it.color,
+                        backgroundImage: isChair ? `url(${chairBaseUrl})` : undefined,
+                        backgroundSize: isChair ? "100% 100%" : undefined,
+                        backgroundRepeat: "no-repeat",
+                        color: isChair ? "#111" : readableText(it.color),
+                        touchAction: "none",
+                        userSelect: "none",
+                        transform: `rotate(${it.rotation}deg)`,
+                        transformOrigin: "center center",
+                      }}
+                    >
+                      <span
+                        className="pointer-events-none px-1 leading-tight"
+                        style={
+                          isChair
+                            ? {
+                                background: "rgba(255,255,255,0.85)",
+                                borderRadius: 4,
+                                padding: "1px 4px",
+                              }
+                            : undefined
+                        }
+                      >
+                        {it.name}
+                        <br />
+                        <span className="text-[10px] opacity-80">
+                          {it.width}×{it.length}
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
