@@ -558,6 +558,8 @@ function RoomPlanner() {
                       color: readableText(it.color),
                       touchAction: "none",
                       userSelect: "none",
+                      transform: `rotate(${it.rotation}deg)`,
+                      transformOrigin: "center center",
                     }}
                   >
                     <span className="pointer-events-none px-1 leading-tight">
