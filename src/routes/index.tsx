@@ -139,6 +139,7 @@ function RoomPlanner() {
         color: nColor,
         x: 10,
         y: 10,
+        rotation: 0,
       },
     ]);
     setNName("");
