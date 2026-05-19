@@ -252,6 +252,7 @@ function RoomPlanner() {
           color: i.color || "#5cbdb9",
           x: Number(i.x) || 0,
           y: Number(i.y) || 0,
+          rotation: Number(i.rotation) || 0,
         })),
       );
       toast.success("Planner state imported");
