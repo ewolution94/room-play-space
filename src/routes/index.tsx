@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, Download, Upload } from "lucide-react";
+import { Trash2, Plus, Download, Upload, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
