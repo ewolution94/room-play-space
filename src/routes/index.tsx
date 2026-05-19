@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, Download, Upload } from "lucide-react";
+import { Trash2, Plus, Download, Upload, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -23,9 +23,32 @@ type Item = {
   width: number; // cm
   length: number; // cm
   color: string;
-  x: number; // cm from left
+  x: number; // cm from left (top-left of unrotated rectangle)
   y: number; // cm from top
+  rotation: number; // degrees, rotated around center
 };
+
+// Axis-aligned bounding box of a rotated rectangle, in cm.
+function rotatedAABB(w: number, l: number, deg: number) {
+  const r = (deg * Math.PI) / 180;
+  const c = Math.abs(Math.cos(r));
+  const s = Math.abs(Math.sin(r));
+  return { w: w * c + l * s, h: w * s + l * c };
+}
+
+// Clamp item position so its rotated AABB stays inside the room.
+function clampPos(item: Item, roomW: number, roomL: number, x: number, y: number) {
+  const aabb = rotatedAABB(item.width, item.length, item.rotation);
+  const cx = x + item.width / 2;
+  const cy = y + item.length / 2;
+  const minCx = aabb.w / 2;
+  const maxCx = roomW - aabb.w / 2;
+  const minCy = aabb.h / 2;
+  const maxCy = roomL - aabb.h / 2;
+  const ncx = aabb.w > roomW ? roomW / 2 : Math.max(minCx, Math.min(maxCx, cx));
+  const ncy = aabb.h > roomL ? roomL / 2 : Math.max(minCy, Math.min(maxCy, cy));
+  return { x: ncx - item.width / 2, y: ncy - item.length / 2 };
+}
 
 type Opening = {
   id: string;
@@ -52,16 +75,15 @@ function RoomPlanner() {
     setDraftL(String(l));
     // clamp items inside new bounds
     setItems((prev) =>
-      prev.map((i) => ({
-        ...i,
-        x: Math.max(0, Math.min(w - i.width, i.x)),
-        y: Math.max(0, Math.min(l - i.length, i.y)),
-      })),
+      prev.map((i) => {
+        const c = clampPos(i, w, l, i.x, i.y);
+        return { ...i, x: c.x, y: c.y };
+      }),
     );
   };
   const [items, setItems] = useState<Item[]>([
-    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20 },
-    { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110 },
+    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20, rotation: 0 },
+    { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110, rotation: 0 },
   ]);
   const [openings, setOpenings] = useState<Opening[]>([
     { id: crypto.randomUUID(), wall: "bottom", position: 50, width: 90, kind: "door" },
@@ -117,6 +139,7 @@ function RoomPlanner() {
         color: nColor,
         x: 10,
         y: 10,
+        rotation: 0,
       },
     ]);
     setNName("");
@@ -125,7 +148,14 @@ function RoomPlanner() {
   const removeItem = (id: string) =>
     setItems((p) => p.filter((i) => i.id !== id));
   const updateItem = (id: string, patch: Partial<Item>) =>
-    setItems((p) => p.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    setItems((p) =>
+      p.map((i) => {
+        if (i.id !== id) return i;
+        const merged = { ...i, ...patch };
+        const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
+        return { ...merged, x: c.x, y: c.y };
+      }),
+    );
 
   const addOpening = () => {
     setOpenings((p) => [
@@ -163,9 +193,8 @@ function RoomPlanner() {
     setItems((prev) =>
       prev.map((i) => {
         if (i.id !== d.id) return i;
-        const nx = Math.max(0, Math.min(roomW - i.width, d.startX + dx));
-        const ny = Math.max(0, Math.min(roomL - i.length, d.startY + dy));
-        return { ...i, x: nx, y: ny };
+        const c = clampPos(i, roomW, roomL, d.startX + dx, d.startY + dy);
+        return { ...i, x: c.x, y: c.y };
       }),
     );
   };
@@ -230,6 +259,7 @@ function RoomPlanner() {
           color: i.color || "#5cbdb9",
           x: Number(i.x) || 0,
           y: Number(i.y) || 0,
+          rotation: Number(i.rotation) || 0,
         })),
       );
       toast.success("Planner state imported");
@@ -441,6 +471,26 @@ function RoomPlanner() {
                         className="h-8"
                       />
                     </div>
+                    <div className="flex items-center gap-2">
+                      <RotateCw className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        value={it.rotation}
+                        onChange={(e) =>
+                          updateItem(it.id, { rotation: ((+e.target.value || 0) % 360 + 360) % 360 })
+                        }
+                        className="h-8 flex-1"
+                        title="Rotation in degrees"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => updateItem(it.id, { rotation: (it.rotation + 90) % 360 })}
+                      >
+                        +90°
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -508,6 +558,8 @@ function RoomPlanner() {
                       color: readableText(it.color),
                       touchAction: "none",
                       userSelect: "none",
+                      transform: `rotate(${it.rotation}deg)`,
+                      transformOrigin: "center center",
                     }}
                   >
                     <span className="pointer-events-none px-1 leading-tight">
