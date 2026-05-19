@@ -516,7 +516,7 @@ function RoomPlanner() {
         </aside>
 
         {/* Stage */}
-        <main>
+        <main className="lg:sticky lg:top-6 lg:self-start lg:h-fit">
           <div
             ref={stageRef}
             className="relative h-[75vh] w-full overflow-hidden rounded-lg border bg-muted/30"
