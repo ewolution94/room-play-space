@@ -471,6 +471,26 @@ function RoomPlanner() {
                         className="h-8"
                       />
                     </div>
+                    <div className="flex items-center gap-2">
+                      <RotateCw className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        value={it.rotation}
+                        onChange={(e) =>
+                          updateItem(it.id, { rotation: ((+e.target.value || 0) % 360 + 360) % 360 })
+                        }
+                        className="h-8 flex-1"
+                        title="Rotation in degrees"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => updateItem(it.id, { rotation: (it.rotation + 90) % 360 })}
+                      >
+                        +90°
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </CardContent>
