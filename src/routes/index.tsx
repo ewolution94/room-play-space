@@ -85,8 +85,8 @@ function RoomPlanner() {
     );
   };
   const [items, setItems] = useState<Item[]>([
-    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20, rotation: 0 },
-    { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110, rotation: 0 },
+    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20, rotation: 0, kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Office chair", width: 65, length: 65, color: "#3B6FA0", x: 60, y: 110, rotation: 0, kind: "chair" },
   ]);
   const [openings, setOpenings] = useState<Opening[]>([
     { id: crypto.randomUUID(), wall: "bottom", position: 50, width: 90, kind: "door" },
