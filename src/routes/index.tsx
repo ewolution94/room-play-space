@@ -148,7 +148,14 @@ function RoomPlanner() {
   const removeItem = (id: string) =>
     setItems((p) => p.filter((i) => i.id !== id));
   const updateItem = (id: string, patch: Partial<Item>) =>
-    setItems((p) => p.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    setItems((p) =>
+      p.map((i) => {
+        if (i.id !== id) return i;
+        const merged = { ...i, ...patch };
+        const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
+        return { ...merged, x: c.x, y: c.y };
+      }),
+    );
 
   const addOpening = () => {
     setOpenings((p) => [
