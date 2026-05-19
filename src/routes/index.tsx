@@ -17,6 +17,8 @@ export const Route = createFileRoute("/")({
   component: RoomPlanner,
 });
 
+type ItemKind = "furniture" | "chair";
+
 type Item = {
   id: string;
   name: string;
@@ -26,6 +28,7 @@ type Item = {
   x: number; // cm from left (top-left of unrotated rectangle)
   y: number; // cm from top
   rotation: number; // degrees, rotated around center
+  kind: ItemKind;
 };
 
 // Axis-aligned bounding box of a rotated rectangle, in cm.
