@@ -75,16 +75,15 @@ function RoomPlanner() {
     setDraftL(String(l));
     // clamp items inside new bounds
     setItems((prev) =>
-      prev.map((i) => ({
-        ...i,
-        x: Math.max(0, Math.min(w - i.width, i.x)),
-        y: Math.max(0, Math.min(l - i.length, i.y)),
-      })),
+      prev.map((i) => {
+        const c = clampPos(i, w, l, i.x, i.y);
+        return { ...i, x: c.x, y: c.y };
+      }),
     );
   };
   const [items, setItems] = useState<Item[]>([
-    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20 },
-    { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110 },
+    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20, rotation: 0 },
+    { id: crypto.randomUUID(), name: "Chair", width: 60, length: 60, color: "#3B6FA0", x: 60, y: 110, rotation: 0 },
   ]);
   const [openings, setOpenings] = useState<Opening[]>([
     { id: crypto.randomUUID(), wall: "bottom", position: 50, width: 90, kind: "door" },
