@@ -562,33 +562,55 @@ function RoomPlanner() {
                 })}
 
                 {/* items */}
-                {items.map((it) => (
-                  <div
-                    key={it.id}
-                    onPointerDown={(e) => onPointerDown(e, it)}
-                    className="absolute flex cursor-grab items-center justify-center rounded-sm border border-foreground/30 text-center text-xs font-medium shadow-sm active:cursor-grabbing"
-                    style={{
-                      left: cm(it.x),
-                      top: cm(it.y),
-                      width: cm(it.width),
-                      height: cm(it.length),
-                      background: it.color,
-                      color: readableText(it.color),
-                      touchAction: "none",
-                      userSelect: "none",
-                      transform: `rotate(${it.rotation}deg)`,
-                      transformOrigin: "center center",
-                    }}
-                  >
-                    <span className="pointer-events-none px-1 leading-tight">
-                      {it.name}
-                      <br />
-                      <span className="text-[10px] opacity-80">
-                        {it.width}×{it.length}
+                {items.map((it) => {
+                  const isChair = it.kind === "chair";
+                  return (
+                    <div
+                      key={it.id}
+                      onPointerDown={(e) => onPointerDown(e, it)}
+                      className={
+                        "absolute flex cursor-grab items-center justify-center rounded-sm text-center text-xs font-medium active:cursor-grabbing " +
+                        (isChair
+                          ? "border-0"
+                          : "border border-foreground/30 shadow-sm")
+                      }
+                      style={{
+                        left: cm(it.x),
+                        top: cm(it.y),
+                        width: cm(it.width),
+                        height: cm(it.length),
+                        background: isChair ? "transparent" : it.color,
+                        backgroundImage: isChair ? `url(${chairBaseUrl})` : undefined,
+                        backgroundSize: isChair ? "100% 100%" : undefined,
+                        backgroundRepeat: "no-repeat",
+                        color: isChair ? "#111" : readableText(it.color),
+                        touchAction: "none",
+                        userSelect: "none",
+                        transform: `rotate(${it.rotation}deg)`,
+                        transformOrigin: "center center",
+                      }}
+                    >
+                      <span
+                        className="pointer-events-none px-1 leading-tight"
+                        style={
+                          isChair
+                            ? {
+                                background: "rgba(255,255,255,0.85)",
+                                borderRadius: 4,
+                                padding: "1px 4px",
+                              }
+                            : undefined
+                        }
+                      >
+                        {it.name}
+                        <br />
+                        <span className="text-[10px] opacity-80">
+                          {it.width}×{it.length}
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
