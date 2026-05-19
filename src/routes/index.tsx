@@ -256,7 +256,7 @@ function RoomPlanner() {
         })),
       );
       setItems(
-        data.items.map((i: Item) => ({
+        data.items.map((i: Partial<Item>) => ({
           id: i.id || crypto.randomUUID(),
           name: String(i.name ?? "Item"),
           width: Number(i.width) || 0,
@@ -264,7 +264,8 @@ function RoomPlanner() {
           color: i.color || "#5cbdb9",
           x: Number(i.x) || 0,
           y: Number(i.y) || 0,
-          rotation: Number(i.rotation) || 0,
+          rotation: Number.isFinite(Number(i.rotation)) ? Number(i.rotation) : 0,
+          kind: i.kind === "chair" ? "chair" : "furniture",
         })),
       );
       toast.success("Planner state imported");
