@@ -186,9 +186,8 @@ function RoomPlanner() {
     setItems((prev) =>
       prev.map((i) => {
         if (i.id !== d.id) return i;
-        const nx = Math.max(0, Math.min(roomW - i.width, d.startX + dx));
-        const ny = Math.max(0, Math.min(roomL - i.length, d.startY + dy));
-        return { ...i, x: nx, y: ny };
+        const c = clampPos(i, roomW, roomL, d.startX + dx, d.startY + dy);
+        return { ...i, x: c.x, y: c.y };
       }),
     );
   };
