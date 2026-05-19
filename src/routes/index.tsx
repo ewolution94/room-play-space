@@ -12,6 +12,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, Download, Upload, RotateCw } from "lucide-react";
 import { toast } from "sonner";
+import chairBaseUrl from "@/assets/chair-base.png";
 
 export const Route = createFileRoute("/")({
   component: RoomPlanner,
