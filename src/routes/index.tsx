@@ -23,9 +23,32 @@ type Item = {
   width: number; // cm
   length: number; // cm
   color: string;
-  x: number; // cm from left
+  x: number; // cm from left (top-left of unrotated rectangle)
   y: number; // cm from top
+  rotation: number; // degrees, rotated around center
 };
+
+// Axis-aligned bounding box of a rotated rectangle, in cm.
+function rotatedAABB(w: number, l: number, deg: number) {
+  const r = (deg * Math.PI) / 180;
+  const c = Math.abs(Math.cos(r));
+  const s = Math.abs(Math.sin(r));
+  return { w: w * c + l * s, h: w * s + l * c };
+}
+
+// Clamp item position so its rotated AABB stays inside the room.
+function clampPos(item: Item, roomW: number, roomL: number, x: number, y: number) {
+  const aabb = rotatedAABB(item.width, item.length, item.rotation);
+  const cx = x + item.width / 2;
+  const cy = y + item.length / 2;
+  const minCx = aabb.w / 2;
+  const maxCx = roomW - aabb.w / 2;
+  const minCy = aabb.h / 2;
+  const maxCy = roomL - aabb.h / 2;
+  const ncx = aabb.w > roomW ? roomW / 2 : Math.max(minCx, Math.min(maxCx, cx));
+  const ncy = aabb.h > roomL ? roomL / 2 : Math.max(minCy, Math.min(maxCy, cy));
+  return { x: ncx - item.width / 2, y: ncy - item.length / 2 };
+}
 
 type Opening = {
   id: string;
