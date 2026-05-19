@@ -144,6 +144,7 @@ function RoomPlanner() {
         x: 10,
         y: 10,
         rotation: 0,
+        kind: nKind,
       },
     ]);
     setNName("");
