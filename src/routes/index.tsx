@@ -411,6 +411,17 @@ function RoomPlanner() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
+                <Label>Type</Label>
+                <select
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                  value={nKind}
+                  onChange={(e) => setNKind(e.target.value as ItemKind)}
+                >
+                  <option value="furniture">Furniture (box)</option>
+                  <option value="chair">Office chair</option>
+                </select>
+              </div>
+              <div>
                 <Label>Name</Label>
                 <Input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="e.g. Bookshelf" />
               </div>
