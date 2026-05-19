@@ -98,6 +98,7 @@ function RoomPlanner() {
   const [nW, setNW] = useState(80);
   const [nL, setNL] = useState(40);
   const [nColor, setNColor] = useState("#5cbdb9");
+  const [nKind, setNKind] = useState<ItemKind>("furniture");
 
   // new opening form
   const [oKind, setOKind] = useState<"door" | "window">("door");
