@@ -508,69 +508,6 @@ function RoomPlanner() {
             </CardContent>
           </Card>
 
-          {items.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Items</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {items.map((it) => (
-                  <div key={it.id} className="space-y-2 rounded-md border p-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={it.color}
-                        onChange={(e) => updateItem(it.id, { color: e.target.value })}
-                        className="h-7 w-7 cursor-pointer rounded border"
-                      />
-                      <Input
-                        value={it.name}
-                        onChange={(e) => updateItem(it.id, { name: e.target.value })}
-                        className="h-8"
-                      />
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(it.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        type="number"
-                        value={it.width}
-                        onChange={(e) => updateItem(it.id, { width: +e.target.value || 0 })}
-                        className="h-8"
-                      />
-                      <Input
-                        type="number"
-                        value={it.length}
-                        onChange={(e) => updateItem(it.id, { length: +e.target.value || 0 })}
-                        className="h-8"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <RotateCw className="h-3.5 w-3.5 text-muted-foreground" />
-                      <Input
-                        type="number"
-                        value={it.rotation}
-                        onChange={(e) =>
-                          updateItem(it.id, { rotation: ((+e.target.value || 0) % 360 + 360) % 360 })
-                        }
-                        className="h-8 flex-1"
-                        title="Rotation in degrees"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2"
-                        onClick={() => updateItem(it.id, { rotation: (it.rotation + 90) % 360 })}
-                      >
-                        +90°
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
         </aside>
 
         {/* Stage */}
