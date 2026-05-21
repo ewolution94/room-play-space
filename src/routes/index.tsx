@@ -54,6 +54,72 @@ function clampPos(item: Item, roomW: number, roomL: number, x: number, y: number
   return { x: ncx - item.width / 2, y: ncy - item.length / 2 };
 }
 
+// Corners (in cm) of the rotated item.
+function obbCorners(item: { x: number; y: number; width: number; length: number; rotation: number }) {
+  const cx = item.x + item.width / 2;
+  const cy = item.y + item.length / 2;
+  const r = (item.rotation * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  const hw = item.width / 2;
+  const hl = item.length / 2;
+  const pts: [number, number][] = [
+    [-hw, -hl],
+    [hw, -hl],
+    [hw, hl],
+    [-hw, hl],
+  ];
+  return pts.map(([x, y]) => ({ x: cx + x * cos - y * sin, y: cy + x * sin + y * cos }));
+}
+
+// SAT overlap test between two oriented rectangles. Returns true if they overlap.
+function obbOverlap(a: Parameters<typeof obbCorners>[0], b: Parameters<typeof obbCorners>[0]) {
+  const A = obbCorners(a);
+  const B = obbCorners(b);
+  const eps = 0.5; // cm tolerance so touching edges don't count as collision
+  for (const poly of [A, B]) {
+    for (let i = 0; i < 4; i++) {
+      const p1 = poly[i];
+      const p2 = poly[(i + 1) % 4];
+      const ex = p2.x - p1.x;
+      const ey = p2.y - p1.y;
+      const len = Math.hypot(ex, ey) || 1;
+      const ax = -ey / len;
+      const ay = ex / len;
+      let aMin = Infinity, aMax = -Infinity, bMin = Infinity, bMax = -Infinity;
+      for (const p of A) {
+        const d = p.x * ax + p.y * ay;
+        if (d < aMin) aMin = d;
+        if (d > aMax) aMax = d;
+      }
+      for (const p of B) {
+        const d = p.x * ax + p.y * ay;
+        if (d < bMin) bMin = d;
+        if (d > bMax) bMax = d;
+      }
+      if (aMax - eps <= bMin || bMax - eps <= aMin) return false;
+    }
+  }
+  return true;
+}
+
+function collidesWithOthers(candidate: Item, others: Item[]): boolean {
+  return others.some((o) => o.id !== candidate.id && obbOverlap(candidate, o));
+}
+
+// Try to find a non-overlapping position by scanning a grid inside the room.
+function findFreeSpot(item: Item, others: Item[], roomW: number, roomL: number): { x: number; y: number } | null {
+  const step = 10;
+  for (let y = 0; y <= roomL; y += step) {
+    for (let x = 0; x <= roomW; x += step) {
+      const c = clampPos(item, roomW, roomL, x, y);
+      const candidate = { ...item, x: c.x, y: c.y };
+      if (!collidesWithOthers(candidate, others)) return c;
+    }
+  }
+  return null;
+}
+
 type Opening = {
   id: string;
   wall: "top" | "bottom" | "left" | "right";
