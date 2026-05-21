@@ -172,18 +172,34 @@ function RoomPlanner() {
   const removeOpening = (id: string) =>
     setOpenings((p) => p.filter((o) => o.id !== id));
 
-  // Drag handling
-  const dragRef = useRef<{
-    id: string;
-    startMouseX: number;
-    startMouseY: number;
-    startX: number;
-    startY: number;
-  } | null>(null);
+  // Selection + drag/rotate handling
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const dragRef = useRef<
+    | {
+        mode: "move";
+        id: string;
+        startMouseX: number;
+        startMouseY: number;
+        startX: number;
+        startY: number;
+      }
+    | {
+        mode: "rotate";
+        id: string;
+        centerClientX: number;
+        centerClientY: number;
+        startAngle: number;
+        startRotation: number;
+      }
+    | null
+  >(null);
 
   const onPointerDown = (e: React.PointerEvent, item: Item) => {
+    e.stopPropagation();
+    setSelectedId(item.id);
     (e.target as Element).setPointerCapture(e.pointerId);
     dragRef.current = {
+      mode: "move",
       id: item.id,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
@@ -191,18 +207,59 @@ function RoomPlanner() {
       startY: item.y,
     };
   };
+
+  const onRotateHandleDown = (e: React.PointerEvent, item: Item) => {
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const stageEl = stageRef.current;
+    if (!stageEl) return;
+    const stageRect = stageEl.getBoundingClientRect();
+    const centerClientX =
+      stageRect.left + offsetX + cm(item.x + item.width / 2);
+    const centerClientY =
+      stageRect.top + offsetY + cm(item.y + item.length / 2);
+    const startAngle =
+      (Math.atan2(e.clientY - centerClientY, e.clientX - centerClientX) * 180) /
+      Math.PI;
+    dragRef.current = {
+      mode: "rotate",
+      id: item.id,
+      centerClientX,
+      centerClientY,
+      startAngle,
+      startRotation: item.rotation,
+    };
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
-    const dx = (e.clientX - d.startMouseX) / scale;
-    const dy = (e.clientY - d.startMouseY) / scale;
-    setItems((prev) =>
-      prev.map((i) => {
-        if (i.id !== d.id) return i;
-        const c = clampPos(i, roomW, roomL, d.startX + dx, d.startY + dy);
-        return { ...i, x: c.x, y: c.y };
-      }),
-    );
+    if (d.mode === "move") {
+      const dx = (e.clientX - d.startMouseX) / scale;
+      const dy = (e.clientY - d.startMouseY) / scale;
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.id !== d.id) return i;
+          const c = clampPos(i, roomW, roomL, d.startX + dx, d.startY + dy);
+          return { ...i, x: c.x, y: c.y };
+        }),
+      );
+    } else {
+      const angle =
+        (Math.atan2(e.clientY - d.centerClientY, e.clientX - d.centerClientX) *
+          180) /
+        Math.PI;
+      const delta = angle - d.startAngle;
+      const next = ((d.startRotation + delta) % 360 + 360) % 360;
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.id !== d.id) return i;
+          const merged = { ...i, rotation: next };
+          const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
+          return { ...merged, x: c.x, y: c.y };
+        }),
+      );
+    }
   };
   const onPointerUp = () => {
     dragRef.current = null;
@@ -277,7 +334,7 @@ function RoomPlanner() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Room Planner</h1>
@@ -306,7 +363,7 @@ function RoomPlanner() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[340px_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[300px_1fr_300px]">
         {/* Sidebar */}
         <aside className="space-y-4">
           <Card>
@@ -451,76 +508,14 @@ function RoomPlanner() {
             </CardContent>
           </Card>
 
-          {items.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Items</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {items.map((it) => (
-                  <div key={it.id} className="space-y-2 rounded-md border p-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={it.color}
-                        onChange={(e) => updateItem(it.id, { color: e.target.value })}
-                        className="h-7 w-7 cursor-pointer rounded border"
-                      />
-                      <Input
-                        value={it.name}
-                        onChange={(e) => updateItem(it.id, { name: e.target.value })}
-                        className="h-8"
-                      />
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(it.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        type="number"
-                        value={it.width}
-                        onChange={(e) => updateItem(it.id, { width: +e.target.value || 0 })}
-                        className="h-8"
-                      />
-                      <Input
-                        type="number"
-                        value={it.length}
-                        onChange={(e) => updateItem(it.id, { length: +e.target.value || 0 })}
-                        className="h-8"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <RotateCw className="h-3.5 w-3.5 text-muted-foreground" />
-                      <Input
-                        type="number"
-                        value={it.rotation}
-                        onChange={(e) =>
-                          updateItem(it.id, { rotation: ((+e.target.value || 0) % 360 + 360) % 360 })
-                        }
-                        className="h-8 flex-1"
-                        title="Rotation in degrees"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-2"
-                        onClick={() => updateItem(it.id, { rotation: (it.rotation + 90) % 360 })}
-                      >
-                        +90°
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
         </aside>
 
         {/* Stage */}
-        <main className="lg:sticky lg:top-6 lg:self-start lg:h-fit">
+        <main className="lg:sticky lg:top-24 lg:self-start lg:h-fit">
           <div
             ref={stageRef}
             className="relative h-[75vh] w-full overflow-hidden rounded-lg border bg-muted/30"
+            onPointerDown={() => setSelectedId(null)}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
           >
@@ -564,6 +559,7 @@ function RoomPlanner() {
                 {/* items */}
                 {items.map((it) => {
                   const isChair = it.kind === "chair";
+                  const isSelected = selectedId === it.id;
                   return (
                     <div
                       key={it.id}
@@ -588,6 +584,9 @@ function RoomPlanner() {
                         userSelect: "none",
                         transform: `rotate(${it.rotation}deg)`,
                         transformOrigin: "center center",
+                        outline: isSelected ? "2px solid var(--primary)" : undefined,
+                        outlineOffset: isSelected ? 2 : undefined,
+                        zIndex: isSelected ? 10 : 1,
                       }}
                     >
                       <span
@@ -608,6 +607,25 @@ function RoomPlanner() {
                           {it.width}×{it.length}
                         </span>
                       </span>
+                      {isSelected && (
+                        <>
+                          {/* connector line */}
+                          <div
+                            className="pointer-events-none absolute left-1/2 h-6 w-px -translate-x-1/2 bg-foreground/60"
+                            style={{ top: -24 }}
+                          />
+                          {/* rotation handle */}
+                          <div
+                            role="button"
+                            title="Drag to rotate"
+                            onPointerDown={(e) => onRotateHandleDown(e, it)}
+                            className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background shadow active:cursor-grabbing"
+                            style={{ top: -34, touchAction: "none" }}
+                          >
+                            <RotateCw className="h-3 w-3" />
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
@@ -615,9 +633,84 @@ function RoomPlanner() {
             )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Drag items to reposition. They're clamped to the room's walls. Scale: 1cm ≈ {scale.toFixed(2)}px.
+            Drag items to reposition. Click an item to select it, then drag the handle above it to rotate. Scale: 1cm ≈ {scale.toFixed(2)}px.
           </p>
         </main>
+
+        {/* Right column: Items list */}
+        <aside className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Items</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {items.length === 0 && (
+                <p className="text-xs text-muted-foreground">No items yet. Add some on the left.</p>
+              )}
+              {items.map((it) => (
+                <div
+                  key={it.id}
+                  className={
+                    "space-y-2 rounded-md border p-2 " +
+                    (selectedId === it.id ? "border-foreground" : "")
+                  }
+                  onClick={() => setSelectedId(it.id)}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={it.color}
+                      onChange={(e) => updateItem(it.id, { color: e.target.value })}
+                      className="h-7 w-7 cursor-pointer rounded border"
+                    />
+                    <Input
+                      value={it.name}
+                      onChange={(e) => updateItem(it.id, { name: e.target.value })}
+                      className="h-8"
+                    />
+                    <Button variant="ghost" size="icon" onClick={() => removeItem(it.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      value={it.width}
+                      onChange={(e) => updateItem(it.id, { width: +e.target.value || 0 })}
+                      className="h-8"
+                    />
+                    <Input
+                      type="number"
+                      value={it.length}
+                      onChange={(e) => updateItem(it.id, { length: +e.target.value || 0 })}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RotateCw className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      type="number"
+                      value={Math.round(it.rotation)}
+                      onChange={(e) =>
+                        updateItem(it.id, { rotation: ((+e.target.value || 0) % 360 + 360) % 360 })
+                      }
+                      className="h-8 flex-1"
+                      title="Rotation in degrees"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={() => updateItem(it.id, { rotation: (it.rotation + 90) % 360 })}
+                    >
+                      +90°
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </aside>
       </div>
     </div>
   );
