@@ -200,20 +200,23 @@ function RoomPlanner() {
 
   const addItem = () => {
     if (!nName.trim()) return;
-    setItems((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: nName.trim(),
-        width: nW,
-        length: nL,
-        color: nColor,
-        x: 10,
-        y: 10,
-        rotation: 0,
-        kind: nKind,
-      },
-    ]);
+    const draft: Item = {
+      id: crypto.randomUUID(),
+      name: nName.trim(),
+      width: nW,
+      length: nL,
+      color: nColor,
+      x: 10,
+      y: 10,
+      rotation: 0,
+      kind: nKind,
+    };
+    const spot = findFreeSpot(draft, items, roomW, roomL);
+    if (!spot) {
+      toast.error("No free space for this item — make it smaller or remove something.");
+      return;
+    }
+    setItems((prev) => [...prev, { ...draft, x: spot.x, y: spot.y }]);
     setNName("");
   };
 
@@ -225,7 +228,10 @@ function RoomPlanner() {
         if (i.id !== id) return i;
         const merged = { ...i, ...patch };
         const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
-        return { ...merged, x: c.x, y: c.y };
+        const candidate = { ...merged, x: c.x, y: c.y };
+        // If the patch would cause overlap with another item, reject it.
+        if (collidesWithOthers(candidate, p)) return i;
+        return candidate;
       }),
     );
 
