@@ -584,7 +584,7 @@ function RoomPlanner() {
                         userSelect: "none",
                         transform: `rotate(${it.rotation}deg)`,
                         transformOrigin: "center center",
-                        outline: isSelected ? "2px solid hsl(var(--primary, 221 83% 53%))" : undefined,
+                        outline: isSelected ? "2px solid var(--primary)" : undefined,
                         outlineOffset: isSelected ? 2 : undefined,
                         zIndex: isSelected ? 10 : 1,
                       }}
