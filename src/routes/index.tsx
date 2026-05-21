@@ -363,7 +363,7 @@ function RoomPlanner() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[340px_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[300px_1fr_300px]">
         {/* Sidebar */}
         <aside className="space-y-4">
           <Card>
