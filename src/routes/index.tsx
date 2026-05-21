@@ -559,6 +559,7 @@ function RoomPlanner() {
                 {/* items */}
                 {items.map((it) => {
                   const isChair = it.kind === "chair";
+                  const isSelected = selectedId === it.id;
                   return (
                     <div
                       key={it.id}
@@ -583,6 +584,9 @@ function RoomPlanner() {
                         userSelect: "none",
                         transform: `rotate(${it.rotation}deg)`,
                         transformOrigin: "center center",
+                        outline: isSelected ? "2px solid hsl(var(--primary, 221 83% 53%))" : undefined,
+                        outlineOffset: isSelected ? 2 : undefined,
+                        zIndex: isSelected ? 10 : 1,
                       }}
                     >
                       <span
@@ -603,6 +607,25 @@ function RoomPlanner() {
                           {it.width}×{it.length}
                         </span>
                       </span>
+                      {isSelected && (
+                        <>
+                          {/* connector line */}
+                          <div
+                            className="pointer-events-none absolute left-1/2 h-6 w-px -translate-x-1/2 bg-foreground/60"
+                            style={{ top: -24 }}
+                          />
+                          {/* rotation handle */}
+                          <div
+                            role="button"
+                            title="Drag to rotate"
+                            onPointerDown={(e) => onRotateHandleDown(e, it)}
+                            className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background shadow active:cursor-grabbing"
+                            style={{ top: -34, touchAction: "none" }}
+                          >
+                            <RotateCw className="h-3 w-3" />
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
