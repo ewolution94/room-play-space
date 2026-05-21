@@ -313,7 +313,18 @@ function RoomPlanner() {
         prev.map((i) => {
           if (i.id !== d.id) return i;
           const c = clampPos(i, roomW, roomL, d.startX + dx, d.startY + dy);
-          return { ...i, x: c.x, y: c.y };
+          const candidate = { ...i, x: c.x, y: c.y };
+          if (collidesWithOthers(candidate, prev)) {
+            // Try sliding on a single axis to allow grazing past other items.
+            const xOnly = clampPos(i, roomW, roomL, d.startX + dx, i.y);
+            const cx = { ...i, x: xOnly.x, y: xOnly.y };
+            if (!collidesWithOthers(cx, prev)) return cx;
+            const yOnly = clampPos(i, roomW, roomL, i.x, d.startY + dy);
+            const cy = { ...i, x: yOnly.x, y: yOnly.y };
+            if (!collidesWithOthers(cy, prev)) return cy;
+            return i;
+          }
+          return candidate;
         }),
       );
     } else {
@@ -328,7 +339,9 @@ function RoomPlanner() {
           if (i.id !== d.id) return i;
           const merged = { ...i, rotation: next };
           const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
-          return { ...merged, x: c.x, y: c.y };
+          const candidate = { ...merged, x: c.x, y: c.y };
+          if (collidesWithOthers(candidate, prev)) return i;
+          return candidate;
         }),
       );
     }
