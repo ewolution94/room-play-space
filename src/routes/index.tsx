@@ -172,18 +172,34 @@ function RoomPlanner() {
   const removeOpening = (id: string) =>
     setOpenings((p) => p.filter((o) => o.id !== id));
 
-  // Drag handling
-  const dragRef = useRef<{
-    id: string;
-    startMouseX: number;
-    startMouseY: number;
-    startX: number;
-    startY: number;
-  } | null>(null);
+  // Selection + drag/rotate handling
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const dragRef = useRef<
+    | {
+        mode: "move";
+        id: string;
+        startMouseX: number;
+        startMouseY: number;
+        startX: number;
+        startY: number;
+      }
+    | {
+        mode: "rotate";
+        id: string;
+        centerClientX: number;
+        centerClientY: number;
+        startAngle: number;
+        startRotation: number;
+      }
+    | null
+  >(null);
 
   const onPointerDown = (e: React.PointerEvent, item: Item) => {
+    e.stopPropagation();
+    setSelectedId(item.id);
     (e.target as Element).setPointerCapture(e.pointerId);
     dragRef.current = {
+      mode: "move",
       id: item.id,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
@@ -191,18 +207,59 @@ function RoomPlanner() {
       startY: item.y,
     };
   };
+
+  const onRotateHandleDown = (e: React.PointerEvent, item: Item) => {
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const stageEl = stageRef.current;
+    if (!stageEl) return;
+    const stageRect = stageEl.getBoundingClientRect();
+    const centerClientX =
+      stageRect.left + offsetX + cm(item.x + item.width / 2);
+    const centerClientY =
+      stageRect.top + offsetY + cm(item.y + item.length / 2);
+    const startAngle =
+      (Math.atan2(e.clientY - centerClientY, e.clientX - centerClientX) * 180) /
+      Math.PI;
+    dragRef.current = {
+      mode: "rotate",
+      id: item.id,
+      centerClientX,
+      centerClientY,
+      startAngle,
+      startRotation: item.rotation,
+    };
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
-    const dx = (e.clientX - d.startMouseX) / scale;
-    const dy = (e.clientY - d.startMouseY) / scale;
-    setItems((prev) =>
-      prev.map((i) => {
-        if (i.id !== d.id) return i;
-        const c = clampPos(i, roomW, roomL, d.startX + dx, d.startY + dy);
-        return { ...i, x: c.x, y: c.y };
-      }),
-    );
+    if (d.mode === "move") {
+      const dx = (e.clientX - d.startMouseX) / scale;
+      const dy = (e.clientY - d.startMouseY) / scale;
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.id !== d.id) return i;
+          const c = clampPos(i, roomW, roomL, d.startX + dx, d.startY + dy);
+          return { ...i, x: c.x, y: c.y };
+        }),
+      );
+    } else {
+      const angle =
+        (Math.atan2(e.clientY - d.centerClientY, e.clientX - d.centerClientX) *
+          180) /
+        Math.PI;
+      const delta = angle - d.startAngle;
+      const next = ((d.startRotation + delta) % 360 + 360) % 360;
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.id !== d.id) return i;
+          const merged = { ...i, rotation: next };
+          const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
+          return { ...merged, x: c.x, y: c.y };
+        }),
+      );
+    }
   };
   const onPointerUp = () => {
     dragRef.current = null;
