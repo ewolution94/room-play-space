@@ -1,0 +1,11 @@
+node_modules
+.git
+.github
+dist
+.output
+.wrangler
+*.md
+.vscode
+.idea
+.env*
+!.env.example
