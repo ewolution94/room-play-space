@@ -467,7 +467,7 @@ function RoomPlanner() {
     a.download = `room-planner-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Exported planner state");
+    toast.success(t.exported);
   };
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
