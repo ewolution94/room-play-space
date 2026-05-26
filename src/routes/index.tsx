@@ -780,24 +780,42 @@ function RoomPlanner() {
                         zIndex: isSelected ? 10 : 1,
                       }}
                     >
-                      <span
-                        className="pointer-events-none px-1 leading-tight"
-                        style={
-                          isChair
-                            ? {
-                                background: "rgba(255,255,255,0.85)",
-                                borderRadius: 4,
-                                padding: "1px 4px",
-                              }
-                            : undefined
-                        }
-                      >
-                        {it.name}
-                        <br />
-                        <span className="text-[10px] opacity-80">
-                          {it.width}×{it.length}
-                        </span>
-                      </span>
+                      {(() => {
+                        const minDim = Math.min(it.width, it.length);
+                        const fontSize = minDim < 35 ? 8 : minDim < 55 ? 10 : 12;
+                        const dimSize = minDim < 35 ? 7 : minDim < 55 ? 9 : 10;
+                        return (
+                          <div
+                            className="pointer-events-none flex flex-col items-center justify-center leading-tight"
+                            style={{
+                              maxWidth: "100%",
+                              maxHeight: "100%",
+                              overflow: "hidden",
+                              fontSize,
+                              padding: "2px 4px",
+                              wordBreak: "break-word",
+                              background: isChair ? "rgba(255,255,255,0.85)" : undefined,
+                              borderRadius: isChair ? 4 : undefined,
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={it.name}
+                            >
+                              {it.name}
+                            </span>
+                            <span style={{ fontSize: dimSize, opacity: 0.8 }}>
+                              {it.width}×{it.length}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {isSelected && (
                         <>
                           {/* connector line */}
