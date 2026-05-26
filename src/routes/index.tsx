@@ -211,10 +211,20 @@ type Opening = {
 const PX_PER_CM_BASE = 1.2; // will be scaled to fit
 
 function RoomPlanner() {
-  const [roomW, setRoomW] = useState(400);
-  const [roomL, setRoomL] = useState(300);
-  const [draftW, setDraftW] = useState("400");
-  const [draftL, setDraftL] = useState("300");
+  const [lang, setLang] = useState<Lang>("en");
+  const t = STRINGS[lang];
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("planner-lang") : null;
+    if (saved === "en" || saved === "de") setLang(saved);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem("planner-lang", lang);
+  }, [lang]);
+
+  const [roomW, setRoomW] = useState(520);
+  const [roomL, setRoomL] = useState(380);
+  const [draftW, setDraftW] = useState("520");
+  const [draftL, setDraftL] = useState("380");
   const dirty = draftW !== String(roomW) || draftL !== String(roomL);
   const applyRoom = () => {
     const w = Math.max(50, parseInt(draftW, 10) || 0);
@@ -232,12 +242,21 @@ function RoomPlanner() {
     );
   };
   const [items, setItems] = useState<Item[]>([
-    { id: crypto.randomUUID(), name: "Desk", width: 140, length: 70, color: "#8B5E3C", x: 20, y: 20, rotation: 0, kind: "furniture" },
-    { id: crypto.randomUUID(), name: "Office chair", width: 65, length: 65, color: "#3B6FA0", x: 60, y: 110, rotation: 0, kind: "chair" },
+    { id: crypto.randomUUID(), name: "Desk",           width: 180, length: 75, color: "#6b4a2b", x: 170, y: 25,  rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Office chair",   width: 60,  length: 60, color: "#1f2937", x: 230, y: 115, rotation: 0,   kind: "chair" },
+    { id: crypto.randomUUID(), name: "Bookshelf",      width: 30,  length: 220, color: "#3d2b1f", x: 10,  y: 80,  rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Sofa",           width: 220, length: 85, color: "#4a6b6f", x: 150, y: 280, rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Coffee table",   width: 100, length: 55, color: "#8a6a4a", x: 210, y: 210, rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Plant",          width: 45,  length: 45, color: "#2f6b3a", x: 460, y: 15,  rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Filing cabinet", width: 60,  length: 45, color: "#9aa0a6", x: 450, y: 90,  rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Side table",     width: 45,  length: 45, color: "#c9a86a", x: 15,  y: 320, rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Floor lamp",     width: 30,  length: 30, color: "#e8c97c", x: 470, y: 330, rotation: 0,   kind: "furniture" },
+    { id: crypto.randomUUID(), name: "Printer",        width: 50,  length: 40, color: "#2b2b2b", x: 450, y: 200, rotation: 0,   kind: "furniture" },
   ]);
   const [openings, setOpenings] = useState<Opening[]>([
-    { id: crypto.randomUUID(), wall: "bottom", position: 50, width: 90, kind: "door" },
-    { id: crypto.randomUUID(), wall: "top", position: 220, width: 120, kind: "window" },
+    { id: crypto.randomUUID(), wall: "bottom", position: 380, width: 95,  kind: "door" },
+    { id: crypto.randomUUID(), wall: "top",    position: 50,  width: 160, kind: "window" },
+    { id: crypto.randomUUID(), wall: "right",  position: 140, width: 110, kind: "window" },
   ]);
 
   // new item form
