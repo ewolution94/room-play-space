@@ -4,9 +4,9 @@ WORKDIR /app
 
 # System libs needed by workerd (@cloudflare/vite-plugin preview)
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+	rm -rf /var/lib/apt/lists/*
 
-# Install dependencies (cached unless lockfile changes)
+# Install dependencies first for better layer caching
 COPY package.json bun.lock bunfig.toml ./
 RUN bun install --frozen-lockfile
 
