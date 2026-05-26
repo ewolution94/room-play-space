@@ -832,11 +832,11 @@ function RoomPlanner() {
         <aside className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Items</CardTitle>
+              <CardTitle className="text-base">{t.items}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {items.length === 0 && (
-                <p className="text-xs text-muted-foreground">No items yet. Add some on the left.</p>
+                <p className="text-xs text-muted-foreground">{t.noItems}</p>
               )}
               {items.map((it) => (
                 <div
