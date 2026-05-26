@@ -824,7 +824,7 @@ function RoomPlanner() {
             )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Drag items to reposition. Click an item to select it, then drag the handle above it to rotate. Scale: 1cm ≈ {scale.toFixed(2)}px.
+            {t.hint} {`(1cm ≈ ${scale.toFixed(2)}px)`}
           </p>
         </main>
 
