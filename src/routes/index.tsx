@@ -886,7 +886,7 @@ function RoomPlanner() {
                         updateItem(it.id, { rotation: ((+e.target.value || 0) % 360 + 360) % 360 })
                       }
                       className="h-8 flex-1"
-                      title="Rotation in degrees"
+                      title={t.rotation}
                     />
                     <Button
                       variant="outline"
