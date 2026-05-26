@@ -705,7 +705,7 @@ function RoomPlanner() {
         <main className="lg:sticky lg:top-24 lg:self-start lg:h-fit">
           <div
             ref={stageRef}
-            className="relative h-[75vh] w-full overflow-hidden rounded-lg border bg-muted/30"
+            className="relative h-[75vh] w-full overflow-visible rounded-lg border bg-muted/30"
             onPointerDown={() => setSelectedId(null)}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
