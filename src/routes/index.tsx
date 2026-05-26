@@ -312,7 +312,7 @@ function RoomPlanner() {
     };
     const spot = findFreeSpot(draft, items, roomW, roomL);
     if (!spot) {
-      toast.error("No free space for this item — make it smaller or remove something.");
+      toast.error(t.noFreeSpace);
       return;
     }
     setItems((prev) => [...prev, { ...draft, x: spot.x, y: spot.y }]);
