@@ -808,7 +808,7 @@ function RoomPlanner() {
                           {/* rotation handle */}
                           <div
                             role="button"
-                            title="Drag to rotate"
+                            title={t.dragToRotate}
                             onPointerDown={(e) => onRotateHandleDown(e, it)}
                             className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background shadow active:cursor-grabbing"
                             style={{ top: -34, touchAction: "none" }}
