@@ -510,9 +510,9 @@ function RoomPlanner() {
           kind: i.kind === "chair" ? "chair" : "furniture",
         })),
       );
-      toast.success("Planner state imported");
+      toast.success(t.imported);
     } catch (err) {
-      toast.error("Could not import file: " + (err as Error).message);
+      toast.error(t.importFail + (err as Error).message);
     }
   };
 
