@@ -559,12 +559,12 @@ function RoomPlanner() {
         <aside className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Room</CardTitle>
+              <CardTitle className="text-base">{t.roomLabel}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Width (cm)</Label>
+                  <Label>{t.width}</Label>
                   <Input
                     type="number"
                     value={draftW}
@@ -573,7 +573,7 @@ function RoomPlanner() {
                   />
                 </div>
                 <div>
-                  <Label>Length (cm)</Label>
+                  <Label>{t.length}</Label>
                   <Input
                     type="number"
                     value={draftL}
@@ -588,59 +588,59 @@ function RoomPlanner() {
                 className="w-full"
                 disabled={!dirty}
               >
-                Apply dimensions
+                {t.apply}
               </Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Doors & Windows</CardTitle>
+              <CardTitle className="text-base">{t.openings}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label>Type</Label>
+                  <Label>{t.type}</Label>
                   <select
                     className="h-9 w-full rounded-md border bg-background px-2 text-sm"
                     value={oKind}
                     onChange={(e) => setOKind(e.target.value as "door" | "window")}
                   >
-                    <option value="door">Door</option>
-                    <option value="window">Window</option>
+                    <option value="door">{t.door}</option>
+                    <option value="window">{t.window}</option>
                   </select>
                 </div>
                 <div>
-                  <Label>Wall</Label>
+                  <Label>{t.wall}</Label>
                   <select
                     className="h-9 w-full rounded-md border bg-background px-2 text-sm"
                     value={oWall}
                     onChange={(e) => setOWall(e.target.value as Opening["wall"])}
                   >
-                    <option value="top">Top</option>
-                    <option value="bottom">Bottom</option>
-                    <option value="left">Left</option>
-                    <option value="right">Right</option>
+                    <option value="top">{t.top}</option>
+                    <option value="bottom">{t.bottom}</option>
+                    <option value="left">{t.left}</option>
+                    <option value="right">{t.right}</option>
                   </select>
                 </div>
                 <div>
-                  <Label>Position (cm)</Label>
+                  <Label>{t.position}</Label>
                   <Input type="number" value={oPos} onChange={(e) => setOPos(+e.target.value || 0)} />
                 </div>
                 <div>
-                  <Label>Width (cm)</Label>
+                  <Label>{t.width}</Label>
                   <Input type="number" value={oWidth} onChange={(e) => setOWidth(+e.target.value || 0)} />
                 </div>
               </div>
               <Button onClick={addOpening} size="sm" className="w-full">
-                <Plus className="mr-1 h-4 w-4" /> Add opening
+                <Plus className="mr-1 h-4 w-4" /> {t.addOpening}
               </Button>
               <Separator />
               <ul className="space-y-1 text-sm">
                 {openings.map((o) => (
                   <li key={o.id} className="flex items-center justify-between rounded-md border px-2 py-1">
                     <span className="capitalize">
-                      {o.kind} · {o.wall} · {o.position}cm · {o.width}cm
+                      {o.kind === "door" ? t.door : t.window} · {t[o.wall]} · {o.position}cm · {o.width}cm
                     </span>
                     <Button variant="ghost" size="icon" onClick={() => removeOpening(o.id)}>
                       <Trash2 className="h-4 w-4" />
@@ -648,7 +648,7 @@ function RoomPlanner() {
                   </li>
                 ))}
                 {openings.length === 0 && (
-                  <li className="text-xs text-muted-foreground">No openings yet.</li>
+                  <li className="text-xs text-muted-foreground">{t.noOpenings}</li>
                 )}
               </ul>
             </CardContent>
@@ -656,36 +656,36 @@ function RoomPlanner() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Add Furniture</CardTitle>
+              <CardTitle className="text-base">{t.addFurniture}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <Label>Type</Label>
+                <Label>{t.type}</Label>
                 <select
                   className="h-9 w-full rounded-md border bg-background px-2 text-sm"
                   value={nKind}
                   onChange={(e) => setNKind(e.target.value as ItemKind)}
                 >
-                  <option value="furniture">Furniture (box)</option>
-                  <option value="chair">Office chair</option>
+                  <option value="furniture">{t.furnitureBox}</option>
+                  <option value="chair">{t.officeChair}</option>
                 </select>
               </div>
               <div>
-                <Label>Name</Label>
-                <Input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="e.g. Bookshelf" />
+                <Label>{t.name}</Label>
+                <Input value={nName} onChange={(e) => setNName(e.target.value)} placeholder={t.namePlaceholder} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Width (cm)</Label>
+                  <Label>{t.width}</Label>
                   <Input type="number" value={nW} onChange={(e) => setNW(+e.target.value || 0)} />
                 </div>
                 <div>
-                  <Label>Length (cm)</Label>
+                  <Label>{t.length}</Label>
                   <Input type="number" value={nL} onChange={(e) => setNL(+e.target.value || 0)} />
                 </div>
               </div>
               <div>
-                <Label>Color</Label>
+                <Label>{t.color}</Label>
                 <input
                   type="color"
                   value={nColor}
@@ -694,7 +694,7 @@ function RoomPlanner() {
                 />
               </div>
               <Button onClick={addItem} className="w-full" size="sm">
-                <Plus className="mr-1 h-4 w-4" /> Add item
+                <Plus className="mr-1 h-4 w-4" /> {t.addItem}
               </Button>
             </CardContent>
           </Card>
