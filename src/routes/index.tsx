@@ -521,20 +521,27 @@ function RoomPlanner() {
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Room Planner</h1>
-            <p className="text-sm text-muted-foreground">
-              Sketch your home office and drag furniture to find the right layout.
-            </p>
+            <h1 className="text-xl font-semibold tracking-tight">{t.title}</h1>
+            <p className="text-sm text-muted-foreground">{t.subtitle}</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden text-sm text-muted-foreground sm:inline">
-              Room: {roomW} × {roomL} cm
+              {t.roomLabel}: {roomW} × {roomL} cm
             </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLang(lang === "en" ? "de" : "en")}
+              title="Language / Sprache"
+            >
+              <Languages className="mr-1 h-4 w-4" />
+              {lang === "en" ? "DE" : "EN"}
+            </Button>
             <Button variant="outline" size="sm" onClick={exportJSON}>
-              <Download className="mr-1 h-4 w-4" /> Export
+              <Download className="mr-1 h-4 w-4" /> {t.export}
             </Button>
             <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="mr-1 h-4 w-4" /> Import
+              <Upload className="mr-1 h-4 w-4" /> {t.import}
             </Button>
             <input
               ref={fileInputRef}
