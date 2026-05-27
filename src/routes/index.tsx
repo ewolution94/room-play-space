@@ -843,8 +843,6 @@ function RoomPlanner() {
     if (!stageRef.current) return;
     if (rulerMode) {
       const p = stageToCm(e.clientX, e.clientY);
-      const pt = { x: p.x - offsetX / scale * 0, y: p.y };
-      // p is already in room cm (stageToCm subtracts offset). Use directly.
       const cmPt = { x: p.x, y: p.y };
       if (!rulerStart || (rulerStart && rulerEnd)) {
         setRulerStart(cmPt);
