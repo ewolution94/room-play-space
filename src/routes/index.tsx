@@ -306,6 +306,30 @@ const PRESETS: Preset[] = [
 
 const PRESET_BY_KEY = Object.fromEntries(PRESETS.map((p) => [p.key, p]));
 
+// Lucide icon per preset key (catalog + item rendering)
+const PRESET_ICON: Record<string, LucideIcon> = {
+  "chair-office": Armchair,
+  armchair: Armchair,
+  sofa: Sofa,
+  "bed-double": BedDouble,
+  "bed-single": BedSingle,
+  desk: LampDesk,
+  "round-table": Circle,
+  "coffee-table": RectangleHorizontal,
+  "side-table": Square,
+  bookshelf: BookOpen,
+  wardrobe: Archive,
+  "filing-cabinet": Files,
+  stove: CookingPot,
+  sink: Droplets,
+  fridge: Refrigerator,
+  toilet: Bath,
+  bathtub: Bath,
+  plant: Sprout,
+  "floor-lamp": Lamp,
+  rug: Square,
+};
+
 function iconUrlForItem(it: Item): string | undefined {
   if (it.icon && PRESET_BY_KEY[it.icon]) return PRESET_BY_KEY[it.icon].iconUrl;
   // legacy back-compat
