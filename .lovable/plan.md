@@ -1,70 +1,120 @@
-# Better door & window visuals
+# Build plan — onboarding, ruler, AI furnish, reset, new default layout
 
-All changes are visual additions to `src/routes/index.tsx`. No new dependencies.
+All work lives in `src/routes/index.tsx` plus one new server function file and a couple of small assets. No new npm packages required.
 
-## 1. Extend the `Opening` type
+## 1. Reset & "Furnish for me" — top toolbar group
 
-Add two optional fields so the existing JSON import keeps working:
+Add a new button cluster in the header (next to Undo/Redo) with three actions, each opening a confirm dialog when destructive:
 
-- `hinge?: "start" | "end"` — which end of the opening the door is hinged on along its wall. Default `"start"`.
-- `swing?: "in" | "out"` — whether the door swings into the room or out of it. Default `"in"`.
+- **Reset (Items)** — clears items only, keeps room dimensions and openings.
+- **Reset (All)** — clears items AND openings; keeps room dimensions.
+- **Furnish for me** — opens a small popover with a "Room type" dropdown (Office, Bedroom, Living room, Kitchen, Studio, Dining, Kids room, Home gym). On Generate, calls the AI server function below, then **replaces all current items** with the result.
 
-Default both fields when missing in the importer and in the initial demo state.
+Both reset paths and the furnish action call `pushHistory()` first so they are undoable.
 
-## 2. New canvas rendering for openings
+EN/DE strings: `resetItems`, `resetAll`, `furnishForMe`, `roomType`, `generate`, `confirmReset`, `confirmReplace`, plus the room-type labels.
 
-Replace the current single `<div>` (the blank strip) with an SVG overlay per opening, sized to the opening's bounding box and rotated to match its wall. The SVG is positioned the same way as today (along the wall, half-overlapping the wall line), but rendered with `overflow: visible` so the door arc can extend into the room.
+## 2. AI "Furnish this room" — server function
 
-### Door — "hinged panel with knob" (top-down)
+New file `src/lib/furnish.functions.ts` exposing `furnishRoom` via `createServerFn`. It uses Lovable AI Gateway through `@/lib/ai-gateway.server.ts` (created if missing). Model: `google/gemini-3-flash-preview`. Uses **AI SDK `generateText` + `Output.object`** for structured output — no manual JSON parsing.
 
-Drawn inside an SVG whose width = opening width (in px) and whose height = ~ opening width (so the arc has room). Coordinates expressed for a "bottom wall, hinge on left, swings into room" canonical case, then mirrored via SVG transforms for other walls / hinge / swing combos.
+Input (validated with Zod): `{ roomW, roomL, roomType, openings: Opening[] }` so the model knows where doors/windows are and can avoid blocking them.
 
-Elements:
+Output schema (Zod):
+```ts
+{ items: Array<{
+    presetKey?: string,   // optional, one of the catalog preset keys
+    name: string,
+    width: number,        // cm
+    length: number,       // cm
+    color: string,        // hex
+    x: number, y: number, // cm, top-left
+    rotation: number,     // degrees, 0/90/180/270
+  }>
+}
+```
 
-1. **Wall gap**: a background-colored rectangle that hides the wall stroke across the opening (so the doorway reads as an actual cut in the wall).
-2. **Jambs**: two short ticks (3–4 px) at each end of the opening, in `foreground/70`.
-3. **Door panel**: a 3-px-thick rounded rectangle of length = opening width, rotated 15° from the wall around the hinge point. Fill: a warm wood tone (`#8a5a2b` for doors, semantically themed via CSS var so it works in dark mode). Slight drop shadow via SVG `filter`.
-4. **Knob**: a 2-px circle near the free end of the panel.
-5. **Swing arc**: a quarter-circle `path` (radius = opening width) from the unhinged jamb sweeping to the tip of the panel, stroked 1 px `foreground/40`, dashed.
+Prompt strategy: system message tells the model it is a top-down room planner, lists the available preset keys (from the existing catalog), gives the room dimensions and openings (so it leaves clearance in front of doors), and asks for a layout appropriate to the chosen room type. Max items capped at ~12.
 
-### Window — "double-pane glazing" (top-down)
+Client-side post-processing:
+- Map `presetKey` to preset color/name when present.
+- Clamp positions to room bounds and snap rotations to 0/90/180/270.
+- Run collision pass: greedily drop any item that collides with a prior one or with a door's clearance arc.
+- `setItems(result)` after a single `pushHistory()`.
 
-SVG with width = opening width, height = wall thickness + small frame margin.
+Loading + error UX: button shows a spinner; surface 429 ("AI is busy — try again in a moment") and 402 ("Out of AI credits — add some in Workspace settings") as toasts.
 
-1. **Frame**: outer rectangle stroked 1.5 px `#3b82f6` (matches current accent), filled with the room background.
-2. **Two parallel glazing lines**: two thin horizontal lines running the full opening width, evenly spaced (the classic plan-drawing convention for glass), stroked `#3b82f6`.
-3. **Mullion ticks**: optional 2 px ticks at each jamb, same blue.
+## 3. Measurement tool (ruler)
 
-## 3. Orientation handling
+New canvas mode toggle in the header: a small "Ruler" toggle button (icon: `Ruler` from lucide-react). When enabled:
 
-A small helper `wallTransform(o)` returns the SVG container's `left`/`top`/`width`/`height`/`transform` so the same SVG drawing code works on all four walls:
+- Cursor changes to crosshair on the canvas.
+- First click sets point A; second click sets point B; a line is drawn between them with the distance label (e.g. `213 cm`) at the midpoint.
+- Snapping: while hovering, snap to the nearest of (room corners, opening endpoints, item corners) within 8 px. Snap target shown as a small circle.
+- Pressing `Esc` or toggling the button off clears the measurement.
+- Only one active measurement at a time (clicking a new point A discards the old).
 
-- top wall → SVG sits above the wall line, rotated 180° so the door swings down into the room.
-- bottom wall → canonical orientation.
-- left wall → rotated 90° CW.
-- right wall → rotated 90° CCW.
+State lives in component (`rulerMode: boolean`, `rulerA / rulerB / rulerHover` in cm). Marquee select and item drag handlers check `rulerMode` and bail out if it's on, so the ruler doesn't fight existing interactions.
 
-`hinge: "end"` flips horizontally (scaleX(-1)); `swing: "out"` flips vertically (scaleY(-1)). This keeps one SVG template and four lines of transform logic.
+EN/DE strings: `ruler`, `rulerHint`.
 
-## 4. Per-opening swing/hinge toggle in the sidebar
+## 4. Onboarding tour — first-time visitors
 
-In the openings list (currently shows `door · top · 50cm · 160cm` + trash button), add two compact icon buttons for door rows (no toggles on windows):
+Lightweight custom solution, no library. Stored in `localStorage` as `planner-tour-v1-done`.
 
-- **Hinge toggle**: small button labeled `⇋` (title: "Flip hinge"). Cycles `hinge` between `start` and `end`.
-- **Swing toggle**: small button labeled `⇵` (title: "Flip swing in/out"). Cycles `swing` between `in` and `out`.
+A `<Tour />` component renders a fixed full-page overlay with:
+- A spotlight (a transparent hole over the target element computed from its bounding rect).
+- A tooltip card positioned next to the spotlight with the step's title, body, **Skip**, **Back**, **Next** / **Done** buttons, and a step indicator (e.g. "3 / 6").
+- Dark backdrop covering everything else.
 
-Both call `pushHistory()` then `setOpenings(...)`. Add English/German strings (`flipHinge`, `flipSwing`).
+Steps (selectors via `data-tour="..."` attributes added to the relevant elements):
+1. **Welcome** — body of the planner area, "Welcome to Room Planner. Here's a 30-second tour."
+2. **Catalog** — left column, "Drag from the catalog or click an item to add it."
+3. **Canvas** — center stage, "Drag items, marquee-select, and use arrows or R to nudge/rotate."
+4. **Doors & windows** — openings card, "Doors get a hinge & swing toggle. Drag along the wall to reposition."
+5. **Ruler** — new ruler button, "Click two points to measure distance."
+6. **Furnish for me** — new AI button, "Pick a room type and let AI lay it out."
 
-## 5. Keep drag-along-wall behavior
+A "Take the tour" button is added near the language toggle so users can replay it.
 
-The existing pointerdown drag handler on the opening element keeps working — it now lives on the SVG container `<g>` (or the outer `<svg>` element). Cursor stays `ew-resize` / `ns-resize` based on wall. Bounds clamping unchanged.
+EN/DE strings for all step titles/bodies, plus `skip`, `back`, `next`, `done`, `takeTheTour`.
 
-## 6. Migration & defaults
+## 5. New default room layout
 
-- Initial demo openings: add `hinge: "start"`, `swing: "in"` for the door; window unchanged.
-- `importJSON`: when an opening is missing `hinge`/`swing`, default to `"start"`/`"in"`.
+Replace the current demo state in `useState<Item[]>(...)` / `useState<Opening[]>(...)`:
+
+- **Room**: 480 × 360 cm (slightly more compact, fits nicely on most screens).
+- **Openings**:
+  - Door on the bottom wall, position ≈ 80, width 90, hinge `start`, swing `in`.
+  - Window on the top wall, position ≈ 60, width 140.
+  - Window on the right wall, position ≈ 70, width 120.
+- **Items** (cozy living room + work nook):
+  - Sofa 220×90 centered against the right side facing the room.
+  - Coffee table 100×55 in front of the sofa.
+  - Two armchairs 80×80 flanking the coffee table.
+  - Bookshelf 200×30 along the top wall (clear of the window).
+  - Desk 140×60 in the top-left area with an office chair tucked in.
+  - Round table 110×110 as a dining accent or large plant by the bottom-left.
+  - Floor lamp 30×30 in a corner.
+  - Plant 50×50 by the window.
+
+Layout is hand-picked so the door's swing arc lands in clear floor space.
+
+## 6. Door angle tweak
+
+Change the hardcoded door panel angle from `75°` to **`35°`** in the SVG opening renderer. Single-line change. The dashed quarter-arc still shows the full possible swing range, but the wood panel now reads as "slightly ajar" and stops well short of the room interior.
 
 ## Out of scope
 
-- No new icons added to `lucide-react` beyond what's already imported (we'll reuse existing icons or use simple unicode glyphs for the toggle buttons).
-- No changes to collision logic, no changes to items rendering, no changes to the catalog.
+- No new dependencies.
+- No changes to collision/drag/keyboard logic.
+- No persistence of room state to a backend (kept in component state + import/export as today).
+- No multi-room or saved-layouts feature.
+
+## Order of implementation
+
+1. New default room layout + door angle tweak (smallest, immediate visual win).
+2. Reset buttons + dialogs.
+3. Ruler tool.
+4. AI furnish (server function + UI + post-processing).
+5. Onboarding tour (depends on all the above so it can reference final selectors).
