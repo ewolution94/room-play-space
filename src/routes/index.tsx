@@ -1258,30 +1258,57 @@ function RoomPlanner() {
               >
                 {/* openings */}
                 {openings.map((o) => {
-                  const thick = 10;
                   const isH = o.wall === "top" || o.wall === "bottom";
                   const wallLen = isH ? roomW : roomL;
                   const wpx = cm(o.width);
                   const ppx = cm(o.position);
-                  const style: React.CSSProperties = {
-                    position: "absolute",
-                    background: o.kind === "door" ? "var(--background)" : "#bcdcff",
-                    border: o.kind === "window" ? "1px solid #3b82f6" : "1px solid hsl(var(--foreground) / 0.4)",
-                    cursor: isH ? "ew-resize" : "ns-resize",
-                    touchAction: "none",
-                    zIndex: 5,
-                  };
-                  if (isH) {
-                    style.width = wpx;
-                    style.height = thick;
-                    style.left = ppx;
-                    style[o.wall] = -thick / 2;
+                  const wallThick = 6; // px — covers the room border stroke
+                  const jambH = 8; // px — short tick across the wall at each jamb
+
+                  // Canonical local frame (x: 0..wpx along wall hinge→end; -y = into room).
+                  // wrapperOrigin = canvas (px) location of canonical (0,0).
+                  // rotation rotates the canonical frame to match the wall orientation.
+                  let originX = 0;
+                  let originY = 0;
+                  let rotation = 0;
+                  if (o.wall === "bottom") {
+                    originX = ppx;
+                    originY = roomPxL;
+                    rotation = 0;
+                  } else if (o.wall === "top") {
+                    originX = ppx + wpx;
+                    originY = 0;
+                    rotation = 180;
+                  } else if (o.wall === "left") {
+                    originX = 0;
+                    originY = ppx;
+                    rotation = 90;
                   } else {
-                    style.height = wpx;
-                    style.width = thick;
-                    style.top = ppx;
-                    style[o.wall] = -thick / 2;
+                    // right
+                    originX = roomPxW;
+                    originY = ppx + wpx;
+                    rotation = -90;
                   }
+
+                  // hinge=end swaps the hinge to the other end of the opening along the wall
+                  const hingeEnd = o.kind === "door" && o.hinge === "end";
+                  // swing=out flips the canonical "into the room" direction
+                  const swingOut = o.kind === "door" && o.swing === "out";
+
+                  // Apply hinge flip by swapping origin to the opposite end on the wall
+                  if (hingeEnd) {
+                    if (o.wall === "bottom") originX = ppx + wpx;
+                    else if (o.wall === "top") originX = ppx;
+                    else if (o.wall === "left") originY = ppx + wpx;
+                    else originY = ppx;
+                    // and mirror x within the canonical frame
+                  }
+
+                  const transform =
+                    `translate(${originX}px, ${originY}px) rotate(${rotation}deg)` +
+                    (hingeEnd ? " scaleX(-1)" : "") +
+                    (swingOut ? " scaleY(-1)" : "");
+
                   const onOpeningDown = (e: React.PointerEvent) => {
                     e.stopPropagation();
                     e.preventDefault();
@@ -1303,15 +1330,158 @@ function RoomPlanner() {
                     window.addEventListener("pointermove", move);
                     window.addEventListener("pointerup", up);
                   };
+
+                  // Door angle (degrees from wall). 90° = fully open / perpendicular (architectural standard).
+                  const angle = 75; // slightly less than 90 so the panel reads as "open ajar"
+                  const rad = (angle * Math.PI) / 180;
+                  const tipX = Math.cos(rad) * wpx;
+                  const tipY = -Math.sin(rad) * wpx;
+
                   return (
-                    <div
+                    <svg
                       key={o.id}
-                      style={style}
-                      title={`${o.kind} (${o.width}cm) — drag to move`}
-                      onPointerDown={onOpeningDown}
-                    />
+                      width={1}
+                      height={1}
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        overflow: "visible",
+                        transform,
+                        transformOrigin: "0 0",
+                        zIndex: 5,
+                      }}
+                    >
+                      {/* hit area covering the wall gap — only this is draggable */}
+                      <rect
+                        x={0}
+                        y={-wallThick - 3}
+                        width={wpx}
+                        height={(wallThick + 3) * 2}
+                        fill="transparent"
+                        style={{ cursor: isH ? "ew-resize" : "ns-resize", touchAction: "none" }}
+                        onPointerDown={onOpeningDown}
+                      >
+                        <title>{`${o.kind === "door" ? "Door" : "Window"} (${o.width}cm) — drag to move`}</title>
+                      </rect>
+
+                      {/* wall gap: hide the room border stroke across the opening */}
+                      <rect
+                        x={0}
+                        y={-wallThick / 2}
+                        width={wpx}
+                        height={wallThick}
+                        fill="hsl(var(--background))"
+                        pointerEvents="none"
+                      />
+
+                      {o.kind === "door" ? (
+                        <>
+                          {/* jambs */}
+                          <line
+                            x1={0}
+                            y1={-jambH / 2}
+                            x2={0}
+                            y2={jambH / 2}
+                            stroke="hsl(var(--foreground))"
+                            strokeWidth={1.5}
+                            pointerEvents="none"
+                          />
+                          <line
+                            x1={wpx}
+                            y1={-jambH / 2}
+                            x2={wpx}
+                            y2={jambH / 2}
+                            stroke="hsl(var(--foreground))"
+                            strokeWidth={1.5}
+                            pointerEvents="none"
+                          />
+                          {/* swing arc (full quarter from closed to perpendicular) */}
+                          <path
+                            d={`M ${wpx} 0 A ${wpx} ${wpx} 0 0 0 0 ${-wpx}`}
+                            stroke="hsl(var(--foreground) / 0.35)"
+                            strokeWidth={1}
+                            strokeDasharray="3 3"
+                            fill="none"
+                            pointerEvents="none"
+                          />
+                          {/* door panel from hinge (0,0) to (tipX, tipY) */}
+                          <line
+                            x1={0}
+                            y1={0}
+                            x2={tipX}
+                            y2={tipY}
+                            stroke="#8a5a2b"
+                            strokeWidth={4}
+                            strokeLinecap="round"
+                            pointerEvents="none"
+                          />
+                          {/* knob */}
+                          <circle
+                            cx={tipX + Math.cos(rad - Math.PI / 2) * 3}
+                            cy={tipY + Math.sin(rad - Math.PI / 2) * 3}
+                            r={1.8}
+                            fill="#3b2210"
+                            pointerEvents="none"
+                          />
+                        </>
+                      ) : (
+                        <>
+                          {/* window frame */}
+                          <rect
+                            x={0}
+                            y={-wallThick / 2 - 1}
+                            width={wpx}
+                            height={wallThick + 2}
+                            fill="hsl(var(--background))"
+                            stroke="#3b82f6"
+                            strokeWidth={1.25}
+                            pointerEvents="none"
+                          />
+                          {/* double-pane glazing lines */}
+                          <line
+                            x1={0}
+                            y1={-1.2}
+                            x2={wpx}
+                            y2={-1.2}
+                            stroke="#3b82f6"
+                            strokeWidth={0.9}
+                            pointerEvents="none"
+                          />
+                          <line
+                            x1={0}
+                            y1={1.2}
+                            x2={wpx}
+                            y2={1.2}
+                            stroke="#3b82f6"
+                            strokeWidth={0.9}
+                            pointerEvents="none"
+                          />
+                          {/* jamb ticks */}
+                          <line
+                            x1={0}
+                            y1={-jambH / 2}
+                            x2={0}
+                            y2={jambH / 2}
+                            stroke="#3b82f6"
+                            strokeWidth={1.5}
+                            pointerEvents="none"
+                          />
+                          <line
+                            x1={wpx}
+                            y1={-jambH / 2}
+                            x2={wpx}
+                            y2={jambH / 2}
+                            stroke="#3b82f6"
+                            strokeWidth={1.5}
+                            pointerEvents="none"
+                          />
+                        </>
+                      )}
+                    </svg>
                   );
                 })}
+
 
 
                 {/* items */}
