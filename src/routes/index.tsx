@@ -827,8 +827,22 @@ function RoomPlanner() {
   };
 
   const onStagePointerDown = (e: React.PointerEvent) => {
-    // Only fires when not handled by an item child. Start marquee.
     if (!stageRef.current) return;
+    if (rulerMode) {
+      const p = stageToCm(e.clientX, e.clientY);
+      const pt = { x: p.x - offsetX / scale * 0, y: p.y };
+      // p is already in room cm (stageToCm subtracts offset). Use directly.
+      const cmPt = { x: p.x, y: p.y };
+      if (!rulerStart || (rulerStart && rulerEnd)) {
+        setRulerStart(cmPt);
+        setRulerEnd(null);
+        setRulerHover(cmPt);
+      } else {
+        setRulerEnd(cmPt);
+      }
+      return;
+    }
+    // Only fires when not handled by an item child. Start marquee.
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     const p = stageToCm(e.clientX, e.clientY);
     marqueeRef.current = { startCx: p.x, startCy: p.y, addToSelection: e.shiftKey };
