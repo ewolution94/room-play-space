@@ -59,6 +59,9 @@ const STRINGS = {
     right: "Right",
     addOpening: "Add opening",
     noOpenings: "No openings yet.",
+    flipHinge: "Flip hinge side",
+    flipSwing: "Flip swing in/out",
+
     catalog: "Catalog",
     customBox: "Custom box",
     name: "Name",
