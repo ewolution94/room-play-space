@@ -108,12 +108,13 @@ export const furnishRoom = createServerFn({ method: "POST" })
       `Openings: ${openingsDesc}. Use 6–12 items, well spaced, with a clear focal arrangement. ` +
       `Return JSON only.`;
 
-    const { experimental_output } = await generateText({
+    const result = await generateText({
       model,
       system,
       prompt,
       experimental_output: Output.object({ schema: OutputSchema }),
     });
 
-    return experimental_output as FurnishResult;
+    return result.experimental_output as FurnishResult;
+
   });
