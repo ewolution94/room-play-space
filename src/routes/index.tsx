@@ -1307,11 +1307,12 @@ function RoomPlanner() {
                             role="button"
                             title={t.dragToRotate}
                             onPointerDown={(e) => onRotateHandleDown(e, it)}
-                            className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background shadow active:cursor-grabbing"
-                            style={{ top: -34, touchAction: "none" }}
+                            className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background text-foreground shadow active:cursor-grabbing"
+                            style={{ top: -34, touchAction: "none", color: "hsl(var(--foreground, 0 0% 10%))" }}
                           >
-                            <RotateCw className="h-3 w-3" />
+                            <RotateCw className="h-3 w-3" strokeWidth={2.5} color="#111" />
                           </div>
+
                         </>
                       )}
                     </div>
