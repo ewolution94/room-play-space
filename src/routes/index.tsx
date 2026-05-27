@@ -1391,43 +1391,30 @@ function RoomPlanner() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">{t.catalog}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {Object.entries(categorized).map(([cat, list]) => (
                 <div key={cat}>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {t.categories[cat] ?? cat}
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {list.map((p) => (
-                      <button
-                        key={p.key}
-                        type="button"
-                        onClick={() => addPreset(p)}
-                        className="group flex flex-col items-center gap-1 rounded-md border bg-card p-2 text-center text-[10px] leading-tight transition hover:border-foreground hover:bg-accent"
-                        title={`${lang === "de" ? p.nameDe : p.nameEn} (${p.w}×${p.l}cm)`}
-                      >
-                        <div
-                          className="flex h-10 w-10 items-center justify-center rounded"
-                          style={{
-                            background: p.iconUrl ? "transparent" : p.color,
-                          }}
+                  <div className="grid grid-cols-4 gap-1">
+                    {list.map((p) => {
+                      const Icon = PRESET_ICON[p.key] ?? Square;
+                      return (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => addPreset(p)}
+                          className="group flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border bg-card p-1 text-center transition hover:border-foreground hover:bg-accent"
+                          title={`${lang === "de" ? p.nameDe : p.nameEn} (${p.w}×${p.l}cm)`}
                         >
-                          {p.iconUrl ? (
-                            <img
-                              src={p.iconUrl}
-                              alt=""
-                              loading="lazy"
-                              className="h-10 w-10 object-contain"
-                            />
-                          ) : (
-                            <span className="text-[9px] font-semibold text-white/90 mix-blend-difference">
-                              {p.w}×{p.l}
-                            </span>
-                          )}
-                        </div>
-                        <span className="line-clamp-2">{lang === "de" ? p.nameDe : p.nameEn}</span>
-                      </button>
-                    ))}
+                          <Icon className="h-5 w-5 text-foreground/80" strokeWidth={1.5} />
+                          <span className="line-clamp-1 text-[9px] leading-tight text-muted-foreground">
+                            {lang === "de" ? p.nameDe : p.nameEn}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
