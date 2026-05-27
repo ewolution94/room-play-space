@@ -1879,27 +1879,55 @@ function RoomPlanner() {
                   const distCm = Math.sqrt(dx * dx + dy * dy);
                   const midX = (rulerStart.x + end.x) / 2;
                   const midY = (rulerStart.y + end.y) / 2;
+                  const ax = cm(rulerStart.x);
+                  const ay = cm(rulerStart.y);
+                  const bx = cm(end.x);
+                  const by = cm(end.y);
+                  const lenPx = Math.hypot(bx - ax, by - ay);
+                  const angleDeg = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
+                  // tick marks every 10cm along the line
+                  const tickStep = 10;
+                  const tickCount = Math.max(0, Math.floor(distCm / tickStep));
+                  const ticks: { x: number; major: boolean }[] = [];
+                  for (let i = 1; i <= tickCount; i++) {
+                    ticks.push({ x: cm(i * tickStep), major: i % 10 === 0 });
+                  }
                   return (
                     <svg
-                      className="pointer-events-none absolute inset-0"
+                      className="pointer-events-none absolute inset-0 text-foreground"
                       width={roomPxW}
                       height={roomPxL}
                       style={{ overflow: "visible" }}
                     >
+                      {/* halo for contrast */}
+                      <line x1={ax} y1={ay} x2={bx} y2={by} stroke="white" strokeOpacity={0.85} strokeWidth={5} strokeLinecap="round" />
                       <line
-                        x1={cm(rulerStart.x)}
-                        y1={cm(rulerStart.y)}
-                        x2={cm(end.x)}
-                        y2={cm(end.y)}
-                        stroke="hsl(var(--primary, 222 47% 11%))"
+                        x1={ax} y1={ay} x2={bx} y2={by}
+                        stroke="currentColor"
                         strokeWidth={2}
-                        strokeDasharray={rulerEnd ? "0" : "4 4"}
+                        strokeDasharray={rulerEnd ? "0" : "5 4"}
+                        strokeLinecap="round"
                       />
-                      <circle cx={cm(rulerStart.x)} cy={cm(rulerStart.y)} r={4} fill="hsl(var(--primary, 222 47% 11%))" />
-                      <circle cx={cm(end.x)} cy={cm(end.y)} r={4} fill="hsl(var(--primary, 222 47% 11%))" />
+                      {/* tick marks group rotated along the line */}
+                      <g transform={`translate(${ax}, ${ay}) rotate(${angleDeg})`}>
+                        {ticks.map((tk, i) => (
+                          <line
+                            key={i}
+                            x1={tk.x} y1={tk.major ? -7 : -4}
+                            x2={tk.x} y2={tk.major ? 7 : 4}
+                            stroke="currentColor"
+                            strokeWidth={tk.major ? 1.5 : 1}
+                          />
+                        ))}
+                        {/* end caps */}
+                        <line x1={0} y1={-8} x2={0} y2={8} stroke="currentColor" strokeWidth={2} />
+                        <line x1={lenPx} y1={-8} x2={lenPx} y2={8} stroke="currentColor" strokeWidth={2} />
+                      </g>
+                      <circle cx={ax} cy={ay} r={4} fill="currentColor" />
+                      <circle cx={bx} cy={by} r={4} fill="currentColor" />
                       <g transform={`translate(${cm(midX)}, ${cm(midY)})`}>
-                        <rect x={-32} y={-22} width={64} height={18} rx={4} fill="var(--background)" stroke="currentColor" />
-                        <text x={0} y={-9} textAnchor="middle" fontSize={11} fill="currentColor" style={{ fontWeight: 600 }}>
+                        <rect x={-34} y={-24} width={68} height={20} rx={4} fill="white" stroke="currentColor" />
+                        <text x={0} y={-10} textAnchor="middle" fontSize={11} fill="currentColor" style={{ fontWeight: 600 }}>
                           {distCm.toFixed(1)} cm
                         </text>
                       </g>
