@@ -539,25 +539,35 @@ function RoomPlanner() {
     if (typeof window === "undefined") return;
     if (selectedIds.size === 0) return;
     const id = Array.from(selectedIds).pop()!;
-    const el = document.querySelector<HTMLElement>(`[data-item-row="${id}"]`);
-    if (!el) return;
-    // Find the nearest actually-scrollable ancestor (the right aside on desktop)
-    let scroller: HTMLElement | null = el.parentElement;
-    while (scroller && scroller !== document.body) {
-      const style = window.getComputedStyle(scroller);
-      const canScrollY = /(auto|scroll)/.test(style.overflowY);
-      if (canScrollY && scroller.scrollHeight > scroller.clientHeight) break;
-      scroller = scroller.parentElement;
-    }
-    if (!scroller || scroller === document.body) return; // mobile: don't yank the page
-    const elRect = el.getBoundingClientRect();
-    const scRect = scroller.getBoundingClientRect();
-    const offset = elRect.top - scRect.top;
-    const target =
-      scroller.scrollTop +
-      offset -
-      Math.max(0, (scroller.clientHeight - el.offsetHeight) / 2);
-    scroller.scrollTo({ top: target, behavior: "smooth" });
+    // Wait a frame so any DOM updates (new rows, layout shifts) settle first
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(`[data-item-row="${id}"]`);
+      if (!el) return;
+      // Find the nearest actually-scrollable ancestor (the right aside on desktop)
+      let scroller: HTMLElement | null = el.parentElement;
+      while (scroller && scroller !== document.body) {
+        const style = window.getComputedStyle(scroller);
+        const canScrollY = /(auto|scroll)/.test(style.overflowY);
+        if (canScrollY && scroller.scrollHeight > scroller.clientHeight) break;
+        scroller = scroller.parentElement;
+      }
+      if (!scroller || scroller === document.body) return; // mobile: don't yank the page
+      const elRect = el.getBoundingClientRect();
+      const scRect = scroller.getBoundingClientRect();
+      // Already fully visible in the scroller viewport? do nothing.
+      const fullyVisible =
+        elRect.top >= scRect.top && elRect.bottom <= scRect.bottom;
+      if (fullyVisible) return;
+      const offset = elRect.top - scRect.top;
+      const target = Math.max(
+        0,
+        scroller.scrollTop +
+          offset -
+          Math.max(0, (scroller.clientHeight - el.offsetHeight) / 2),
+      );
+      scroller.scrollTo({ top: target, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [selectedIds]);
 
   // -------- Add items --------
