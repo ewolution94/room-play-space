@@ -113,6 +113,9 @@ const STRINGS = {
     right: "Rechts",
     addOpening: "Öffnung hinzufügen",
     noOpenings: "Noch keine Öffnungen.",
+    flipHinge: "Anschlagseite wechseln",
+    flipSwing: "Öffnung nach innen/außen",
+
     catalog: "Katalog",
     customBox: "Eigene Box",
     name: "Name",
