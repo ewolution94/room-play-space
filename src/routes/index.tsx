@@ -1526,21 +1526,25 @@ function RoomPlanner() {
             onPointerUp={onStagePointerUp}
             style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
           >
-            {/* Dimensions overlay (top-left of canvas) — click to edit room size */}
+            {/* Room dimensions (top-left of canvas) — click to edit */}
             <div className="absolute left-3 top-3 z-10">
               <Popover>
                 <PopoverTrigger asChild>
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onPointerDown={(e) => e.stopPropagation()}
-                    className="rounded-md border bg-background/85 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur hover:bg-background"
                     title={t.roomLabel}
+                    className="shadow-sm"
                   >
-                    {t.roomLabel}: {roomW} × {roomL} cm
+                    <SlidersHorizontal className="mr-1 h-4 w-4" />
+                    {roomW} × {roomL} cm
                     {selectedIds.size > 0 && (
-                      <span className="ml-2 text-muted-foreground">· {t.selectedCount(selectedIds.size)}</span>
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        · {t.selectedCount(selectedIds.size)}
+                      </span>
                     )}
-                  </button>
+                  </Button>
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
