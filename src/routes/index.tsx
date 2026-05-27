@@ -534,15 +534,30 @@ function RoomPlanner() {
     selectedIdsRef.current = selectedIds;
   }, [selectedIds]);
 
-  // Scroll the selected item's row into view on desktop viewports
+  // Scroll the selected item's row into view inside the right-column scroller
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (selectedIds.size === 0) return;
-    if (!window.matchMedia("(min-width: 1024px)").matches) return;
-    // Scroll the most recently selected (or any) item into view
     const id = Array.from(selectedIds).pop()!;
     const el = document.querySelector<HTMLElement>(`[data-item-row="${id}"]`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (!el) return;
+    // Find the nearest actually-scrollable ancestor (the right aside on desktop)
+    let scroller: HTMLElement | null = el.parentElement;
+    while (scroller && scroller !== document.body) {
+      const style = window.getComputedStyle(scroller);
+      const canScrollY = /(auto|scroll)/.test(style.overflowY);
+      if (canScrollY && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    if (!scroller || scroller === document.body) return; // mobile: don't yank the page
+    const elRect = el.getBoundingClientRect();
+    const scRect = scroller.getBoundingClientRect();
+    const offset = elRect.top - scRect.top;
+    const target =
+      scroller.scrollTop +
+      offset -
+      Math.max(0, (scroller.clientHeight - el.offsetHeight) / 2);
+    scroller.scrollTo({ top: target, behavior: "smooth" });
   }, [selectedIds]);
 
   // -------- Add items --------
