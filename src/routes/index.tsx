@@ -422,7 +422,7 @@ function RoomPlanner() {
     { id: crypto.randomUUID(), name: "Office chair",  width: 55,  length: 55, color: "#1f2937", x: 55,  y: 85,  rotation: 0, kind: "chair",     icon: "chair-office" },
     // Storage
     { id: crypto.randomUUID(), name: "Bookshelf",     width: 30,  length: 180, color: "#3d2b1f", x: 0,   y: 145, rotation: 0, kind: "furniture", icon: "bookshelf" },
-    { id: crypto.randomUUID(), name: "TV unit",       width: 140, length: 35, color: "#2a2a2a", x: 35,  y: 320, rotation: 0, kind: "furniture", icon: "tv-unit" },
+    { id: crypto.randomUUID(), name: "Rug",           width: 200, length: 140, color: "#b7806f", x: 250, y: 160, rotation: 0, kind: "furniture", icon: "rug" },
   ]);
   const [openings, setOpenings] = useState<Opening[]>(() => [
     { id: crypto.randomUUID(), wall: "bottom", position: 200, width: 90,  kind: "door",   hinge: "start", swing: "in" },
