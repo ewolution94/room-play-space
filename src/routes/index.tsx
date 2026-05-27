@@ -534,6 +534,17 @@ function RoomPlanner() {
     selectedIdsRef.current = selectedIds;
   }, [selectedIds]);
 
+  // Scroll the selected item's row into view on desktop viewports
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedIds.size === 0) return;
+    if (!window.matchMedia("(min-width: 1024px)").matches) return;
+    // Scroll the most recently selected (or any) item into view
+    const id = Array.from(selectedIds).pop()!;
+    const el = document.querySelector<HTMLElement>(`[data-item-row="${id}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedIds]);
+
   // -------- Add items --------
   const addPreset = (preset: Preset) => {
     const draft: Item = {
