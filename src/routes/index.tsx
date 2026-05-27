@@ -302,7 +302,10 @@ type Opening = {
   position: number;
   width: number;
   kind: "door" | "window";
+  hinge?: "start" | "end"; // doors only — which end the door is hinged on along the wall
+  swing?: "in" | "out"; // doors only — swings into the room or out
 };
+
 
 type Snapshot = {
   items: Item[];
