@@ -1915,17 +1915,8 @@ function RoomPlanner() {
               </div>
             )}
           </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">
-              {rulerMode ? t.rulerHint : t.hint} {`(1cm ≈ ${scale.toFixed(2)}px)`}
-            </p>
-            {rulerMode && (rulerStart || rulerEnd) && (
-              <Button variant="ghost" size="sm" onClick={clearRuler}>
-                <X className="mr-1 h-3 w-3" /> {t.rulerClear}
-              </Button>
-            )}
-          </div>
         </main>
+
 
         {/* Right column: Items list */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
