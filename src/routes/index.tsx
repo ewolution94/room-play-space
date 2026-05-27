@@ -706,12 +706,8 @@ function RoomPlanner() {
   };
 
 
-  // -------- Reset + AI Furnish --------
+  // -------- Reset --------
   const [resetMode, setResetMode] = useState<"items" | "all" | null>(null);
-  const [furnishOpen, setFurnishOpen] = useState(false);
-  const [furnishType, setFurnishType] = useState<string>("living");
-  const [furnishLoading, setFurnishLoading] = useState(false);
-  const [pendingFurnish, setPendingFurnish] = useState<Item[] | null>(null);
 
   const clearItemsOnly = () => {
     pushHistory();
@@ -724,73 +720,44 @@ function RoomPlanner() {
     setOpenings([]);
     setSelectedIds(new Set());
   };
+  const confirmReset = () => {
+    if (resetMode === "items") clearItemsOnly();
+    else if (resetMode === "all") clearAll();
+    setResetMode(null);
+  };
 
-  const callFurnish = useServerFn(furnishRoom);
-  const runFurnish = async () => {
-    if (furnishLoading) return;
-    setFurnishLoading(true);
-    try {
-      const res = await callFurnish({
-        data: {
-          roomW,
-          roomL,
-          roomType: furnishType as
-            | "office" | "bedroom" | "living" | "kitchen"
-            | "studio" | "dining" | "kids" | "gym",
-          openings: openings.map((o) => ({
-            wall: o.wall,
-            position: o.position,
-            width: o.width,
-            kind: o.kind,
-          })),
-        },
-      });
+  // -------- Ruler --------
+  const [rulerMode, setRulerMode] = useState(false);
+  const [rulerStart, setRulerStart] = useState<{ x: number; y: number } | null>(null);
+  const [rulerEnd, setRulerEnd] = useState<{ x: number; y: number } | null>(null);
+  const [rulerHover, setRulerHover] = useState<{ x: number; y: number } | null>(null);
+  const clearRuler = () => {
+    setRulerStart(null);
+    setRulerEnd(null);
+    setRulerHover(null);
+  };
+  useEffect(() => {
+    if (!rulerMode) clearRuler();
+  }, [rulerMode]);
 
-      const accepted: Item[] = [];
-      for (const raw of res.items) {
-        const preset = raw.presetKey
-          ? PRESET_BY_KEY[raw.presetKey as keyof typeof PRESET_BY_KEY]
-          : undefined;
-        const rot = Math.round((raw.rotation ?? 0) / 90) * 90;
-        const draft: Item = {
-          id: crypto.randomUUID(),
-          name: preset ? (lang === "de" ? preset.nameDe : preset.nameEn) : raw.name,
-          width: Math.max(10, Math.min(roomW, raw.width)),
-          length: Math.max(10, Math.min(roomL, raw.length)),
-          color: preset?.color ?? raw.color ?? "#888888",
-          x: raw.x,
-          y: raw.y,
-          rotation: ((rot % 360) + 360) % 360,
-          kind: preset?.key === "chair-office" ? "chair" : "furniture",
-          icon: preset?.key,
-        };
-        const clamped = clampPos(draft, roomW, roomL, draft.x, draft.y);
-        const candidate = { ...draft, x: clamped.x, y: clamped.y };
-        if (!collidesWithOthers(candidate, accepted)) accepted.push(candidate);
-      }
-
-      setFurnishOpen(false);
-      if (accepted.length === 0) {
-        toast.error(t.aiError);
-        return;
-      }
-      setPendingFurnish(accepted);
-    } catch (err) {
-      const msg = String((err as Error)?.message ?? err);
-      if (msg.includes("429")) toast.error(t.aiBusy);
-      else if (msg.includes("402")) toast.error(t.aiOutOfCredits);
-      else toast.error(t.aiError);
-    } finally {
-      setFurnishLoading(false);
+  // -------- Onboarding tour --------
+  const TOUR_KEY = "planner-tour-v1-done";
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.localStorage.getItem(TOUR_KEY)) {
+      setTourOpen(true);
+      setTourStep(0);
+    }
+  }, []);
+  const closeTour = () => {
+    setTourOpen(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(TOUR_KEY, "1");
     }
   };
-  const applyPendingFurnish = () => {
-    if (!pendingFurnish) return;
-    pushHistory();
-    setItems(pendingFurnish);
-    setSelectedIds(new Set());
-    setPendingFurnish(null);
-  };
+
 
   // -------- Drag & marquee --------
 
