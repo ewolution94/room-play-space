@@ -1874,15 +1874,6 @@ function RoomPlanner() {
                   const ay = cm(rulerStart.y);
                   const bx = cm(end.x);
                   const by = cm(end.y);
-                  const lenPx = Math.hypot(bx - ax, by - ay);
-                  const angleDeg = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
-                  // tick marks every 10cm along the line
-                  const tickStep = 10;
-                  const tickCount = Math.max(0, Math.floor(distCm / tickStep));
-                  const ticks: { x: number; major: boolean }[] = [];
-                  for (let i = 1; i <= tickCount; i++) {
-                    ticks.push({ x: cm(i * tickStep), major: i % 10 === 0 });
-                  }
                   return (
                     <svg
                       className="pointer-events-none absolute inset-0 text-foreground"
