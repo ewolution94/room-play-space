@@ -579,13 +579,25 @@ function RoomPlanner() {
     pushHistory();
     setOpenings((p) => [
       ...p,
-      { id: crypto.randomUUID(), kind: oKind, wall: oWall, position: oPos, width: oWidth },
+      {
+        id: crypto.randomUUID(),
+        kind: oKind,
+        wall: oWall,
+        position: oPos,
+        width: oWidth,
+        ...(oKind === "door" ? { hinge: "start" as const, swing: "in" as const } : {}),
+      },
     ]);
   };
   const removeOpening = (id: string) => {
     pushHistory();
     setOpenings((p) => p.filter((o) => o.id !== id));
   };
+  const updateOpening = (id: string, patch: Partial<Opening>) => {
+    pushHistory();
+    setOpenings((p) => p.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  };
+
 
   // -------- Drag & marquee --------
   const dragRef = useRef<
