@@ -1944,6 +1944,7 @@ function RoomPlanner() {
               {items.map((it) => (
                 <div
                   key={it.id}
+                  data-item-row={it.id}
                   className={
                     "space-y-2 rounded-md border p-2 " +
                     (selectedIds.has(it.id) ? "border-foreground" : "")
