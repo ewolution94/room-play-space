@@ -1420,7 +1420,7 @@ function RoomPlanner() {
                   };
 
                   // Door angle (degrees from wall). 90° = fully open / perpendicular (architectural standard).
-                  const angle = 75; // slightly less than 90 so the panel reads as "open ajar"
+                  const angle = 35; // door panel angle from wall — small enough to not eat into the room
                   const rad = (angle * Math.PI) / 180;
                   const tipX = Math.cos(rad) * wpx;
                   const tipY = -Math.sin(rad) * wpx;
