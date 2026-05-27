@@ -1772,57 +1772,16 @@ function RoomPlanner() {
                           />
                         </>
                       ) : (
-                        <>
-                          {/* window frame */}
-                          <rect
-                            x={0}
-                            y={-wallThick / 2 - 1}
-                            width={wpx}
-                            height={wallThick + 2}
-                            fill="hsl(var(--background))"
-                            stroke="#3b82f6"
-                            strokeWidth={1.25}
-                            pointerEvents="none"
-                          />
-                          {/* double-pane glazing lines */}
-                          <line
-                            x1={0}
-                            y1={-1.2}
-                            x2={wpx}
-                            y2={-1.2}
-                            stroke="#3b82f6"
-                            strokeWidth={0.9}
-                            pointerEvents="none"
-                          />
-                          <line
-                            x1={0}
-                            y1={1.2}
-                            x2={wpx}
-                            y2={1.2}
-                            stroke="#3b82f6"
-                            strokeWidth={0.9}
-                            pointerEvents="none"
-                          />
-                          {/* jamb ticks */}
-                          <line
-                            x1={0}
-                            y1={-jambH / 2}
-                            x2={0}
-                            y2={jambH / 2}
-                            stroke="#3b82f6"
-                            strokeWidth={1.5}
-                            pointerEvents="none"
-                          />
-                          <line
-                            x1={wpx}
-                            y1={-jambH / 2}
-                            x2={wpx}
-                            y2={jambH / 2}
-                            stroke="#3b82f6"
-                            strokeWidth={1.5}
-                            pointerEvents="none"
-                          />
-                        </>
+                        <rect
+                          x={0}
+                          y={-wallThick / 2}
+                          width={wpx}
+                          height={wallThick}
+                          fill="#c7d3dc"
+                          stroke="#7f8c99"
+                          strokeWidth={0.75}
+                          pointerEvents="none"
+                        />
                       )}
                     </svg>
                   );
