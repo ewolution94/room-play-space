@@ -1721,57 +1721,7 @@ function RoomPlanner() {
                         pointerEvents="none"
                       />
 
-                      {o.kind === "door" ? (
-                        <>
-                          {/* jambs */}
-                          <line
-                            x1={0}
-                            y1={-jambH / 2}
-                            x2={0}
-                            y2={jambH / 2}
-                            stroke="hsl(var(--foreground))"
-                            strokeWidth={1.5}
-                            pointerEvents="none"
-                          />
-                          <line
-                            x1={wpx}
-                            y1={-jambH / 2}
-                            x2={wpx}
-                            y2={jambH / 2}
-                            stroke="hsl(var(--foreground))"
-                            strokeWidth={1.5}
-                            pointerEvents="none"
-                          />
-                          {/* swing arc (full quarter from closed to perpendicular) */}
-                          <path
-                            d={`M ${wpx} 0 A ${wpx} ${wpx} 0 0 0 0 ${-wpx}`}
-                            stroke="hsl(var(--foreground) / 0.35)"
-                            strokeWidth={1}
-                            strokeDasharray="3 3"
-                            fill="none"
-                            pointerEvents="none"
-                          />
-                          {/* door panel from hinge (0,0) to (tipX, tipY) */}
-                          <line
-                            x1={0}
-                            y1={0}
-                            x2={tipX}
-                            y2={tipY}
-                            stroke="#8a5a2b"
-                            strokeWidth={4}
-                            strokeLinecap="round"
-                            pointerEvents="none"
-                          />
-                          {/* knob */}
-                          <circle
-                            cx={tipX + Math.cos(rad - Math.PI / 2) * 3}
-                            cy={tipY + Math.sin(rad - Math.PI / 2) * 3}
-                            r={1.8}
-                            fill="#3b2210"
-                            pointerEvents="none"
-                          />
-                        </>
-                      ) : (
+                      {o.kind === "door" ? null : (
                         <rect
                           x={0}
                           y={-wallThick / 2}
