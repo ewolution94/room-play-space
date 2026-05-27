@@ -344,10 +344,11 @@ function RoomPlanner() {
     { id: crypto.randomUUID(), name: "Printer",        width: 50,  length: 40, color: "#2b2b2b", x: 450, y: 200, rotation: 0, kind: "furniture" },
   ]);
   const [openings, setOpenings] = useState<Opening[]>(() => [
-    { id: crypto.randomUUID(), wall: "bottom", position: 380, width: 95,  kind: "door" },
+    { id: crypto.randomUUID(), wall: "bottom", position: 380, width: 95,  kind: "door", hinge: "start", swing: "in" },
     { id: crypto.randomUUID(), wall: "top",    position: 50,  width: 160, kind: "window" },
     { id: crypto.randomUUID(), wall: "right",  position: 140, width: 110, kind: "window" },
   ]);
+
 
   // -------- History (undo / redo) --------
   const stateRef = useRef<Snapshot>({ items, openings, roomW, roomL });
