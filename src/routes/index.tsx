@@ -768,6 +768,19 @@ function RoomPlanner() {
   };
 
   const onItemPointerDown = (e: React.PointerEvent, item: Item) => {
+    if (rulerMode) {
+      e.stopPropagation();
+      const p = stageToCm(e.clientX, e.clientY);
+      const cmPt = { x: p.x, y: p.y };
+      if (!rulerStart || (rulerStart && rulerEnd)) {
+        setRulerStart(cmPt);
+        setRulerEnd(null);
+        setRulerHover(cmPt);
+      } else {
+        setRulerEnd(cmPt);
+      }
+      return;
+    }
     e.stopPropagation();
     (e.target as Element).setPointerCapture(e.pointerId);
 
