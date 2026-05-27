@@ -1233,8 +1233,8 @@ function RoomPlanner() {
 
                 {/* items */}
                 {items.map((it) => {
-                  const icon = iconUrlForItem(it);
-                  const hasIcon = !!icon;
+                  const hasIcon = false;
+
                   const isSelected = selectedIds.has(it.id);
                   return (
                     <div
