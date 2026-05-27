@@ -1890,30 +1890,13 @@ function RoomPlanner() {
                       height={roomPxL}
                       style={{ overflow: "visible" }}
                     >
-                      {/* halo for contrast */}
-                      <line x1={ax} y1={ay} x2={bx} y2={by} stroke="white" strokeOpacity={0.85} strokeWidth={5} strokeLinecap="round" />
                       <line
                         x1={ax} y1={ay} x2={bx} y2={by}
                         stroke="currentColor"
                         strokeWidth={2}
-                        strokeDasharray={rulerEnd ? "0" : "5 4"}
+                        strokeDasharray="2 5"
                         strokeLinecap="round"
                       />
-                      {/* tick marks group rotated along the line */}
-                      <g transform={`translate(${ax}, ${ay}) rotate(${angleDeg})`}>
-                        {ticks.map((tk, i) => (
-                          <line
-                            key={i}
-                            x1={tk.x} y1={tk.major ? -7 : -4}
-                            x2={tk.x} y2={tk.major ? 7 : 4}
-                            stroke="currentColor"
-                            strokeWidth={tk.major ? 1.5 : 1}
-                          />
-                        ))}
-                        {/* end caps */}
-                        <line x1={0} y1={-8} x2={0} y2={8} stroke="currentColor" strokeWidth={2} />
-                        <line x1={lenPx} y1={-8} x2={lenPx} y2={8} stroke="currentColor" strokeWidth={2} />
-                      </g>
                       <circle cx={ax} cy={ay} r={4} fill="currentColor" />
                       <circle cx={bx} cy={by} r={4} fill="currentColor" />
                       <g transform={`translate(${cm(midX)}, ${cm(midY)})`}>
