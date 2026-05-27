@@ -949,7 +949,10 @@ function RoomPlanner() {
           position: Number(o.position) || 0,
           width: Number(o.width) || 0,
           kind: o.kind,
+          hinge: o.kind === "door" ? (o.hinge === "end" ? "end" : "start") : undefined,
+          swing: o.kind === "door" ? (o.swing === "out" ? "out" : "in") : undefined,
         })),
+
       );
       setItems(
         data.items.map((i: Partial<Item>) => ({
