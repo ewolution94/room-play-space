@@ -998,6 +998,16 @@ function RoomPlanner() {
         return;
       }
 
+      // Escape clears ruler / exits ruler mode
+      if (e.key === "Escape") {
+        if (rulerMode) {
+          if (rulerStart || rulerEnd) clearRuler();
+          else setRulerMode(false);
+          e.preventDefault();
+          return;
+        }
+      }
+
       const ids = selectedIdsRef.current;
       if (!ids.size) return;
 
