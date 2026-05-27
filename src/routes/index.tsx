@@ -1525,12 +1525,52 @@ function RoomPlanner() {
             onPointerUp={onStagePointerUp}
             style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
           >
-            {/* Dimensions overlay (top-left of canvas) */}
-            <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border bg-background/85 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur">
-              {t.roomLabel}: {roomW} × {roomL} cm
-              {selectedIds.size > 0 && (
-                <span className="ml-2 text-muted-foreground">· {t.selectedCount(selectedIds.size)}</span>
-              )}
+            {/* Dimensions overlay (top-left of canvas) — click to edit room size */}
+            <div className="absolute left-3 top-3 z-10">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="rounded-md border bg-background/85 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur hover:bg-background"
+                    title={t.roomLabel}
+                  >
+                    {t.roomLabel}: {roomW} × {roomL} cm
+                    {selectedIds.size > 0 && (
+                      <span className="ml-2 text-muted-foreground">· {t.selectedCount(selectedIds.size)}</span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-64 space-y-3"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>{t.width}</Label>
+                      <Input
+                        type="number"
+                        value={draftW}
+                        min={50}
+                        onChange={(e) => setDraftW(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.length}</Label>
+                      <Input
+                        type="number"
+                        value={draftL}
+                        min={50}
+                        onChange={(e) => setDraftL(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={applyRoom} size="sm" className="w-full" disabled={!dirty}>
+                    {t.apply}
+                  </Button>
+                </PopoverContent>
+              </Popover>
             </div>
             {/* Ruler toggle (top-right of canvas) */}
             <Button
