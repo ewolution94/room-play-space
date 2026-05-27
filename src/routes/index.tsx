@@ -1555,6 +1555,28 @@ function RoomPlanner() {
             onPointerUp={onStagePointerUp}
             style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
           >
+            {/* Dimensions overlay (top-left of canvas) */}
+            <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border bg-background/85 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur">
+              {t.roomLabel}: {roomW} × {roomL} cm
+              {selectedIds.size > 0 && (
+                <span className="ml-2 text-muted-foreground">· {t.selectedCount(selectedIds.size)}</span>
+              )}
+            </div>
+            {/* Ruler toggle (top-right of canvas) */}
+            <Button
+              variant={rulerMode ? "default" : "outline"}
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRulerMode((v) => !v);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title={t.rulerHint}
+              className="absolute right-3 top-3 z-10 shadow-sm"
+            >
+              <Ruler className="mr-1 h-4 w-4" />
+              {rulerMode ? t.rulerOn : t.ruler}
+            </Button>
             {scale > 0 && (
               <div
                 className="absolute border-2 border-foreground bg-background shadow-sm"
