@@ -1532,7 +1532,7 @@ function RoomPlanner() {
             onPointerDown={onStagePointerDown}
             onPointerMove={onStagePointerMove}
             onPointerUp={onStagePointerUp}
-            style={{ touchAction: "none" }}
+            style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
           >
             {scale > 0 && (
               <div
