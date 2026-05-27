@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,13 +36,11 @@ import {
   Redo2,
   Copy,
   Eraser,
-  Sparkles,
   Ruler,
   HelpCircle,
-  Loader2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { furnishRoom } from "@/lib/furnish.functions";
 import chairBaseUrl from "@/assets/chair-base.png";
 import sofaUrl from "@/assets/presets/sofa.png";
 import armchairUrl from "@/assets/presets/armchair.png";
