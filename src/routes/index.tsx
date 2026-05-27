@@ -1545,16 +1545,27 @@ function RoomPlanner() {
         </aside>
 
         {/* Stage */}
-        <main className="min-w-0 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)]">
+        <main className="min-w-0 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)] flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2 rounded-md border bg-background/80 px-3 py-1.5 shadow-sm">
+            <p className="text-xs text-foreground">
+              {rulerMode ? t.rulerHint : t.hint} {`(1cm ≈ ${scale.toFixed(2)}px)`}
+            </p>
+            {rulerMode && (rulerStart || rulerEnd) && (
+              <Button variant="ghost" size="sm" onClick={clearRuler}>
+                <X className="mr-1 h-3 w-3" /> {t.rulerClear}
+              </Button>
+            )}
+          </div>
           <div
             ref={stageRef}
-            className="relative h-[calc(100vh-6rem)] w-full overflow-visible rounded-lg border bg-muted/30"
+            className="relative min-h-0 flex-1 w-full overflow-visible rounded-lg border bg-muted/30"
 
             onPointerDown={onStagePointerDown}
             onPointerMove={onStagePointerMove}
             onPointerUp={onStagePointerUp}
             style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
           >
+
             {/* Room dimensions (top-left of canvas) — click to edit */}
             <div className="absolute left-3 top-3 z-10">
               <Popover>
