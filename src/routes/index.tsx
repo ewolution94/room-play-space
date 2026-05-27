@@ -1162,9 +1162,120 @@ function RoomPlanner() {
               className="hidden"
               onChange={onImportFile}
             />
+            <Separator orientation="vertical" className="mx-1 h-6" />
+            <Button
+              variant={rulerMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setRulerMode((v) => !v)}
+              title={t.rulerHint}
+            >
+              <Ruler className="mr-1 h-4 w-4" />
+              {rulerMode ? t.rulerOn : t.ruler}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetMode("items")}
+              disabled={items.length === 0}
+            >
+              <Eraser className="mr-1 h-4 w-4" /> {t.resetItems}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetMode("all")}
+              disabled={items.length === 0 && openings.length === 0}
+            >
+              <Trash2 className="mr-1 h-4 w-4" /> {t.resetAll}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTourStep(0);
+                setTourOpen(true);
+              }}
+              title={t.takeTheTour}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>
+
+      <AlertDialog open={resetMode !== null} onOpenChange={(o) => !o && setResetMode(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {resetMode === "all" ? t.resetAll : t.resetItems}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {resetMode === "all" ? t.confirmResetAll : t.confirmReset}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmReset}>{t.confirm}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {tourOpen && (() => {
+        const steps = [
+          { key: "welcome" as const },
+          { key: "catalog" as const },
+          { key: "canvas" as const },
+          { key: "openings" as const },
+          { key: "ruler" as const },
+          { key: "reset" as const },
+        ];
+        const step = steps[Math.min(tourStep, steps.length - 1)];
+        const content = t.tour[step.key];
+        const isLast = tourStep >= steps.length - 1;
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-4 sm:items-center">
+            <div className="w-full max-w-md rounded-lg border bg-background p-5 shadow-xl">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <h2 className="text-lg font-semibold">{content.title}</h2>
+                <button
+                  type="button"
+                  onClick={closeTour}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-sm text-muted-foreground">{content.body}</p>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {tourStep + 1} / {steps.length}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={closeTour}>
+                    {t.tourSkip}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTourStep((s) => Math.max(0, s - 1))}
+                    disabled={tourStep === 0}
+                  >
+                    {t.tourBack}
+                  </Button>
+                  {isLast ? (
+                    <Button size="sm" onClick={closeTour}>{t.tourDone}</Button>
+                  ) : (
+                    <Button size="sm" onClick={() => setTourStep((s) => s + 1)}>
+                      {t.tourNext}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[300px_minmax(0,1fr)_280px]">
         {/* Left column */}
