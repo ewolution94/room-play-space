@@ -1545,7 +1545,7 @@ function RoomPlanner() {
         </aside>
 
         {/* Stage */}
-        <main className="min-w-0 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)] flex flex-col gap-2">
+        <main className="min-w-0 h-[calc(100vh-6rem)] lg:sticky lg:top-20 lg:self-start flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 rounded-md border bg-background/80 px-3 py-1.5 shadow-sm">
             <p className="text-xs text-foreground">
               {rulerMode ? t.rulerHint : t.hint} {`(1cm ≈ ${scale.toFixed(2)}px)`}
