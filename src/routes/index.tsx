@@ -729,10 +729,32 @@ function RoomPlanner() {
   };
 
   const onStagePointerUp = () => {
-    if (dragRef.current) {
+    const d = dragRef.current;
+    if (d) {
+      if (d.mode === "move") {
+        const idsSet = new Set(d.ids);
+        // Validate collisions on release; revert selected items if any collide.
+        setItems((prev) => {
+          let anyCollision = false;
+          for (const i of prev) {
+            if (!idsSet.has(i.id)) continue;
+            if (collidesWithOthers(i, prev, idsSet)) {
+              anyCollision = true;
+              break;
+            }
+          }
+          if (!anyCollision) return prev;
+          return prev.map((i) => {
+            if (!idsSet.has(i.id)) return i;
+            const start = d.startPos.get(i.id);
+            return start ? { ...i, x: start.x, y: start.y } : i;
+          });
+        });
+      }
       dragRef.current = null;
       return;
     }
+
     const m = marqueeRef.current;
     const r = marqueeRect;
     if (m && r) {
