@@ -687,42 +687,17 @@ function RoomPlanner() {
         const dx = (e.clientX - d.startMouseX) / scale;
         const dy = (e.clientY - d.startMouseY) / scale;
         const idsSet = new Set(d.ids);
-        setItems((prev) => {
-          // For collision purposes, ignore other selected items.
-          const next = prev.map((i) => {
+        // Collision detection is temporarily disabled while dragging.
+        // We only clamp to room bounds here; collisions are validated on pointer up.
+        setItems((prev) =>
+          prev.map((i) => {
             if (!idsSet.has(i.id)) return i;
             const start = d.startPos.get(i.id)!;
             const c = clampPos(i, roomW, roomL, start.x + dx, start.y + dy);
             return { ...i, x: c.x, y: c.y };
-          });
-          // Validate: any selected colliding with non-selected? If so, revert that item.
-          let anyCollision = false;
-          for (const i of next) {
-            if (!idsSet.has(i.id)) continue;
-            if (collidesWithOthers(i, next, idsSet)) {
-              anyCollision = true;
-              break;
-            }
-          }
-          if (!anyCollision) return next;
-          // Try axis-slide fallback for single-item drags
-          if (d.ids.length === 1) {
-            const id = d.ids[0];
-            const original = prev.find((p) => p.id === id)!;
-            const start = d.startPos.get(id)!;
-            const xOnly = clampPos(original, roomW, roomL, start.x + dx, start.y);
-            const cx = { ...original, x: xOnly.x, y: xOnly.y };
-            if (!collidesWithOthers(cx, prev, idsSet)) {
-              return prev.map((p) => (p.id === id ? cx : p));
-            }
-            const yOnly = clampPos(original, roomW, roomL, start.x, start.y + dy);
-            const cy = { ...original, x: yOnly.x, y: yOnly.y };
-            if (!collidesWithOthers(cy, prev, idsSet)) {
-              return prev.map((p) => (p.id === id ? cy : p));
-            }
-          }
-          return prev;
-        });
+          }),
+        );
+
       } else {
         const angle =
           (Math.atan2(e.clientY - d.centerClientY, e.clientX - d.centerClientX) * 180) / Math.PI;
