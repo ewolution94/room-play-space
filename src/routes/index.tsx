@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,21 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Trash2,
   Plus,
   Download,
@@ -20,8 +36,14 @@ import {
   Undo2,
   Redo2,
   Copy,
+  Eraser,
+  Sparkles,
+  Ruler,
+  HelpCircle,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { furnishRoom } from "@/lib/furnish.functions";
 import chairBaseUrl from "@/assets/chair-base.png";
 import sofaUrl from "@/assets/presets/sofa.png";
 import armchairUrl from "@/assets/presets/armchair.png";
@@ -33,6 +55,7 @@ import bathtubUrl from "@/assets/presets/bathtub.png";
 import stoveUrl from "@/assets/presets/stove.png";
 import sinkUrl from "@/assets/presets/sink.png";
 import fridgeUrl from "@/assets/presets/fridge.png";
+
 
 type Lang = "en" | "de";
 const STRINGS = {
