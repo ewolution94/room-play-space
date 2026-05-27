@@ -26,6 +26,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Trash2,
   Plus,
   Download,
@@ -39,6 +46,7 @@ import {
   Ruler,
   HelpCircle,
   X,
+  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import chairBaseUrl from "@/assets/chair-base.png";
