@@ -1205,30 +1205,11 @@ function RoomPlanner() {
             <p className="truncate text-sm text-muted-foreground">{t.subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="hidden text-sm text-muted-foreground sm:inline">
-              {t.roomLabel}: {roomW} × {roomL} cm
-              {selectedIds.size > 0 && <> · {t.selectedCount(selectedIds.size)}</>}
-            </span>
             <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Ctrl+Z">
               <Undo2 className="mr-1 h-4 w-4" /> {t.undo}
             </Button>
             <Button variant="outline" size="sm" onClick={redo} disabled={!canRedo} title="Ctrl+Shift+Z">
               <Redo2 className="mr-1 h-4 w-4" /> {t.redo}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLang(lang === "en" ? "de" : "en")}
-              title="Language / Sprache"
-            >
-              <Languages className="mr-1 h-4 w-4" />
-              {lang === "en" ? "DE" : "EN"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportJSON}>
-              <Download className="mr-1 h-4 w-4" /> {t.export}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="mr-1 h-4 w-4" /> {t.import}
             </Button>
             <input
               ref={fileInputRef}
@@ -1237,32 +1218,39 @@ function RoomPlanner() {
               className="hidden"
               onChange={onImportFile}
             />
-            <Separator orientation="vertical" className="mx-1 h-6" />
-            <Button
-              variant={rulerMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => setRulerMode((v) => !v)}
-              title={t.rulerHint}
-            >
-              <Ruler className="mr-1 h-4 w-4" />
-              {rulerMode ? t.rulerOn : t.ruler}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setResetMode("items")}
-              disabled={items.length === 0}
-            >
-              <Eraser className="mr-1 h-4 w-4" /> {t.resetItems}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setResetMode("all")}
-              disabled={items.length === 0 && openings.length === 0}
-            >
-              <Trash2 className="mr-1 h-4 w-4" /> {t.resetAll}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" title="More">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setLang(lang === "en" ? "de" : "en")}>
+                  <Languages className="mr-2 h-4 w-4" />
+                  {lang === "en" ? "Deutsch" : "English"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={exportJSON}>
+                  <Download className="mr-2 h-4 w-4" /> {t.export}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" /> {t.import}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setResetMode("items")}
+                  disabled={items.length === 0}
+                >
+                  <Eraser className="mr-2 h-4 w-4" /> {t.resetItems}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setResetMode("all")}
+                  disabled={items.length === 0 && openings.length === 0}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> {t.resetAll}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="ghost"
               size="sm"
