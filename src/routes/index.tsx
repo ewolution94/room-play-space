@@ -851,6 +851,11 @@ function RoomPlanner() {
   };
 
   const onStagePointerMove = (e: React.PointerEvent) => {
+    if (rulerMode) {
+      const p = stageToCm(e.clientX, e.clientY);
+      setRulerHover({ x: p.x, y: p.y });
+      return;
+    }
     const d = dragRef.current;
     if (d) {
       if (d.mode === "move") {
