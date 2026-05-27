@@ -1206,14 +1206,18 @@ function RoomPlanner() {
               >
                 {/* openings */}
                 {openings.map((o) => {
-                  const thick = 6;
+                  const thick = 10;
                   const isH = o.wall === "top" || o.wall === "bottom";
+                  const wallLen = isH ? roomW : roomL;
                   const wpx = cm(o.width);
                   const ppx = cm(o.position);
                   const style: React.CSSProperties = {
                     position: "absolute",
                     background: o.kind === "door" ? "var(--background)" : "#bcdcff",
-                    border: o.kind === "window" ? "1px solid #3b82f6" : "none",
+                    border: o.kind === "window" ? "1px solid #3b82f6" : "1px solid hsl(var(--foreground) / 0.4)",
+                    cursor: isH ? "ew-resize" : "ns-resize",
+                    touchAction: "none",
+                    zIndex: 5,
                   };
                   if (isH) {
                     style.width = wpx;
@@ -1226,10 +1230,37 @@ function RoomPlanner() {
                     style.top = ppx;
                     style[o.wall] = -thick / 2;
                   }
+                  const onOpeningDown = (e: React.PointerEvent) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    pushHistory();
+                    const startClient = isH ? e.clientX : e.clientY;
+                    const startPos = o.position;
+                    const id = o.id;
+                    const maxPos = Math.max(0, wallLen - o.width);
+                    const move = (ev: PointerEvent) => {
+                      const cur = isH ? ev.clientX : ev.clientY;
+                      const delta = (cur - startClient) / scale;
+                      const next = Math.min(maxPos, Math.max(0, startPos + delta));
+                      setOpenings((prev) => prev.map((x) => (x.id === id ? { ...x, position: next } : x)));
+                    };
+                    const up = () => {
+                      window.removeEventListener("pointermove", move);
+                      window.removeEventListener("pointerup", up);
+                    };
+                    window.addEventListener("pointermove", move);
+                    window.addEventListener("pointerup", up);
+                  };
                   return (
-                    <div key={o.id} style={style} title={`${o.kind} (${o.width}cm)`} />
+                    <div
+                      key={o.id}
+                      style={style}
+                      title={`${o.kind} (${o.width}cm) — drag to move`}
+                      onPointerDown={onOpeningDown}
+                    />
                   );
                 })}
+
 
                 {/* items */}
                 {items.map((it) => {
