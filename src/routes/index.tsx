@@ -47,6 +47,7 @@ import {
   HelpCircle,
   X,
   MoreHorizontal,
+  SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import chairBaseUrl from "@/assets/chair-base.png";
