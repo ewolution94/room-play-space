@@ -410,25 +410,16 @@ function RoomPlanner() {
   // Cozy living-room + work-nook default. Door is on the bottom wall near the
   // bottom-left corner with its swing arc landing on clear floor space.
   const [items, setItems] = useState<Item[]>(() => [
-    // Rug first so it renders underneath the lounge furniture
-    { id: crypto.randomUUID(), name: "Rug",           width: 200, length: 140, color: "#b7806f", x: 250, y: 160, rotation: 0, kind: "furniture", icon: "rug" },
-    // Lounge zone (sofa along top wall facing into room)
-    { id: crypto.randomUUID(), name: "Sofa",          width: 220, length: 85, color: "#a8a39b", x: 240, y: 35,  rotation: 0, kind: "furniture", icon: "sofa" },
-    { id: crypto.randomUUID(), name: "Coffee table",  width: 110, length: 55, color: "#8a6a4a", x: 295, y: 200, rotation: 0, kind: "furniture", icon: "coffee-table" },
-    { id: crypto.randomUUID(), name: "Armchair",      width: 80,  length: 80, color: "#a0522d", x: 250, y: 265, rotation: 0, kind: "furniture", icon: "armchair" },
-    { id: crypto.randomUUID(), name: "Armchair",      width: 80,  length: 80, color: "#a0522d", x: 370, y: 265, rotation: 0, kind: "furniture", icon: "armchair" },
-    { id: crypto.randomUUID(), name: "Floor lamp",    width: 30,  length: 30, color: "#e8c97c", x: 445, y: 135, rotation: 0, kind: "furniture", icon: "floor-lamp" },
-    { id: crypto.randomUUID(), name: "Plant",         width: 40,  length: 40, color: "#2f6b3a", x: 435, y: 315, rotation: 0, kind: "furniture", icon: "plant" },
-    // Work nook (top-left)
-    { id: crypto.randomUUID(), name: "Desk",          width: 130, length: 55, color: "#6b4a2b", x: 20,  y: 20,  rotation: 0, kind: "furniture", icon: "desk" },
-    { id: crypto.randomUUID(), name: "Office chair",  width: 55,  length: 55, color: "#1f2937", x: 55,  y: 85,  rotation: 0, kind: "chair",     icon: "chair-office" },
-    // Storage along left wall
-    { id: crypto.randomUUID(), name: "Bookshelf",     width: 30,  length: 180, color: "#3d2b1f", x: 0,   y: 160, rotation: 0, kind: "furniture", icon: "bookshelf" },
+    { id: crypto.randomUUID(), name: "Desk",           width: 160, length: 75, color: "#6b4a2b", x: 160, y: 15,  rotation: 0, kind: "furniture", icon: "desk" },
+    { id: crypto.randomUUID(), name: "Office chair",   width: 60,  length: 60, color: "#1f2937", x: 210, y: 100, rotation: 0, kind: "chair",     icon: "chair-office" },
+    { id: crypto.randomUUID(), name: "Bookshelf",      width: 30,  length: 200, color: "#3d2b1f", x: 450, y: 130, rotation: 0, kind: "furniture", icon: "bookshelf" },
+    { id: crypto.randomUUID(), name: "Filing cabinet", width: 60,  length: 45, color: "#9aa0a6", x: 340, y: 15,  rotation: 0, kind: "furniture", icon: "filing-cabinet" },
+    { id: crypto.randomUUID(), name: "Plant",          width: 50,  length: 50, color: "#2f6b3a", x: 20,  y: 20,  rotation: 0, kind: "furniture", icon: "plant" },
   ]);
   const [openings, setOpenings] = useState<Opening[]>(() => [
-    { id: crypto.randomUUID(), wall: "bottom", position: 200, width: 90,  kind: "door",   hinge: "start", swing: "in" },
-    { id: crypto.randomUUID(), wall: "top",    position: 60,  width: 140, kind: "window" },
-    { id: crypto.randomUUID(), wall: "right",  position: 30,  width: 80,  kind: "window" },
+    { id: crypto.randomUUID(), wall: "bottom", position: 30, width: 90,  kind: "door",   hinge: "start", swing: "in" },
+    { id: crypto.randomUUID(), wall: "top",    position: 60, width: 80,  kind: "window" },
+    { id: crypto.randomUUID(), wall: "right",  position: 30, width: 80,  kind: "window" },
   ]);
 
 
