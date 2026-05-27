@@ -709,7 +709,136 @@ function RoomPlanner() {
   };
 
 
-  // -------- Drag & marquee --------
+  // -------- Reset + AI Furnish + Ruler + Tour state --------
+  const [resetMode, setResetMode] = useState<"items" | "all" | null>(null);
+  const [furnishOpen, setFurnishOpen] = useState(false);
+  const [furnishType, setFurnishType] = useState<string>("living");
+  const [furnishLoading, setFurnishLoading] = useState(false);
+  const [pendingFurnish, setPendingFurnish] = useState<Item[] | null>(null);
+  const [rulerMode, setRulerMode] = useState(false);
+  const [rulerA, setRulerA] = useState<{ x: number; y: number } | null>(null);
+  const [rulerB, setRulerB] = useState<{ x: number; y: number } | null>(null);
+  const [rulerHover, setRulerHover] = useState<{ x: number; y: number } | null>(null);
+  const [tourStep, setTourStep] = useState<number | null>(null);
+
+  const clearItemsOnly = () => {
+    pushHistory();
+    setItems([]);
+    setSelectedIds(new Set());
+  };
+  const clearAll = () => {
+    pushHistory();
+    setItems([]);
+    setOpenings([]);
+    setSelectedIds(new Set());
+  };
+
+  const callFurnish = useServerFn(furnishRoom);
+  const runFurnish = async () => {
+    if (furnishLoading) return;
+    setFurnishLoading(true);
+    try {
+      const res = await callFurnish({
+        data: {
+          roomW,
+          roomL,
+          roomType: furnishType as
+            | "office"
+            | "bedroom"
+            | "living"
+            | "kitchen"
+            | "studio"
+            | "dining"
+            | "kids"
+            | "gym",
+          openings: openings.map((o) => ({
+            wall: o.wall,
+            position: o.position,
+            width: o.width,
+            kind: o.kind,
+          })),
+        },
+      });
+
+      // Post-process: snap rotation, clamp, color/name fallback from preset, drop colliding.
+      const accepted: Item[] = [];
+      for (const raw of res.items) {
+        const preset = raw.presetKey
+          ? PRESET_BY_KEY[raw.presetKey as keyof typeof PRESET_BY_KEY]
+          : undefined;
+        const rot = Math.round((raw.rotation ?? 0) / 90) * 90;
+        const draft: Item = {
+          id: crypto.randomUUID(),
+          name: preset ? (lang === "de" ? preset.nameDe : preset.nameEn) : raw.name,
+          width: Math.max(10, Math.min(roomW, raw.width)),
+          length: Math.max(10, Math.min(roomL, raw.length)),
+          color: preset?.color ?? raw.color ?? "#888888",
+          x: raw.x,
+          y: raw.y,
+          rotation: ((rot % 360) + 360) % 360,
+          kind: preset?.key === "chair-office" ? "chair" : "furniture",
+          icon: preset?.key,
+        };
+        const clamped = clampPos(draft, roomW, roomL, draft.x, draft.y);
+        const candidate = { ...draft, x: clamped.x, y: clamped.y };
+        if (!collidesWithOthers(candidate, accepted)) accepted.push(candidate);
+      }
+
+      setFurnishOpen(false);
+      if (accepted.length === 0) {
+        toast.error(t.aiError);
+        return;
+      }
+      // Defer replacing items until the user confirms (always asks before destructive replace).
+      setPendingFurnish(accepted);
+    } catch (err) {
+      const msg = String((err as Error)?.message ?? err);
+      if (msg.includes("429")) toast.error(t.aiBusy);
+      else if (msg.includes("402")) toast.error(t.aiOutOfCredits);
+      else toast.error(t.aiError);
+    } finally {
+      setFurnishLoading(false);
+    }
+  };
+  const applyPendingFurnish = () => {
+    if (!pendingFurnish) return;
+    pushHistory();
+    setItems(pendingFurnish);
+    setSelectedIds(new Set());
+    setPendingFurnish(null);
+  };
+
+  // -------- Onboarding tour --------
+  const TOUR_KEY = "planner-tour-v1-done";
+  const tourSteps = useMemo(
+    () => [
+      { target: "tour-canvas", ...t.tour.welcome },
+      { target: "tour-catalog", ...t.tour.catalog },
+      { target: "tour-canvas", ...t.tour.canvas },
+      { target: "tour-openings", ...t.tour.openings },
+      { target: "tour-ruler", ...t.tour.ruler },
+      { target: "tour-furnish", ...t.tour.furnish },
+    ],
+    [t],
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.localStorage.getItem(TOUR_KEY)) {
+      // Delay slightly so the layout is mounted before measuring spotlight.
+      const id = window.setTimeout(() => setTourStep(0), 400);
+      return () => window.clearTimeout(id);
+    }
+  }, []);
+  const endTour = () => {
+    setTourStep(null);
+    try {
+      window.localStorage.setItem(TOUR_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
+
+
   const dragRef = useRef<
     | {
         mode: "move";
