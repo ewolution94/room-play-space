@@ -990,7 +990,7 @@ function RoomPlanner() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-6 py-4">
+        <div className="flex w-full items-center justify-between gap-2 px-4 py-3">
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight">{t.title}</h1>
             <p className="truncate text-sm text-muted-foreground">{t.subtitle}</p>
