@@ -1712,7 +1712,7 @@ function RoomPlanner() {
                         y={-wallThick / 2}
                         width={wpx}
                         height={wallThick}
-                        fill="hsl(var(--background))"
+                        fill="var(--background)"
                         pointerEvents="none"
                       />
 
