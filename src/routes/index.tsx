@@ -1034,7 +1034,7 @@ function RoomPlanner() {
 
       <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[300px_minmax(0,1fr)_280px]">
         {/* Left column */}
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
+        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">{t.roomLabel}</CardTitle>
@@ -1594,7 +1594,7 @@ function RoomPlanner() {
         </main>
 
         {/* Right column: Items list */}
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
+        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
           <Card>
             <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">
