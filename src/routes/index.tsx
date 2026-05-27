@@ -1343,36 +1343,6 @@ function RoomPlanner() {
       <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[300px_minmax(0,1fr)_280px]">
         {/* Left column */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">{t.roomLabel}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>{t.width}</Label>
-                  <Input
-                    type="number"
-                    value={draftW}
-                    min={50}
-                    onChange={(e) => setDraftW(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>{t.length}</Label>
-                  <Input
-                    type="number"
-                    value={draftL}
-                    min={50}
-                    onChange={(e) => setDraftL(e.target.value)}
-                  />
-                </div>
-              </div>
-              <Button onClick={applyRoom} size="sm" className="w-full" disabled={!dirty}>
-                {t.apply}
-              </Button>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader className="pb-3">
