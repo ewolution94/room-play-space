@@ -1237,10 +1237,11 @@ function RoomPlanner() {
         </aside>
 
         {/* Stage */}
-        <main className="lg:sticky lg:top-24 lg:self-start lg:h-fit">
+        <main className="min-w-0 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)]">
           <div
             ref={stageRef}
-            className="relative h-[75vh] w-full overflow-visible rounded-lg border bg-muted/30"
+            className="relative h-[calc(100vh-6rem)] w-full overflow-visible rounded-lg border bg-muted/30"
+
             onPointerDown={onStagePointerDown}
             onPointerMove={onStagePointerMove}
             onPointerUp={onStagePointerUp}
