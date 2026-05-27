@@ -1862,6 +1862,42 @@ function RoomPlanner() {
                     }}
                   />
                 )}
+
+                {/* ruler overlay */}
+                {rulerMode && rulerStart && (() => {
+                  const end = rulerEnd ?? rulerHover ?? rulerStart;
+                  const dx = end.x - rulerStart.x;
+                  const dy = end.y - rulerStart.y;
+                  const distCm = Math.sqrt(dx * dx + dy * dy);
+                  const midX = (rulerStart.x + end.x) / 2;
+                  const midY = (rulerStart.y + end.y) / 2;
+                  return (
+                    <svg
+                      className="pointer-events-none absolute inset-0"
+                      width={roomPxW}
+                      height={roomPxL}
+                      style={{ overflow: "visible" }}
+                    >
+                      <line
+                        x1={cm(rulerStart.x)}
+                        y1={cm(rulerStart.y)}
+                        x2={cm(end.x)}
+                        y2={cm(end.y)}
+                        stroke="hsl(var(--primary, 222 47% 11%))"
+                        strokeWidth={2}
+                        strokeDasharray={rulerEnd ? "0" : "4 4"}
+                      />
+                      <circle cx={cm(rulerStart.x)} cy={cm(rulerStart.y)} r={4} fill="hsl(var(--primary, 222 47% 11%))" />
+                      <circle cx={cm(end.x)} cy={cm(end.y)} r={4} fill="hsl(var(--primary, 222 47% 11%))" />
+                      <g transform={`translate(${cm(midX)}, ${cm(midY)})`}>
+                        <rect x={-32} y={-22} width={64} height={18} rx={4} fill="var(--background)" stroke="currentColor" />
+                        <text x={0} y={-9} textAnchor="middle" fontSize={11} fill="currentColor" style={{ fontWeight: 600 }}>
+                          {distCm.toFixed(1)} cm
+                        </text>
+                      </g>
+                    </svg>
+                  );
+                })()}
               </div>
             )}
           </div>
