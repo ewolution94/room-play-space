@@ -1192,11 +1192,37 @@ function RoomPlanner() {
               <Separator />
               <ul className="space-y-1 text-sm">
                 {openings.map((o) => (
-                  <li key={o.id} className="flex items-center justify-between rounded-md border px-2 py-1">
-                    <span className="capitalize">
-                      {o.kind === "door" ? t.door : t.window} · {t[o.wall]} · {o.position}cm · {o.width}cm
+                  <li key={o.id} className="flex items-center justify-between gap-1 rounded-md border px-2 py-1">
+                    <span className="min-w-0 flex-1 truncate capitalize">
+                      {o.kind === "door" ? t.door : t.window} · {t[o.wall]} · {Math.round(o.position)}cm · {o.width}cm
                     </span>
-                    <Button variant="ghost" size="icon" onClick={() => removeOpening(o.id)}>
+                    {o.kind === "door" && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() =>
+                            updateOpening(o.id, { hinge: o.hinge === "end" ? "start" : "end" })
+                          }
+                          title={t.flipHinge}
+                        >
+                          <span className="text-xs">⇋</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() =>
+                            updateOpening(o.id, { swing: o.swing === "out" ? "in" : "out" })
+                          }
+                          title={t.flipSwing}
+                        >
+                          <span className="text-xs">⇵</span>
+                        </Button>
+                      </>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeOpening(o.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </li>
@@ -1205,6 +1231,7 @@ function RoomPlanner() {
                   <li className="text-xs text-muted-foreground">{t.noOpenings}</li>
                 )}
               </ul>
+
             </CardContent>
           </Card>
         </aside>
