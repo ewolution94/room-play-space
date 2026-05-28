@@ -3,12 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
@@ -20,11 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +59,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
 import chairBaseUrl from "@/assets/chair-base.png";
 import sofaUrl from "@/assets/presets/sofa.png";
 import armchairUrl from "@/assets/presets/armchair.png";
@@ -83,8 +75,8 @@ import fridgeUrl from "@/assets/presets/fridge.png";
 // Polyfill crypto.randomUUID for insecure browser contexts (e.g. HTTP access on NAS local IP)
 if (typeof globalThis !== "undefined") {
   if (!globalThis.crypto) {
-    // @ts-ignore
-    globalThis.crypto = {} as any;
+    // @ts-expect-error crypto might be read-only in some TypeScript configurations
+    globalThis.crypto = {} as Crypto;
   }
   if (!globalThis.crypto.randomUUID) {
     globalThis.crypto.randomUUID = function () {
@@ -141,14 +133,24 @@ const STRINGS = {
     tourDone: "Done",
     tour: {
       welcome: { title: "Welcome to Room Planner", body: "A 30-second tour of the essentials." },
-      catalog: { title: "Catalog", body: "Pick furniture presets from the left column to drop into the room." },
-      canvas: { title: "Canvas", body: "Drag items, marquee-select, and use arrows or R to nudge/rotate." },
-      openings: { title: "Doors & windows", body: "Drag along the wall to reposition. Doors have hinge & swing toggles." },
-      ruler: { title: "Ruler", body: "Toggle the ruler then click two points to measure the distance." },
+      catalog: {
+        title: "Catalog",
+        body: "Pick furniture presets from the left column to drop into the room.",
+      },
+      canvas: {
+        title: "Canvas",
+        body: "Drag items, marquee-select, and use arrows or R to nudge/rotate.",
+      },
+      openings: {
+        title: "Doors & windows",
+        body: "Drag along the wall to reposition. Doors have hinge & swing toggles.",
+      },
+      ruler: {
+        title: "Ruler",
+        body: "Toggle the ruler then click two points to measure the distance.",
+      },
       reset: { title: "Reset", body: "Use Clear items or Clear all to start over." },
     },
-
-
 
     catalog: "Catalog",
     customBox: "Custom box",
@@ -158,8 +160,7 @@ const STRINGS = {
     addItem: "Add custom box",
     items: "Items",
     noItems: "No items yet. Pick one from the catalog.",
-    hint:
-      "Click to select. Shift-click or drag a marquee for multi-select. Arrows = 1cm (Shift = 10cm). R = rotate 15°. Ctrl+D duplicate, Del removes. Ctrl+Z/Ctrl+Shift+Z undo/redo.",
+    hint: "Click to select. Shift-click or drag a marquee for multi-select. Arrows = 1cm (Shift = 10cm). R = rotate 15°. Ctrl+D duplicate, Del removes. Ctrl+Z/Ctrl+Shift+Z undo/redo.",
     dragToRotate: "Drag to rotate",
     noFreeSpace: "No free space for this item — make it smaller or remove something.",
     exported: "Exported planner state",
@@ -219,15 +220,31 @@ const STRINGS = {
     tourNext: "Weiter",
     tourDone: "Fertig",
     tour: {
-      welcome: { title: "Willkommen im Raumplaner", body: "Eine 30-Sekunden-Tour durch die wichtigsten Funktionen." },
-      catalog: { title: "Katalog", body: "Wähle Möbelvorlagen aus der linken Spalte, um sie im Raum zu platzieren." },
-      canvas: { title: "Arbeitsfläche", body: "Ziehe Elemente, wähle mit Rahmen aus und nutze Pfeiltasten oder R zum Verschieben/Drehen." },
-      openings: { title: "Türen & Fenster", body: "Entlang der Wand ziehen, um sie zu verschieben. Türen haben Anschlag- und Öffnungsrichtung-Schalter." },
-      ruler: { title: "Lineal", body: "Aktiviere das Lineal und klicke zwei Punkte, um den Abstand zu messen." },
-      reset: { title: "Zurücksetzen", body: "Mit Möbel löschen oder Alles löschen kannst du neu beginnen." },
+      welcome: {
+        title: "Willkommen im Raumplaner",
+        body: "Eine 30-Sekunden-Tour durch die wichtigsten Funktionen.",
+      },
+      catalog: {
+        title: "Katalog",
+        body: "Wähle Möbelvorlagen aus der linken Spalte, um sie im Raum zu platzieren.",
+      },
+      canvas: {
+        title: "Arbeitsfläche",
+        body: "Ziehe Elemente, wähle mit Rahmen aus und nutze Pfeiltasten oder R zum Verschieben/Drehen.",
+      },
+      openings: {
+        title: "Türen & Fenster",
+        body: "Entlang der Wand ziehen, um sie zu verschieben. Türen haben Anschlag- und Öffnungsrichtung-Schalter.",
+      },
+      ruler: {
+        title: "Lineal",
+        body: "Aktiviere das Lineal und klicke zwei Punkte, um den Abstand zu messen.",
+      },
+      reset: {
+        title: "Zurücksetzen",
+        body: "Mit Möbel löschen oder Alles löschen kannst du neu beginnen.",
+      },
     },
-
-
 
     catalog: "Katalog",
     customBox: "Eigene Box",
@@ -237,8 +254,7 @@ const STRINGS = {
     addItem: "Box hinzufügen",
     items: "Elemente",
     noItems: "Noch keine Elemente. Wähle eins aus dem Katalog.",
-    hint:
-      "Klicken zum Auswählen. Shift-Klick oder Rahmen ziehen für Mehrfachauswahl. Pfeile = 1cm (Shift = 10cm). R = 15° drehen. Strg+D dupliziert, Entf löscht. Strg+Z/Strg+Shift+Z für Rückgängig/Wiederherstellen.",
+    hint: "Klicken zum Auswählen. Shift-Klick oder Rahmen ziehen für Mehrfachauswahl. Pfeile = 1cm (Shift = 10cm). R = 15° drehen. Strg+D dupliziert, Entf löscht. Strg+Z/Strg+Shift+Z für Rückgängig/Wiederherstellen.",
     dragToRotate: "Zum Drehen ziehen",
     noFreeSpace: "Kein freier Platz — mache es kleiner oder entferne etwas.",
     exported: "Planerstand exportiert",
@@ -292,32 +308,204 @@ type Preset = {
 
 const PRESETS: Preset[] = [
   // Seating
-  { key: "chair-office", category: "seating", nameEn: "Office chair", nameDe: "Bürostuhl", w: 60, l: 60, color: "#1f2937", iconUrl: chairBaseUrl },
-  { key: "armchair", category: "seating", nameEn: "Armchair", nameDe: "Sessel", w: 90, l: 90, color: "#a0522d", iconUrl: armchairUrl },
-  { key: "sofa", category: "seating", nameEn: "Sofa", nameDe: "Sofa", w: 220, l: 95, color: "#a8a39b", iconUrl: sofaUrl },
+  {
+    key: "chair-office",
+    category: "seating",
+    nameEn: "Office chair",
+    nameDe: "Bürostuhl",
+    w: 60,
+    l: 60,
+    color: "#1f2937",
+    iconUrl: chairBaseUrl,
+  },
+  {
+    key: "armchair",
+    category: "seating",
+    nameEn: "Armchair",
+    nameDe: "Sessel",
+    w: 90,
+    l: 90,
+    color: "#a0522d",
+    iconUrl: armchairUrl,
+  },
+  {
+    key: "sofa",
+    category: "seating",
+    nameEn: "Sofa",
+    nameDe: "Sofa",
+    w: 220,
+    l: 95,
+    color: "#a8a39b",
+    iconUrl: sofaUrl,
+  },
   // Sleeping
-  { key: "bed-double", category: "sleeping", nameEn: "Double bed", nameDe: "Doppelbett", w: 160, l: 200, color: "#f5f5f5", iconUrl: bedUrl },
-  { key: "bed-single", category: "sleeping", nameEn: "Single bed", nameDe: "Einzelbett", w: 90, l: 200, color: "#f5f5f5", iconUrl: bedUrl },
+  {
+    key: "bed-double",
+    category: "sleeping",
+    nameEn: "Double bed",
+    nameDe: "Doppelbett",
+    w: 160,
+    l: 200,
+    color: "#f5f5f5",
+    iconUrl: bedUrl,
+  },
+  {
+    key: "bed-single",
+    category: "sleeping",
+    nameEn: "Single bed",
+    nameDe: "Einzelbett",
+    w: 90,
+    l: 200,
+    color: "#f5f5f5",
+    iconUrl: bedUrl,
+  },
   // Tables
-  { key: "desk", category: "tables", nameEn: "Desk", nameDe: "Schreibtisch", w: 160, l: 75, color: "#6b4a2b" },
-  { key: "round-table", category: "tables", nameEn: "Round table", nameDe: "Runder Tisch", w: 110, l: 110, color: "#d4a574", iconUrl: roundTableUrl },
-  { key: "coffee-table", category: "tables", nameEn: "Coffee table", nameDe: "Couchtisch", w: 100, l: 55, color: "#8a6a4a" },
-  { key: "side-table", category: "tables", nameEn: "Side table", nameDe: "Beistelltisch", w: 45, l: 45, color: "#c9a86a" },
+  {
+    key: "desk",
+    category: "tables",
+    nameEn: "Desk",
+    nameDe: "Schreibtisch",
+    w: 160,
+    l: 75,
+    color: "#6b4a2b",
+  },
+  {
+    key: "round-table",
+    category: "tables",
+    nameEn: "Round table",
+    nameDe: "Runder Tisch",
+    w: 110,
+    l: 110,
+    color: "#d4a574",
+    iconUrl: roundTableUrl,
+  },
+  {
+    key: "coffee-table",
+    category: "tables",
+    nameEn: "Coffee table",
+    nameDe: "Couchtisch",
+    w: 100,
+    l: 55,
+    color: "#8a6a4a",
+  },
+  {
+    key: "side-table",
+    category: "tables",
+    nameEn: "Side table",
+    nameDe: "Beistelltisch",
+    w: 45,
+    l: 45,
+    color: "#c9a86a",
+  },
   // Storage
-  { key: "bookshelf", category: "storage", nameEn: "Bookshelf", nameDe: "Bücherregal", w: 80, l: 30, color: "#3d2b1f" },
-  { key: "wardrobe", category: "storage", nameEn: "Wardrobe", nameDe: "Kleiderschrank", w: 150, l: 60, color: "#4a3729" },
-  { key: "filing-cabinet", category: "storage", nameEn: "Filing cabinet", nameDe: "Aktenschrank", w: 60, l: 45, color: "#9aa0a6" },
+  {
+    key: "bookshelf",
+    category: "storage",
+    nameEn: "Bookshelf",
+    nameDe: "Bücherregal",
+    w: 80,
+    l: 30,
+    color: "#3d2b1f",
+  },
+  {
+    key: "wardrobe",
+    category: "storage",
+    nameEn: "Wardrobe",
+    nameDe: "Kleiderschrank",
+    w: 150,
+    l: 60,
+    color: "#4a3729",
+  },
+  {
+    key: "filing-cabinet",
+    category: "storage",
+    nameEn: "Filing cabinet",
+    nameDe: "Aktenschrank",
+    w: 60,
+    l: 45,
+    color: "#9aa0a6",
+  },
   // Kitchen
-  { key: "stove", category: "kitchen", nameEn: "Stove", nameDe: "Herd", w: 60, l: 60, color: "#c0c0c0", iconUrl: stoveUrl },
-  { key: "sink", category: "kitchen", nameEn: "Sink", nameDe: "Spüle", w: 60, l: 50, color: "#c0c0c0", iconUrl: sinkUrl },
-  { key: "fridge", category: "kitchen", nameEn: "Fridge", nameDe: "Kühlschrank", w: 70, l: 70, color: "#e8e8e8", iconUrl: fridgeUrl },
+  {
+    key: "stove",
+    category: "kitchen",
+    nameEn: "Stove",
+    nameDe: "Herd",
+    w: 60,
+    l: 60,
+    color: "#c0c0c0",
+    iconUrl: stoveUrl,
+  },
+  {
+    key: "sink",
+    category: "kitchen",
+    nameEn: "Sink",
+    nameDe: "Spüle",
+    w: 60,
+    l: 50,
+    color: "#c0c0c0",
+    iconUrl: sinkUrl,
+  },
+  {
+    key: "fridge",
+    category: "kitchen",
+    nameEn: "Fridge",
+    nameDe: "Kühlschrank",
+    w: 70,
+    l: 70,
+    color: "#e8e8e8",
+    iconUrl: fridgeUrl,
+  },
   // Bathroom
-  { key: "toilet", category: "bathroom", nameEn: "Toilet", nameDe: "Toilette", w: 40, l: 70, color: "#ffffff", iconUrl: toiletUrl },
-  { key: "bathtub", category: "bathroom", nameEn: "Bathtub", nameDe: "Badewanne", w: 80, l: 170, color: "#ffffff", iconUrl: bathtubUrl },
+  {
+    key: "toilet",
+    category: "bathroom",
+    nameEn: "Toilet",
+    nameDe: "Toilette",
+    w: 40,
+    l: 70,
+    color: "#ffffff",
+    iconUrl: toiletUrl,
+  },
+  {
+    key: "bathtub",
+    category: "bathroom",
+    nameEn: "Bathtub",
+    nameDe: "Badewanne",
+    w: 80,
+    l: 170,
+    color: "#ffffff",
+    iconUrl: bathtubUrl,
+  },
   // Decor
-  { key: "plant", category: "decor", nameEn: "Plant", nameDe: "Pflanze", w: 50, l: 50, color: "#2f6b3a", iconUrl: plantUrl },
-  { key: "floor-lamp", category: "decor", nameEn: "Floor lamp", nameDe: "Stehlampe", w: 30, l: 30, color: "#e8c97c" },
-  { key: "rug", category: "decor", nameEn: "Rug", nameDe: "Teppich", w: 200, l: 140, color: "#b7806f" },
+  {
+    key: "plant",
+    category: "decor",
+    nameEn: "Plant",
+    nameDe: "Pflanze",
+    w: 50,
+    l: 50,
+    color: "#2f6b3a",
+    iconUrl: plantUrl,
+  },
+  {
+    key: "floor-lamp",
+    category: "decor",
+    nameEn: "Floor lamp",
+    nameDe: "Stehlampe",
+    w: 30,
+    l: 30,
+    color: "#e8c97c",
+  },
+  {
+    key: "rug",
+    category: "decor",
+    nameEn: "Rug",
+    nameDe: "Teppich",
+    w: 200,
+    l: 140,
+    color: "#b7806f",
+  },
 ];
 
 const PRESET_BY_KEY = Object.fromEntries(PRESETS.map((p) => [p.key, p]));
@@ -374,7 +562,13 @@ function clampPos(item: Item, roomW: number, roomL: number, x: number, y: number
   return { x: ncx - item.width / 2, y: ncy - item.length / 2 };
 }
 
-function obbCorners(item: { x: number; y: number; width: number; length: number; rotation: number }) {
+function obbCorners(item: {
+  x: number;
+  y: number;
+  width: number;
+  length: number;
+  rotation: number;
+}) {
   const cx = item.x + item.width / 2;
   const cy = item.y + item.length / 2;
   const r = (item.rotation * Math.PI) / 180;
@@ -404,7 +598,10 @@ function obbOverlap(a: Parameters<typeof obbCorners>[0], b: Parameters<typeof ob
       const len = Math.hypot(ex, ey) || 1;
       const ax = -ey / len;
       const ay = ex / len;
-      let aMin = Infinity, aMax = -Infinity, bMin = Infinity, bMax = -Infinity;
+      let aMin = Infinity,
+        aMax = -Infinity,
+        bMin = Infinity,
+        bMax = -Infinity;
       for (const p of A) {
         const d = p.x * ax + p.y * ay;
         if (d < aMin) aMin = d;
@@ -427,7 +624,12 @@ function collidesWithOthers(candidate: Item, others: Item[], ignoreIds?: Set<str
   );
 }
 
-function findFreeSpot(item: Item, others: Item[], roomW: number, roomL: number): { x: number; y: number } | null {
+function findFreeSpot(
+  item: Item,
+  others: Item[],
+  roomW: number,
+  roomL: number,
+): { x: number; y: number } | null {
   const step = 10;
   for (let y = 0; y <= roomL; y += step) {
     for (let x = 0; x <= roomW; x += step) {
@@ -449,7 +651,6 @@ type Opening = {
   swing?: "in" | "out"; // doors only — swings into the room or out
 };
 
-
 type Snapshot = {
   items: Item[];
   openings: Opening[];
@@ -457,11 +658,52 @@ type Snapshot = {
   roomL: number;
 };
 
+const importSchema = z.object({
+  version: z.number().optional(),
+  room: z.object({
+    width: z.number().min(50).max(10000), // Min 50cm, Max 100m
+    length: z.number().min(50).max(10000),
+  }),
+  openings: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        wall: z.enum(["top", "bottom", "left", "right"]),
+        position: z.number().min(0).max(10000),
+        width: z.number().min(0).max(5000),
+        kind: z.enum(["door", "window"]),
+        hinge: z.enum(["start", "end"]).optional(),
+        swing: z.enum(["in", "out"]).optional(),
+      }),
+    )
+    .max(200), // Capped at 200 openings to prevent tab freezing
+  items: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string().max(100).default("Item"),
+        width: z.number().min(1).max(5000), // Max item size 50m
+        length: z.number().min(1).max(5000),
+        color: z
+          .string()
+          .regex(/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/, "Invalid color format")
+          .default("#5cbdb9"),
+        x: z.number().min(-10000).max(10000),
+        y: z.number().min(-10000).max(10000),
+        rotation: z.number().default(0),
+        kind: z.enum(["furniture", "chair"]).default("furniture"),
+        icon: z.string().optional(),
+      }),
+    )
+    .max(1000), // Capped at 1000 items to prevent tab freezing
+});
+
 function RoomPlanner() {
   const [lang, setLang] = useState<Lang>("en");
   const t = STRINGS[lang];
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem("planner-lang") : null;
+    const saved =
+      typeof window !== "undefined" ? window.localStorage.getItem("planner-lang") : null;
     if (saved === "en" || saved === "de") setLang(saved);
   }, []);
   useEffect(() => {
@@ -477,19 +719,80 @@ function RoomPlanner() {
   // Cozy living-room + work-nook default. Door is on the bottom wall near the
   // bottom-left corner with its swing arc landing on clear floor space.
   const [items, setItems] = useState<Item[]>(() => [
-    { id: crypto.randomUUID(), name: "Desk",           width: 160, length: 75, color: "#6b4a2b", x: 160, y: 15,  rotation: 0, kind: "furniture", icon: "desk" },
-    { id: crypto.randomUUID(), name: "Office chair",   width: 60,  length: 60, color: "#1f2937", x: 210, y: 100, rotation: 0, kind: "chair",     icon: "chair-office" },
-    { id: crypto.randomUUID(), name: "Bookshelf",      width: 30,  length: 200, color: "#3d2b1f", x: 450, y: 130, rotation: 0, kind: "furniture", icon: "bookshelf" },
-    { id: crypto.randomUUID(), name: "Filing cabinet", width: 60,  length: 45, color: "#9aa0a6", x: 340, y: 15,  rotation: 0, kind: "furniture", icon: "filing-cabinet" },
-    { id: crypto.randomUUID(), name: "Plant",          width: 50,  length: 50, color: "#2f6b3a", x: 20,  y: 20,  rotation: 0, kind: "furniture", icon: "plant" },
+    {
+      id: crypto.randomUUID(),
+      name: "Desk",
+      width: 160,
+      length: 75,
+      color: "#6b4a2b",
+      x: 160,
+      y: 15,
+      rotation: 0,
+      kind: "furniture",
+      icon: "desk",
+    },
+    {
+      id: crypto.randomUUID(),
+      name: "Office chair",
+      width: 60,
+      length: 60,
+      color: "#1f2937",
+      x: 210,
+      y: 100,
+      rotation: 0,
+      kind: "chair",
+      icon: "chair-office",
+    },
+    {
+      id: crypto.randomUUID(),
+      name: "Bookshelf",
+      width: 30,
+      length: 200,
+      color: "#3d2b1f",
+      x: 450,
+      y: 130,
+      rotation: 0,
+      kind: "furniture",
+      icon: "bookshelf",
+    },
+    {
+      id: crypto.randomUUID(),
+      name: "Filing cabinet",
+      width: 60,
+      length: 45,
+      color: "#9aa0a6",
+      x: 340,
+      y: 15,
+      rotation: 0,
+      kind: "furniture",
+      icon: "filing-cabinet",
+    },
+    {
+      id: crypto.randomUUID(),
+      name: "Plant",
+      width: 50,
+      length: 50,
+      color: "#2f6b3a",
+      x: 20,
+      y: 20,
+      rotation: 0,
+      kind: "furniture",
+      icon: "plant",
+    },
   ]);
   const [openings, setOpenings] = useState<Opening[]>(() => [
-    { id: crypto.randomUUID(), wall: "bottom", position: 30, width: 90,  kind: "door",   hinge: "start", swing: "in" },
-    { id: crypto.randomUUID(), wall: "top",    position: 60, width: 80,  kind: "window" },
-    { id: crypto.randomUUID(), wall: "right",  position: 30, width: 80,  kind: "window" },
+    {
+      id: crypto.randomUUID(),
+      wall: "bottom",
+      position: 30,
+      width: 90,
+      kind: "door",
+      hinge: "start",
+      swing: "in",
+    },
+    { id: crypto.randomUUID(), wall: "top", position: 60, width: 80, kind: "window" },
+    { id: crypto.randomUUID(), wall: "right", position: 30, width: 80, kind: "window" },
   ]);
-
-
 
   // -------- History (undo / redo) --------
   const stateRef = useRef<Snapshot>({ items, openings, roomW, roomL });
@@ -501,8 +804,7 @@ function RoomPlanner() {
   const futureRef = useRef<Snapshot[]>([]);
   const [, forceHistoryTick] = useState(0);
 
-  const snapshotEqual = (a: Snapshot, b: Snapshot) =>
-    JSON.stringify(a) === JSON.stringify(b);
+  const snapshotEqual = (a: Snapshot, b: Snapshot) => JSON.stringify(a) === JSON.stringify(b);
 
   const pushHistory = () => {
     const snap: Snapshot = JSON.parse(JSON.stringify(stateRef.current));
@@ -584,10 +886,7 @@ function RoomPlanner() {
   }, []);
 
   const pad = 40;
-  const scale = Math.min(
-    (stageSize.w - pad * 2) / roomW,
-    (stageSize.h - pad * 2) / roomL,
-  );
+  const scale = Math.min((stageSize.w - pad * 2) / roomW, (stageSize.h - pad * 2) / roomL);
   const cm = (v: number) => v * scale;
   const roomPxW = cm(roomW);
   const roomPxL = cm(roomL);
@@ -622,15 +921,12 @@ function RoomPlanner() {
       const elRect = el.getBoundingClientRect();
       const scRect = scroller.getBoundingClientRect();
       // Already fully visible in the scroller viewport? do nothing.
-      const fullyVisible =
-        elRect.top >= scRect.top && elRect.bottom <= scRect.bottom;
+      const fullyVisible = elRect.top >= scRect.top && elRect.bottom <= scRect.bottom;
       if (fullyVisible) return;
       const offset = elRect.top - scRect.top;
       const target = Math.max(
         0,
-        scroller.scrollTop +
-          offset -
-          Math.max(0, (scroller.clientHeight - el.offsetHeight) / 2),
+        scroller.scrollTop + offset - Math.max(0, (scroller.clientHeight - el.offsetHeight) / 2),
       );
       scroller.scrollTo({ top: target, behavior: "smooth" });
     });
@@ -769,7 +1065,6 @@ function RoomPlanner() {
     setOpenings((p) => p.map((o) => (o.id === id ? { ...o, ...patch } : o)));
   };
 
-
   // -------- Reset --------
   const [resetMode, setResetMode] = useState<"items" | "all" | null>(null);
 
@@ -822,11 +1117,7 @@ function RoomPlanner() {
     }
   };
 
-
   // -------- Drag & marquee --------
-
-
-
 
   const dragRef = useRef<
     | {
@@ -847,11 +1138,15 @@ function RoomPlanner() {
     | null
   >(null);
 
-  const marqueeRef = useRef<{ startCx: number; startCy: number; addToSelection: boolean } | null>(null);
-  const [marqueeRect, setMarqueeRect] = useState<
-    | { x: number; y: number; w: number; h: number }
-    | null
-  >(null);
+  const marqueeRef = useRef<{ startCx: number; startCy: number; addToSelection: boolean } | null>(
+    null,
+  );
+  const [marqueeRect, setMarqueeRect] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
 
   const stageToCm = (clientX: number, clientY: number) => {
     const r = stageRef.current!.getBoundingClientRect();
@@ -977,12 +1272,11 @@ function RoomPlanner() {
             return { ...i, x: c.x, y: c.y };
           }),
         );
-
       } else {
         const angle =
           (Math.atan2(e.clientY - d.centerClientY, e.clientX - d.centerClientX) * 180) / Math.PI;
         const delta = angle - d.startAngle;
-        const next = ((d.startRotation + delta) % 360 + 360) % 360;
+        const next = (((d.startRotation + delta) % 360) + 360) % 360;
         setItems((prev) =>
           prev.map((i) => {
             if (i.id !== d.id) return i;
@@ -1125,7 +1419,7 @@ function RoomPlanner() {
         setItems((prev) =>
           prev.map((i) => {
             if (!ids.has(i.id)) return i;
-            const merged = { ...i, rotation: ((i.rotation + dir) % 360 + 360) % 360 };
+            const merged = { ...i, rotation: (((i.rotation + dir) % 360) + 360) % 360 };
             const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
             const candidate = { ...merged, x: c.x, y: c.y };
             if (collidesWithOthers(candidate, prev, ids)) return i;
@@ -1195,51 +1489,65 @@ function RoomPlanner() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+
+    // Guard against excessive file sizes (2MB limit) to prevent browser memory exhaustion
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(t.importFail + "File size exceeds 2MB limit.");
+      return;
+    }
+
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-      const w = Number(data?.room?.width);
-      const l = Number(data?.room?.length);
-      if (!Number.isFinite(w) || !Number.isFinite(l) || !Array.isArray(data.items) || !Array.isArray(data.openings)) {
-        throw new Error("Invalid file format");
-      }
+      const parsedJSON = JSON.parse(text);
+
+      // Parse using Zod schema to validate structure, types, constraints, and strip unknown fields
+      const data = importSchema.parse(parsedJSON);
+
       pushHistory();
-      const nextW = Math.max(50, Math.round(w));
-      const nextL = Math.max(50, Math.round(l));
+      const nextW = Math.max(50, Math.round(data.room.width));
+      const nextL = Math.max(50, Math.round(data.room.length));
       setRoomW(nextW);
       setRoomL(nextL);
       setDraftW(String(nextW));
       setDraftL(String(nextL));
       setOpenings(
-        data.openings.map((o: Opening) => ({
+        data.openings.map((o) => ({
           id: o.id || crypto.randomUUID(),
           wall: o.wall,
-          position: Number(o.position) || 0,
-          width: Number(o.width) || 0,
+          position: o.position,
+          width: o.width,
           kind: o.kind,
           hinge: o.kind === "door" ? (o.hinge === "end" ? "end" : "start") : undefined,
           swing: o.kind === "door" ? (o.swing === "out" ? "out" : "in") : undefined,
         })),
-
       );
       setItems(
-        data.items.map((i: Partial<Item>) => ({
+        data.items.map((i) => ({
           id: i.id || crypto.randomUUID(),
-          name: String(i.name ?? "Item"),
-          width: Number(i.width) || 0,
-          length: Number(i.length) || 0,
-          color: i.color || "#5cbdb9",
-          x: Number(i.x) || 0,
-          y: Number(i.y) || 0,
-          rotation: Number.isFinite(Number(i.rotation)) ? Number(i.rotation) : 0,
-          kind: i.kind === "chair" ? "chair" : "furniture",
-          icon: typeof i.icon === "string" ? i.icon : undefined,
+          name: i.name,
+          width: i.width,
+          length: i.length,
+          color: i.color,
+          x: i.x,
+          y: i.y,
+          rotation: i.rotation,
+          kind: i.kind,
+          icon: i.icon,
         })),
       );
       setSelectedIds(new Set());
       toast.success(t.imported);
     } catch (err) {
-      toast.error(t.importFail + (err as Error).message);
+      console.error("Import failed:", err);
+      let errorMsg = "";
+      if (err instanceof z.ZodError) {
+        errorMsg = err.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
+      } else if (err instanceof Error) {
+        errorMsg = err.message;
+      } else {
+        errorMsg = "Unknown error";
+      }
+      toast.error(t.importFail + errorMsg);
     }
   };
 
@@ -1267,7 +1575,13 @@ function RoomPlanner() {
             <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Ctrl+Z">
               <Undo2 className="mr-1 h-4 w-4" /> {t.undo}
             </Button>
-            <Button variant="outline" size="sm" onClick={redo} disabled={!canRedo} title="Ctrl+Shift+Z">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={redo}
+              disabled={!canRedo}
+              title="Ctrl+Shift+Z"
+            >
               <Redo2 className="mr-1 h-4 w-4" /> {t.redo}
             </Button>
             <input
@@ -1328,9 +1642,7 @@ function RoomPlanner() {
       <AlertDialog open={resetMode !== null} onOpenChange={(o) => !o && setResetMode(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {resetMode === "all" ? t.resetAll : t.resetItems}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{resetMode === "all" ? t.resetAll : t.resetItems}</AlertDialogTitle>
             <AlertDialogDescription>
               {resetMode === "all" ? t.confirmResetAll : t.confirmReset}
             </AlertDialogDescription>
@@ -1342,67 +1654,69 @@ function RoomPlanner() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {tourOpen && (() => {
-        const steps = [
-          { key: "welcome" as const },
-          { key: "catalog" as const },
-          { key: "canvas" as const },
-          { key: "openings" as const },
-          { key: "ruler" as const },
-          { key: "reset" as const },
-        ];
-        const step = steps[Math.min(tourStep, steps.length - 1)];
-        const content = t.tour[step.key];
-        const isLast = tourStep >= steps.length - 1;
-        return (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-4 sm:items-center">
-            <div className="w-full max-w-md rounded-lg border bg-background p-5 shadow-xl">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <h2 className="text-lg font-semibold">{content.title}</h2>
-                <button
-                  type="button"
-                  onClick={closeTour}
-                  className="rounded p-1 text-muted-foreground hover:bg-muted"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <p className="text-sm text-muted-foreground">{content.body}</p>
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  {tourStep + 1} / {steps.length}
-                </span>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={closeTour}>
-                    {t.tourSkip}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setTourStep((s) => Math.max(0, s - 1))}
-                    disabled={tourStep === 0}
+      {tourOpen &&
+        (() => {
+          const steps = [
+            { key: "welcome" as const },
+            { key: "catalog" as const },
+            { key: "canvas" as const },
+            { key: "openings" as const },
+            { key: "ruler" as const },
+            { key: "reset" as const },
+          ];
+          const step = steps[Math.min(tourStep, steps.length - 1)];
+          const content = t.tour[step.key];
+          const isLast = tourStep >= steps.length - 1;
+          return (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-4 sm:items-center">
+              <div className="w-full max-w-md rounded-lg border bg-background p-5 shadow-xl">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <h2 className="text-lg font-semibold">{content.title}</h2>
+                  <button
+                    type="button"
+                    onClick={closeTour}
+                    className="rounded p-1 text-muted-foreground hover:bg-muted"
+                    aria-label="Close"
                   >
-                    {t.tourBack}
-                  </Button>
-                  {isLast ? (
-                    <Button size="sm" onClick={closeTour}>{t.tourDone}</Button>
-                  ) : (
-                    <Button size="sm" onClick={() => setTourStep((s) => s + 1)}>
-                      {t.tourNext}
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-sm text-muted-foreground">{content.body}</p>
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {tourStep + 1} / {steps.length}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={closeTour}>
+                      {t.tourSkip}
                     </Button>
-                  )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTourStep((s) => Math.max(0, s - 1))}
+                      disabled={tourStep === 0}
+                    >
+                      {t.tourBack}
+                    </Button>
+                    {isLast ? (
+                      <Button size="sm" onClick={closeTour}>
+                        {t.tourDone}
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => setTourStep((s) => s + 1)}>
+                        {t.tourNext}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[300px_minmax(0,1fr)_280px]">
         {/* Left column */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
-
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">{t.catalog}</CardTitle>
@@ -1444,7 +1758,11 @@ function RoomPlanner() {
             <CardContent className="space-y-3">
               <div>
                 <Label>{t.name}</Label>
-                <Input value={nName} onChange={(e) => setNName(e.target.value)} placeholder={t.namePlaceholder} />
+                <Input
+                  value={nName}
+                  onChange={(e) => setNName(e.target.value)}
+                  placeholder={t.namePlaceholder}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1503,11 +1821,19 @@ function RoomPlanner() {
                 </div>
                 <div>
                   <Label>{t.position}</Label>
-                  <Input type="number" value={oPos} onChange={(e) => setOPos(+e.target.value || 0)} />
+                  <Input
+                    type="number"
+                    value={oPos}
+                    onChange={(e) => setOPos(+e.target.value || 0)}
+                  />
                 </div>
                 <div>
                   <Label>{t.width}</Label>
-                  <Input type="number" value={oWidth} onChange={(e) => setOWidth(+e.target.value || 0)} />
+                  <Input
+                    type="number"
+                    value={oWidth}
+                    onChange={(e) => setOWidth(+e.target.value || 0)}
+                  />
                 </div>
               </div>
               <Button onClick={addOpening} size="sm" className="w-full">
@@ -1516,9 +1842,13 @@ function RoomPlanner() {
               <Separator />
               <ul className="space-y-1 text-sm">
                 {openings.map((o) => (
-                  <li key={o.id} className="flex items-center justify-between gap-1 rounded-md border px-2 py-1">
+                  <li
+                    key={o.id}
+                    className="flex items-center justify-between gap-1 rounded-md border px-2 py-1"
+                  >
                     <span className="min-w-0 flex-1 truncate capitalize">
-                      {o.kind === "door" ? t.door : t.window} · {t[o.wall]} · {Math.round(o.position)}cm · {o.width}cm
+                      {o.kind === "door" ? t.door : t.window} · {t[o.wall]} ·{" "}
+                      {Math.round(o.position)}cm · {o.width}cm
                     </span>
                     {o.kind === "door" && (
                       <>
@@ -1546,7 +1876,12 @@ function RoomPlanner() {
                         </Button>
                       </>
                     )}
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeOpening(o.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => removeOpening(o.id)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </li>
@@ -1555,7 +1890,6 @@ function RoomPlanner() {
                   <li className="text-xs text-muted-foreground">{t.noOpenings}</li>
                 )}
               </ul>
-
             </CardContent>
           </Card>
         </aside>
@@ -1575,13 +1909,11 @@ function RoomPlanner() {
           <div
             ref={stageRef}
             className="relative min-h-0 flex-1 w-full overflow-visible rounded-lg border bg-muted/30"
-
             onPointerDown={onStagePointerDown}
             onPointerMove={onStagePointerMove}
             onPointerUp={onStagePointerUp}
             style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
           >
-
             {/* Room dimensions (top-left of canvas) — click to edit */}
             <div className="absolute left-3 top-3 z-10">
               <Popover>
@@ -1723,7 +2055,9 @@ function RoomPlanner() {
                       const cur = isH ? ev.clientX : ev.clientY;
                       const delta = (cur - startClient) / scale;
                       const next = Math.min(maxPos, Math.max(0, startPos + delta));
-                      setOpenings((prev) => prev.map((x) => (x.id === id ? { ...x, position: next } : x)));
+                      setOpenings((prev) =>
+                        prev.map((x) => (x.id === id ? { ...x, position: next } : x)),
+                      );
                     };
                     const up = () => {
                       window.removeEventListener("pointermove", move);
@@ -1732,7 +2066,6 @@ function RoomPlanner() {
                     window.addEventListener("pointermove", move);
                     window.addEventListener("pointerup", up);
                   };
-
 
                   return (
                     <svg
@@ -1787,8 +2120,6 @@ function RoomPlanner() {
                     </svg>
                   );
                 })}
-
-
 
                 {/* items */}
                 {items.map((it) => {
@@ -1867,11 +2198,14 @@ function RoomPlanner() {
                             title={t.dragToRotate}
                             onPointerDown={(e) => onRotateHandleDown(e, it)}
                             className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background text-foreground shadow active:cursor-grabbing"
-                            style={{ top: -34, touchAction: "none", color: "hsl(var(--foreground, 0 0% 10%))" }}
+                            style={{
+                              top: -34,
+                              touchAction: "none",
+                              color: "hsl(var(--foreground, 0 0% 10%))",
+                            }}
                           >
                             <RotateCw className="h-3 w-3" strokeWidth={2.5} color="#111" />
                           </div>
-
                         </>
                       )}
                     </div>
@@ -1892,47 +2226,66 @@ function RoomPlanner() {
                 )}
 
                 {/* ruler overlay */}
-                {rulerMode && rulerStart && (() => {
-                  const end = rulerEnd ?? rulerHover ?? rulerStart;
-                  const dx = end.x - rulerStart.x;
-                  const dy = end.y - rulerStart.y;
-                  const distCm = Math.sqrt(dx * dx + dy * dy);
-                  const midX = (rulerStart.x + end.x) / 2;
-                  const midY = (rulerStart.y + end.y) / 2;
-                  const ax = cm(rulerStart.x);
-                  const ay = cm(rulerStart.y);
-                  const bx = cm(end.x);
-                  const by = cm(end.y);
-                  return (
-                    <svg
-                      className="pointer-events-none absolute inset-0 text-foreground"
-                      width={roomPxW}
-                      height={roomPxL}
-                      style={{ overflow: "visible" }}
-                    >
-                      <line
-                        x1={ax} y1={ay} x2={bx} y2={by}
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        strokeDasharray="2 5"
-                        strokeLinecap="round"
-                      />
-                      <circle cx={ax} cy={ay} r={4} fill="currentColor" />
-                      <circle cx={bx} cy={by} r={4} fill="currentColor" />
-                      <g transform={`translate(${cm(midX)}, ${cm(midY)})`}>
-                        <rect x={-34} y={-24} width={68} height={20} rx={4} fill="white" stroke="currentColor" />
-                        <text x={0} y={-10} textAnchor="middle" fontSize={11} fill="currentColor" style={{ fontWeight: 600 }}>
-                          {distCm.toFixed(1)} cm
-                        </text>
-                      </g>
-                    </svg>
-                  );
-                })()}
+                {rulerMode &&
+                  rulerStart &&
+                  (() => {
+                    const end = rulerEnd ?? rulerHover ?? rulerStart;
+                    const dx = end.x - rulerStart.x;
+                    const dy = end.y - rulerStart.y;
+                    const distCm = Math.sqrt(dx * dx + dy * dy);
+                    const midX = (rulerStart.x + end.x) / 2;
+                    const midY = (rulerStart.y + end.y) / 2;
+                    const ax = cm(rulerStart.x);
+                    const ay = cm(rulerStart.y);
+                    const bx = cm(end.x);
+                    const by = cm(end.y);
+                    return (
+                      <svg
+                        className="pointer-events-none absolute inset-0 text-foreground"
+                        width={roomPxW}
+                        height={roomPxL}
+                        style={{ overflow: "visible" }}
+                      >
+                        <line
+                          x1={ax}
+                          y1={ay}
+                          x2={bx}
+                          y2={by}
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeDasharray="2 5"
+                          strokeLinecap="round"
+                        />
+                        <circle cx={ax} cy={ay} r={4} fill="currentColor" />
+                        <circle cx={bx} cy={by} r={4} fill="currentColor" />
+                        <g transform={`translate(${cm(midX)}, ${cm(midY)})`}>
+                          <rect
+                            x={-34}
+                            y={-24}
+                            width={68}
+                            height={20}
+                            rx={4}
+                            fill="white"
+                            stroke="currentColor"
+                          />
+                          <text
+                            x={0}
+                            y={-10}
+                            textAnchor="middle"
+                            fontSize={11}
+                            fill="currentColor"
+                            style={{ fontWeight: 600 }}
+                          >
+                            {distCm.toFixed(1)} cm
+                          </text>
+                        </g>
+                      </svg>
+                    );
+                  })()}
               </div>
             )}
           </div>
         </main>
-
 
         {/* Right column: Items list */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
@@ -1948,7 +2301,12 @@ function RoomPlanner() {
               </CardTitle>
               {selectedIds.size > 0 && (
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={duplicateSelected} title={t.duplicate}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={duplicateSelected}
+                    title={t.duplicate}
+                  >
                     <Copy className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={removeSelected}>
@@ -1958,9 +2316,7 @@ function RoomPlanner() {
               )}
             </CardHeader>
             <CardContent className="space-y-2">
-              {items.length === 0 && (
-                <p className="text-xs text-muted-foreground">{t.noItems}</p>
-              )}
+              {items.length === 0 && <p className="text-xs text-muted-foreground">{t.noItems}</p>}
               {items.map((it) => (
                 <div
                   key={it.id}
@@ -2018,7 +2374,9 @@ function RoomPlanner() {
                       type="number"
                       value={Math.round(it.rotation)}
                       onChange={(e) =>
-                        updateItem(it.id, { rotation: ((+e.target.value || 0) % 360 + 360) % 360 })
+                        updateItem(it.id, {
+                          rotation: (((+e.target.value || 0) % 360) + 360) % 360,
+                        })
                       }
                       className="h-8 flex-1"
                       title={t.rotation}

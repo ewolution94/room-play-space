@@ -23,13 +23,13 @@ Bun.serve({
       return await worker.fetch(request, process.env, {
         waitUntil(promise) {
           promise.catch((err) => console.error("Error in waitUntil:", err));
-        }
+        },
       });
     } catch (e) {
       console.error("SSR Worker fetch error:", e);
       return new Response("Internal Server Error", { status: 500 });
     }
-  }
+  },
 });
 
 console.log(`Production server running on http://0.0.0.0:${process.env.PORT || 3000}`);

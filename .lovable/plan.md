@@ -21,22 +21,26 @@ New file `src/lib/furnish.functions.ts` exposing `furnishRoom` via `createServer
 Input (validated with Zod): `{ roomW, roomL, roomType, openings: Opening[] }` so the model knows where doors/windows are and can avoid blocking them.
 
 Output schema (Zod):
+
 ```ts
-{ items: Array<{
-    presetKey?: string,   // optional, one of the catalog preset keys
-    name: string,
-    width: number,        // cm
-    length: number,       // cm
-    color: string,        // hex
-    x: number, y: number, // cm, top-left
-    rotation: number,     // degrees, 0/90/180/270
-  }>
+{
+  items: Array<{
+    presetKey?: string; // optional, one of the catalog preset keys
+    name: string;
+    width: number; // cm
+    length: number; // cm
+    color: string; // hex
+    x: number;
+    y: number; // cm, top-left
+    rotation: number; // degrees, 0/90/180/270
+  }>;
 }
 ```
 
 Prompt strategy: system message tells the model it is a top-down room planner, lists the available preset keys (from the existing catalog), gives the room dimensions and openings (so it leaves clearance in front of doors), and asks for a layout appropriate to the chosen room type. Max items capped at ~12.
 
 Client-side post-processing:
+
 - Map `presetKey` to preset color/name when present.
 - Clamp positions to room bounds and snap rotations to 0/90/180/270.
 - Run collision pass: greedily drop any item that collides with a prior one or with a door's clearance arc.
@@ -63,11 +67,13 @@ EN/DE strings: `ruler`, `rulerHint`.
 Lightweight custom solution, no library. Stored in `localStorage` as `planner-tour-v1-done`.
 
 A `<Tour />` component renders a fixed full-page overlay with:
+
 - A spotlight (a transparent hole over the target element computed from its bounding rect).
 - A tooltip card positioned next to the spotlight with the step's title, body, **Skip**, **Back**, **Next** / **Done** buttons, and a step indicator (e.g. "3 / 6").
 - Dark backdrop covering everything else.
 
 Steps (selectors via `data-tour="..."` attributes added to the relevant elements):
+
 1. **Welcome** — body of the planner area, "Welcome to Room Planner. Here's a 30-second tour."
 2. **Catalog** — left column, "Drag from the catalog or click an item to add it."
 3. **Canvas** — center stage, "Drag items, marquee-select, and use arrows or R to nudge/rotate."
