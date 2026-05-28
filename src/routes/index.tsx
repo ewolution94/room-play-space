@@ -80,6 +80,22 @@ import stoveUrl from "@/assets/presets/stove.png";
 import sinkUrl from "@/assets/presets/sink.png";
 import fridgeUrl from "@/assets/presets/fridge.png";
 
+// Polyfill crypto.randomUUID for insecure browser contexts (e.g. HTTP access on NAS local IP)
+if (typeof globalThis !== "undefined") {
+  if (!globalThis.crypto) {
+    // @ts-ignore
+    globalThis.crypto = {} as any;
+  }
+  if (!globalThis.crypto.randomUUID) {
+    globalThis.crypto.randomUUID = function () {
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    };
+  }
+}
 
 type Lang = "en" | "de";
 const STRINGS = {
