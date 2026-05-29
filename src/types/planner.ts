@@ -99,10 +99,13 @@ export interface HeaderProps {
   setTourStep: (step: React.SetStateAction<number>) => void;
 }
 
-export interface SidebarLeftProps {
+export interface SidebarProps {
   t: TranslationStrings;
   lang: Lang;
-  addPreset: (preset: Preset) => void;
+  items: Item[];
+  openings: Opening[];
+  selectedIds: Set<string>;
+  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   nName: string;
   setNName: (name: string) => void;
   nW: number;
@@ -111,7 +114,6 @@ export interface SidebarLeftProps {
   setNL: (length: number) => void;
   nColor: string;
   setNColor: (color: string) => void;
-  addCustomBox: () => void;
   oKind: "door" | "window";
   setOKind: (kind: "door" | "window") => void;
   oWall: Opening["wall"];
@@ -120,21 +122,23 @@ export interface SidebarLeftProps {
   setOPos: (pos: number) => void;
   oWidth: number;
   setOWidth: (width: number) => void;
+  roomW: number;
+  roomL: number;
+  draftW: string;
+  setDraftW: (w: string) => void;
+  draftL: string;
+  setDraftL: (l: string) => void;
+  dirty: boolean;
+  applyRoom: () => void;
+  addPreset: (preset: Preset) => void;
+  addCustomBox: () => void;
   addOpening: () => void;
-  openings: Opening[];
   updateOpening: (id: string, patch: Partial<Opening>) => void;
   removeOpening: (id: string) => void;
-}
-
-export interface SidebarRightProps {
-  t: TranslationStrings;
-  items: Item[];
-  selectedIds: Set<string>;
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
-  duplicateSelected: () => void;
-  removeSelected: () => void;
   removeItem: (id: string) => void;
   updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
+  duplicateSelected: () => void;
+  removeSelected: () => void;
 }
 
 export interface CanvasAreaProps {

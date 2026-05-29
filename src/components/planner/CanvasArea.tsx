@@ -1,9 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SlidersHorizontal, Ruler, RotateCw, Zap, ZapOff } from "lucide-react";
+import { Ruler, RotateCw, Zap, ZapOff, SlidersHorizontal } from "lucide-react";
 import { readableText } from "@/lib/planner-math";
 import type { CanvasAreaProps } from "@/types/planner";
 
@@ -47,15 +44,11 @@ export function CanvasArea({
 }: CanvasAreaProps) {
   return (
     <main className="min-w-0 h-[calc(100vh-6rem)] lg:sticky lg:top-20 lg:self-start flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2 rounded-md border bg-background/80 px-3 py-1.5 shadow-sm">
-        <p className="text-xs text-foreground">
-          {rulerMode ? t.rulerHint : t.hint} {`(1cm ≈ ${scale.toFixed(2)}px)`}
+      <div className="flex items-center justify-between gap-2 rounded-md border border-border/30 bg-background/40 backdrop-blur-sm px-3.5 py-2 shadow-sm">
+        <p className="text-[11px] text-muted-foreground">
+          {rulerMode ? t.rulerHint : t.hint}{" "}
+          <span className="font-semibold text-foreground/75">{`(1cm ≈ ${scale.toFixed(2)}px)`}</span>
         </p>
-        {rulerMode && (rulerStart || rulerEnd) && (
-          <Button variant="ghost" size="sm" onClick={clearRuler}>
-            <XIcon className="mr-1 h-3 w-3" /> {t.rulerClear}
-          </Button>
-        )}
       </div>
       <div
         ref={stageRef}
@@ -65,106 +58,30 @@ export function CanvasArea({
         onPointerUp={onStagePointerUp}
         style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
       >
-        {/* Room dimensions (top-left of canvas) — click to edit */}
-        <div className="absolute left-3 top-3 z-10">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                onPointerDown={(e) => e.stopPropagation()}
-                title={t.roomLabel}
-                className="shadow-sm"
-              >
-                <SlidersHorizontal className="mr-1 h-4 w-4" />
-                {roomW} × {roomL} cm
-                {selectedIds.size > 0 && (
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    · {t.selectedCount(selectedIds.size)}
-                  </span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 space-y-4" onPointerDown={(e) => e.stopPropagation()}>
-              <div className="space-y-2">
-                <h4 className="font-medium leading-none">{t.roomLabel}</h4>
-                <p className="text-sm text-muted-foreground">Adjust width and length.</p>
-              </div>
-              <div className="grid gap-3">
-                <div className="grid grid-cols-3 items-center gap-4">
-                  <Label htmlFor="width">{t.width}</Label>
-                  <Input
-                    id="width"
-                    value={draftW}
-                    onChange={(e) => setDraftW(e.target.value)}
-                    className="col-span-2 h-8"
-                  />
-                </div>
-                <div className="grid grid-cols-3 items-center gap-4">
-                  <Label htmlFor="length">{t.length}</Label>
-                  <Input
-                    id="length"
-                    value={draftL}
-                    onChange={(e) => setDraftL(e.target.value)}
-                    className="col-span-2 h-8"
-                  />
-                </div>
-              </div>
-              <Button onClick={applyRoom} size="sm" className="w-full" disabled={!dirty}>
-                {t.apply}
-              </Button>
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Canvas controls (top-right of canvas) */}
-        <div
-          className="absolute right-3 top-3 z-10 flex gap-2"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {/* Collision toggle */}
-          <Button
-            variant={collisionEnabled ? "outline" : "destructive"}
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setCollisionEnabled((v) => !v);
-            }}
-            title={t.collisionHint}
-            className="shadow-sm transition-all duration-200"
-          >
-            {collisionEnabled ? (
-              <Zap className="mr-1 h-4 w-4" />
-            ) : (
-              <ZapOff className="mr-1 h-4 w-4" />
+        {/* Room dimensions label (top-left of canvas) */}
+        <div className="absolute left-3 top-3 z-10 select-none">
+          <div className="flex items-center gap-1.5 rounded-full border border-border/40 bg-background/60 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold shadow-sm text-foreground/80">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+            {roomW} × {roomL} cm
+            {selectedIds.size > 0 && (
+              <span className="text-muted-foreground/75 font-normal">
+                · {t.selectedCount(selectedIds.size)}
+              </span>
             )}
-            {collisionEnabled ? t.collisionOn : t.collisionOff}
-          </Button>
-
-          {/* Ruler toggle */}
-          <Button
-            variant={rulerMode ? "default" : "outline"}
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setRulerMode((v) => !v);
-            }}
-            title={t.rulerHint}
-            className="shadow-sm"
-          >
-            <Ruler className="mr-1 h-4 w-4" />
-            {rulerMode ? t.rulerOn : t.ruler}
-          </Button>
+          </div>
         </div>
 
         {scale > 0 && (
           <div
-            className="absolute border-2 border-foreground bg-background shadow-sm"
+            className="absolute border-[4px] border-slate-700 dark:border-slate-400 bg-background shadow-md transition-all duration-100"
             style={{
               left: offsetX,
               top: offsetY,
               width: roomPxW,
               height: roomPxL,
+              backgroundImage:
+                "radial-gradient(hsl(var(--foreground) / 0.08) 1.5px, transparent 1.5px)",
+              backgroundSize: `${cm(50)}px ${cm(50)}px`,
             }}
           >
             {openings.map((o) => {
@@ -417,6 +334,74 @@ export function CanvasArea({
               })()}
           </div>
         )}
+
+        {/* Floating bottom toolbar */}
+        <div
+          className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/80 backdrop-blur-md px-3.5 py-1.5 shadow-lg select-none"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {/* Collision toggle */}
+          <Button
+            variant={collisionEnabled ? "ghost" : "destructive"}
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCollisionEnabled((v) => !v);
+            }}
+            title={t.collisionHint}
+            className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium transition-all ${
+              collisionEnabled
+                ? "text-teal-600 hover:text-teal-700 hover:bg-teal-500/10 dark:text-teal-400 dark:hover:text-teal-300 dark:hover:bg-teal-400/10"
+                : ""
+            }`}
+          >
+            {collisionEnabled ? (
+              <Zap className="h-3.5 w-3.5" />
+            ) : (
+              <ZapOff className="h-3.5 w-3.5" />
+            )}
+            {collisionEnabled ? t.collisionOn : t.collisionOff}
+          </Button>
+
+          <div className="h-4 w-px bg-border/40" />
+
+          {/* Ruler toggle */}
+          <Button
+            variant={rulerMode ? "secondary" : "ghost"}
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRulerMode((v) => !v);
+            }}
+            title={t.rulerHint}
+            className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium ${
+              rulerMode
+                ? "text-sky-600 bg-sky-500/10 hover:bg-sky-500/20 dark:text-sky-400 dark:bg-sky-400/10 dark:hover:bg-sky-400/20"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Ruler className="h-3.5 w-3.5" />
+            {rulerMode ? t.rulerOn : t.ruler}
+          </Button>
+
+          {rulerMode && (rulerStart || rulerEnd) && (
+            <>
+              <div className="h-4 w-px bg-border/40" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearRuler();
+                }}
+                className="h-8 rounded-full px-3 text-xs gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <XIcon className="h-3.5 w-3.5" />
+                {t.rulerClear}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </main>
   );

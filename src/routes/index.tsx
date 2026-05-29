@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { Header } from "@/components/planner/Header";
-import { SidebarLeft } from "@/components/planner/SidebarLeft";
-import { SidebarRight } from "@/components/planner/SidebarRight";
+import { Sidebar } from "@/components/planner/Sidebar";
 import { CanvasArea } from "@/components/planner/CanvasArea";
 import { TourOverlay } from "@/components/planner/TourOverlay";
 import {
@@ -67,12 +66,15 @@ function RoomPlanner() {
         closeTour={planner.closeTour}
       />
 
-      <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[300px_minmax(0,1fr)_280px]">
-        {/* Left column: Presets catalog, custom box, openings */}
-        <SidebarLeft
+      <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        {/* Left column: Unified Tabbed Sidebar + Properties Inspector */}
+        <Sidebar
           t={planner.t}
           lang={planner.lang}
-          addPreset={planner.addPreset}
+          items={planner.items}
+          openings={planner.openings}
+          selectedIds={planner.selectedIds}
+          setSelectedIds={planner.setSelectedIds}
           nName={planner.nName}
           setNName={planner.setNName}
           nW={planner.nW}
@@ -81,7 +83,6 @@ function RoomPlanner() {
           setNL={planner.setNL}
           nColor={planner.nColor}
           setNColor={planner.setNColor}
-          addCustomBox={planner.addCustomBox}
           oKind={planner.oKind}
           setOKind={planner.setOKind}
           oWall={planner.oWall}
@@ -90,13 +91,26 @@ function RoomPlanner() {
           setOPos={planner.setOPos}
           oWidth={planner.oWidth}
           setOWidth={planner.setOWidth}
+          roomW={planner.roomW}
+          roomL={planner.roomL}
+          draftW={planner.draftW}
+          setDraftW={planner.setDraftW}
+          draftL={planner.draftL}
+          setDraftL={planner.setDraftL}
+          dirty={planner.dirty}
+          applyRoom={planner.applyRoom}
+          addPreset={planner.addPreset}
+          addCustomBox={planner.addCustomBox}
           addOpening={planner.addOpening}
-          openings={planner.openings}
           updateOpening={planner.updateOpening}
           removeOpening={planner.removeOpening}
+          removeItem={planner.removeItem}
+          updateItem={planner.updateItem}
+          duplicateSelected={planner.duplicateSelected}
+          removeSelected={planner.removeSelected}
         />
 
-        {/* Center column: Drawing Stage */}
+        {/* Right column: Drawing Stage */}
         <CanvasArea
           t={planner.t}
           stageRef={planner.stageRef}
@@ -134,18 +148,6 @@ function RoomPlanner() {
           onItemPointerDown={planner.onItemPointerDown}
           onRotateHandleDown={planner.onRotateHandleDown}
           pushHistory={planner.pushHistory}
-        />
-
-        {/* Right column: Placed items list */}
-        <SidebarRight
-          t={planner.t}
-          items={planner.items}
-          selectedIds={planner.selectedIds}
-          setSelectedIds={planner.setSelectedIds}
-          duplicateSelected={planner.duplicateSelected}
-          removeSelected={planner.removeSelected}
-          removeItem={planner.removeItem}
-          updateItem={planner.updateItem}
         />
       </div>
     </div>
