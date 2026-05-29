@@ -90,7 +90,8 @@ export function CanvasArea({
               const wpx = cm(o.width);
               const ppx = cm(o.position);
               const hitThick = 20; // 20px hit target
-              const visualThick = 6; // 6px visual thickness
+              const isWindow = o.kind === "window";
+              const visualThick = isWindow ? 10 : 6; // Thicker windows for better visibility
 
               const containerStyle: React.CSSProperties = {
                 position: "absolute",
@@ -133,8 +134,13 @@ export function CanvasArea({
                   visualStyle.borderBottom = "1px solid hsl(var(--foreground) / 0.3)";
                 }
               } else {
-                visualStyle.background = "#c7d3dc";
-                visualStyle.border = "1px solid #7f8c99";
+                // Cool cyan/sky blue architectural window tint
+                // Base background hides the wall border underneath, and linear-gradient applies the tint on top
+                visualStyle.background =
+                  "linear-gradient(rgba(56, 189, 248, 0.35), rgba(56, 189, 248, 0.35)), var(--background)";
+                visualStyle.border = "1.5px solid rgb(14, 165, 233)"; // sky-500 border
+                visualStyle.boxShadow = "0 0 4px rgba(56, 189, 248, 0.4)";
+                visualStyle.borderRadius = "1px";
               }
 
               const onOpeningDown = (e: React.PointerEvent) => {
@@ -171,7 +177,22 @@ export function CanvasArea({
                   onPointerDown={onOpeningDown}
                   title={`${o.kind === "door" ? "Door" : "Window"} (${o.width}cm) — drag to move`}
                 >
-                  <div style={visualStyle} />
+                  <div style={visualStyle}>
+                    {o.kind === "window" && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          background: "rgb(14, 165, 233)",
+                          top: isH ? "50%" : 0,
+                          left: isH ? 0 : "50%",
+                          width: isH ? "100%" : "1px",
+                          height: isH ? "1px" : "100%",
+                          transform: isH ? "translateY(-50%)" : "translateX(-50%)",
+                          opacity: 0.8,
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
               );
             })}
