@@ -211,8 +211,8 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   const cm = (v: number) => v * scale;
   const roomPxW = cm(roomW);
   const roomPxL = cm(roomL);
-  const offsetX = (stageSize.w - roomPxW) / 2;
-  const offsetY = (stageSize.h - roomPxL) / 2;
+  const offsetX = (stageSize.w - roomPxW) / 2 - 4;
+  const offsetY = (stageSize.h - roomPxL) / 2 - 4;
 
   // -------- Selection --------
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -444,8 +444,8 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   const stageToCm = (clientX: number, clientY: number) => {
     const r = stageRef.current!.getBoundingClientRect();
     return {
-      x: (clientX - r.left - offsetX) / scale,
-      y: (clientY - r.top - offsetY) / scale,
+      x: (clientX - r.left - offsetX - 4) / scale,
+      y: (clientY - r.top - offsetY - 4) / scale,
     };
   };
 
@@ -504,8 +504,8 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     const stageEl = stageRef.current;
     if (!stageEl) return;
     const stageRect = stageEl.getBoundingClientRect();
-    const centerClientX = stageRect.left + offsetX + cm(item.x + item.width / 2);
-    const centerClientY = stageRect.top + offsetY + cm(item.y + item.length / 2);
+    const centerClientX = stageRect.left + offsetX + 4 + cm(item.x + item.width / 2);
+    const centerClientY = stageRect.top + offsetY + 4 + cm(item.y + item.length / 2);
     const startAngle =
       (Math.atan2(e.clientY - centerClientY, e.clientX - centerClientX) * 180) / Math.PI;
     pushHistory();

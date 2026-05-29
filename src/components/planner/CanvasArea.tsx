@@ -73,7 +73,7 @@ export function CanvasArea({
 
         {scale > 0 && (
           <div
-            className="absolute border-[4px] border-slate-700 dark:border-slate-400 bg-background shadow-md transition-all duration-100"
+            className="absolute box-content border-[4px] border-slate-700 dark:border-slate-400 bg-background shadow-md transition-all duration-100"
             style={{
               left: offsetX,
               top: offsetY,
