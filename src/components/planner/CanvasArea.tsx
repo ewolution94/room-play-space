@@ -4,48 +4,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SlidersHorizontal, Ruler, RotateCw, Zap, ZapOff } from "lucide-react";
-import type { Item, Opening } from "@/types/planner";
 import { readableText } from "@/lib/planner-math";
-import type { TranslationStrings } from "@/lib/planner-translations";
-
-interface CanvasAreaProps {
-  t: TranslationStrings;
-  stageRef: React.RefObject<HTMLDivElement | null>;
-  scale: number;
-  offsetX: number;
-  offsetY: number;
-  roomPxW: number;
-  roomPxL: number;
-  cm: (v: number) => number;
-  roomW: number;
-  roomL: number;
-  draftW: string;
-  setDraftW: (w: string) => void;
-  draftL: string;
-  setDraftL: (l: string) => void;
-  dirty: boolean;
-  applyRoom: () => void;
-  collisionEnabled: boolean;
-  setCollisionEnabled: React.Dispatch<React.SetStateAction<boolean>>;
-  rulerMode: boolean;
-  setRulerMode: React.Dispatch<React.SetStateAction<boolean>>;
-  openings: Opening[];
-  setOpenings: React.Dispatch<React.SetStateAction<Opening[]>>;
-  items: Item[];
-  selectedIds: Set<string>;
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
-  rulerStart: { x: number; y: number } | null;
-  rulerEnd: { x: number; y: number } | null;
-  rulerHover: { x: number; y: number } | null;
-  clearRuler: () => void;
-  marqueeRect: { x: number; y: number; w: number; h: number } | null;
-  onStagePointerDown: (e: React.PointerEvent) => void;
-  onStagePointerMove: (e: React.PointerEvent) => void;
-  onStagePointerUp: () => void;
-  onItemPointerDown: (e: React.PointerEvent, item: Item) => void;
-  onRotateHandleDown: (e: React.PointerEvent, item: Item) => void;
-  pushHistory: () => void;
-}
+import type { CanvasAreaProps } from "@/types/planner";
 
 export function CanvasArea({
   t,

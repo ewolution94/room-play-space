@@ -3,19 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Trash2, Copy, RotateCw } from "lucide-react";
-import type { Item } from "@/types/planner";
-import type { TranslationStrings } from "@/lib/planner-translations";
-
-interface SidebarRightProps {
-  t: TranslationStrings;
-  items: Item[];
-  selectedIds: Set<string>;
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
-  duplicateSelected: () => void;
-  removeSelected: () => void;
-  removeItem: (id: string) => void;
-  updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
-}
+import type { SidebarRightProps } from "@/types/planner";
 
 export function SidebarRight({
   t,

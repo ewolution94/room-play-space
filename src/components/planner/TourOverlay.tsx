@@ -1,16 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-
-import type { TranslationStrings } from "@/lib/planner-translations";
-
-interface TourOverlayProps {
-  t: TranslationStrings;
-  tourOpen: boolean;
-  tourStep: number;
-  setTourStep: React.Dispatch<React.SetStateAction<number>>;
-  closeTour: () => void;
-}
+import type { TourOverlayProps } from "@/types/planner";
 
 export function TourOverlay({ t, tourOpen, tourStep, setTourStep, closeTour }: TourOverlayProps) {
   if (!tourOpen) return null;

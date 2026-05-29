@@ -5,36 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Square } from "lucide-react";
-import type { Lang, Preset, Opening } from "@/types/planner";
 import { PRESETS, PRESET_ICON } from "@/lib/planner-presets";
-import type { TranslationStrings } from "@/lib/planner-translations";
-
-interface SidebarLeftProps {
-  t: TranslationStrings;
-  lang: Lang;
-  addPreset: (preset: Preset) => void;
-  nName: string;
-  setNName: (name: string) => void;
-  nW: number;
-  setNW: (width: number) => void;
-  nL: number;
-  setNL: (length: number) => void;
-  nColor: string;
-  setNColor: (color: string) => void;
-  addCustomBox: () => void;
-  oKind: "door" | "window";
-  setOKind: (kind: "door" | "window") => void;
-  oWall: Opening["wall"];
-  setOWall: (wall: Opening["wall"]) => void;
-  oPos: number;
-  setOPos: (pos: number) => void;
-  oWidth: number;
-  setOWidth: (width: number) => void;
-  addOpening: () => void;
-  openings: Opening[];
-  updateOpening: (id: string, patch: Partial<Opening>) => void;
-  removeOpening: (id: string) => void;
-}
+import type { SidebarLeftProps } from "@/types/planner";
 
 export function SidebarLeft({
   t,

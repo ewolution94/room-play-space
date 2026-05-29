@@ -18,26 +18,7 @@ import {
   HelpCircle,
   MoreHorizontal,
 } from "lucide-react";
-import type { Lang, Item, Opening } from "@/types/planner";
-import type { TranslationStrings } from "@/lib/planner-translations";
-
-interface HeaderProps {
-  t: TranslationStrings;
-  lang: Lang;
-  setLang: (lang: Lang) => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  undo: () => void;
-  redo: () => void;
-  items: Item[];
-  openings: Opening[];
-  exportJSON: () => void;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  onImportFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  setResetMode: (mode: "items" | "all" | null) => void;
-  setTourOpen: (open: boolean) => void;
-  setTourStep: (step: React.SetStateAction<number>) => void;
-}
+import type { HeaderProps } from "@/types/planner";
 
 export function Header({
   t,

@@ -1,12 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Lang, Item, Opening, Preset, Snapshot } from "@/types/planner";
+import type {
+  Lang,
+  Item,
+  Opening,
+  Preset,
+  Snapshot,
+  Point,
+  MarqueeRect,
+  DragState,
+  UseRoomPlannerReturn,
+} from "@/types/planner";
 import { STRINGS } from "@/lib/planner-translations";
 import { clampPos, collidesWithOthers, findFreeSpot } from "@/lib/planner-math";
 import { importSchema } from "@/lib/planner-schema";
 
-export function useRoomPlanner() {
+export function useRoomPlanner(): UseRoomPlannerReturn {
   const [lang, setLang] = useState<Lang>("en");
   const t = STRINGS[lang];
   useEffect(() => {
@@ -395,9 +405,9 @@ export function useRoomPlanner() {
   // -------- Ruler --------
   const [rulerMode, setRulerMode] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(true);
-  const [rulerStart, setRulerStart] = useState<{ x: number; y: number } | null>(null);
-  const [rulerEnd, setRulerEnd] = useState<{ x: number; y: number } | null>(null);
-  const [rulerHover, setRulerHover] = useState<{ x: number; y: number } | null>(null);
+  const [rulerStart, setRulerStart] = useState<Point | null>(null);
+  const [rulerEnd, setRulerEnd] = useState<Point | null>(null);
+  const [rulerHover, setRulerHover] = useState<Point | null>(null);
   const clearRuler = () => {
     setRulerStart(null);
     setRulerEnd(null);
@@ -426,34 +436,10 @@ export function useRoomPlanner() {
   };
 
   // -------- Drag & marquee --------
-  const dragRef = useRef<
-    | {
-        mode: "move";
-        ids: string[];
-        startMouseX: number;
-        startMouseY: number;
-        startPos: Map<string, { x: number; y: number }>;
-      }
-    | {
-        mode: "rotate";
-        id: string;
-        centerClientX: number;
-        centerClientY: number;
-        startAngle: number;
-        startRotation: number;
-      }
-    | null
-  >(null);
+  const dragRef = useRef<DragState | null>(null);
 
-  const marqueeRef = useRef<{ startCx: number; startCy: number; addToSelection: boolean } | null>(
-    null,
-  );
-  const [marqueeRect, setMarqueeRect] = useState<{
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  } | null>(null);
+  const marqueeRef = useRef<MarqueeState | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
 
   const stageToCm = (clientX: number, clientY: number) => {
     const r = stageRef.current!.getBoundingClientRect();
