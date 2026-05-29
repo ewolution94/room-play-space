@@ -39,10 +39,19 @@ export function Header({
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="flex w-full items-center justify-between gap-2 px-4 py-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight">{t.title}</h1>
-          <p className="truncate text-sm text-muted-foreground">{t.subtitle}</p>
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <img
+            src="/logo.png"
+            alt="Büro Planner Logo"
+            className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
+          />
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-sky-400">
+              {t.title}
+            </h1>
+            <p className="truncate text-xs text-muted-foreground">{t.subtitle}</p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Ctrl+Z">
