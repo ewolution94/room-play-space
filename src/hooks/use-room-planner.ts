@@ -38,7 +38,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   // bottom-left corner with its swing arc landing on clear floor space.
   const [items, setItems] = useState<Item[]>(() => [
     {
-      id: crypto.randomUUID(),
+      id: "default-desk",
       name: "Desk",
       width: 160,
       length: 75,
@@ -50,7 +50,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       icon: "desk",
     },
     {
-      id: crypto.randomUUID(),
+      id: "default-chair",
       name: "Office chair",
       width: 60,
       length: 60,
@@ -62,19 +62,19 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       icon: "chair-office",
     },
     {
-      id: crypto.randomUUID(),
+      id: "default-bookshelf",
       name: "Bookshelf",
       width: 30,
       length: 200,
       color: "#3d2b1f",
-      x: 450,
+      x: 440,
       y: 130,
       rotation: 0,
       kind: "furniture",
       icon: "bookshelf",
     },
     {
-      id: crypto.randomUUID(),
+      id: "default-cabinet",
       name: "Filing cabinet",
       width: 60,
       length: 45,
@@ -86,7 +86,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       icon: "filing-cabinet",
     },
     {
-      id: crypto.randomUUID(),
+      id: "default-plant",
       name: "Plant",
       width: 50,
       length: 50,
@@ -100,7 +100,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   ]);
   const [openings, setOpenings] = useState<Opening[]>(() => [
     {
-      id: crypto.randomUUID(),
+      id: "default-door-1",
       wall: "bottom",
       position: 30,
       width: 90,
@@ -108,8 +108,8 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       hinge: "start",
       swing: "in",
     },
-    { id: crypto.randomUUID(), wall: "top", position: 60, width: 80, kind: "window" },
-    { id: crypto.randomUUID(), wall: "right", position: 30, width: 80, kind: "window" },
+    { id: "default-window-1", wall: "top", position: 60, width: 80, kind: "window" },
+    { id: "default-window-2", wall: "right", position: 30, width: 80, kind: "window" },
   ]);
 
   // -------- History (undo / redo) --------
@@ -927,5 +927,6 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     onStagePointerDown,
     onStagePointerMove,
     onStagePointerUp,
+    pushHistory,
   };
 }

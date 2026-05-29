@@ -172,44 +172,59 @@ export function CanvasArea({
               const wallLen = isH ? roomW : roomL;
               const wpx = cm(o.width);
               const ppx = cm(o.position);
-              const thick = 6;
+              const hitThick = 20; // 20px hit target
+              const visualThick = 6; // 6px visual thickness
 
-              const style: React.CSSProperties = {
+              const containerStyle: React.CSSProperties = {
                 position: "absolute",
                 cursor: isH ? "ew-resize" : "ns-resize",
                 touchAction: "none",
                 zIndex: 5,
+                background: "transparent",
               };
 
               if (isH) {
-                style.width = wpx;
-                style.height = thick;
-                style.left = ppx;
-                style[o.wall] = -thick / 2;
+                containerStyle.width = wpx;
+                containerStyle.height = hitThick;
+                containerStyle.left = ppx;
+                containerStyle[o.wall] = -hitThick / 2;
               } else {
-                style.width = thick;
-                style.height = wpx;
-                style.top = ppx;
-                style[o.wall] = -thick / 2;
+                containerStyle.width = hitThick;
+                containerStyle.height = wpx;
+                containerStyle.top = ppx;
+                containerStyle[o.wall] = -hitThick / 2;
               }
 
+              const visualStyle: React.CSSProperties = {
+                width: isH ? "100%" : `${visualThick}px`,
+                height: isH ? `${visualThick}px` : "100%",
+                margin: "auto",
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+              };
+
               if (o.kind === "door") {
-                style.background = "var(--background)";
+                visualStyle.background = "var(--background)";
                 if (isH) {
-                  style.borderLeft = "1px solid hsl(var(--foreground) / 0.3)";
-                  style.borderRight = "1px solid hsl(var(--foreground) / 0.3)";
+                  visualStyle.borderLeft = "1px solid hsl(var(--foreground) / 0.3)";
+                  visualStyle.borderRight = "1px solid hsl(var(--foreground) / 0.3)";
                 } else {
-                  style.borderTop = "1px solid hsl(var(--foreground) / 0.3)";
-                  style.borderBottom = "1px solid hsl(var(--foreground) / 0.3)";
+                  visualStyle.borderTop = "1px solid hsl(var(--foreground) / 0.3)";
+                  visualStyle.borderBottom = "1px solid hsl(var(--foreground) / 0.3)";
                 }
               } else {
-                style.background = "#c7d3dc";
-                style.border = "1px solid #7f8c99";
+                visualStyle.background = "#c7d3dc";
+                visualStyle.border = "1px solid #7f8c99";
               }
 
               const onOpeningDown = (e: React.PointerEvent) => {
                 e.stopPropagation();
                 e.preventDefault();
+                const target = e.currentTarget;
+                target.setPointerCapture(e.pointerId);
                 pushHistory();
                 const startClient = isH ? e.clientX : e.clientY;
                 const startPos = o.position;
@@ -223,7 +238,8 @@ export function CanvasArea({
                     prev.map((x) => (x.id === id ? { ...x, position: next } : x)),
                   );
                 };
-                const up = () => {
+                const up = (ev: PointerEvent) => {
+                  target.releasePointerCapture(ev.pointerId);
                   window.removeEventListener("pointermove", move);
                   window.removeEventListener("pointerup", up);
                 };
@@ -234,10 +250,12 @@ export function CanvasArea({
               return (
                 <div
                   key={o.id}
-                  style={style}
+                  style={containerStyle}
                   onPointerDown={onOpeningDown}
                   title={`${o.kind === "door" ? "Door" : "Window"} (${o.width}cm) — drag to move`}
-                />
+                >
+                  <div style={visualStyle} />
+                </div>
               );
             })}
 
