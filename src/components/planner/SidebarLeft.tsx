@@ -174,32 +174,6 @@ export function SidebarLeft({
                   {o.kind === "door" ? t.door : t.window} · {t[o.wall]} · {Math.round(o.position)}cm
                   · {o.width}cm
                 </span>
-                {o.kind === "door" && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() =>
-                        updateOpening(o.id, { hinge: o.hinge === "end" ? "start" : "end" })
-                      }
-                      title={t.flipHinge}
-                    >
-                      <span className="text-xs">⇋</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() =>
-                        updateOpening(o.id, { swing: o.swing === "out" ? "in" : "out" })
-                      }
-                      title={t.flipSwing}
-                    >
-                      <span className="text-xs">⇵</span>
-                    </Button>
-                  </>
-                )}
                 <Button
                   variant="ghost"
                   size="icon"

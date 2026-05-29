@@ -167,49 +167,45 @@ export function CanvasArea({
               height: roomPxL,
             }}
           >
-            {/* openings */}
             {openings.map((o) => {
               const isH = o.wall === "top" || o.wall === "bottom";
               const wallLen = isH ? roomW : roomL;
               const wpx = cm(o.width);
               const ppx = cm(o.position);
-              const wallThick = 6;
-              const originX =
-                o.wall === "bottom"
-                  ? ppx
-                  : o.wall === "top"
-                    ? ppx + wpx
-                    : o.wall === "left"
-                      ? 0
-                      : roomPxW;
-              const originY =
-                o.wall === "bottom"
-                  ? roomPxL
-                  : o.wall === "top"
-                    ? 0
-                    : o.wall === "left"
-                      ? ppx
-                      : ppx + wpx;
-              const rotation =
-                o.wall === "bottom" ? 0 : o.wall === "top" ? 180 : o.wall === "left" ? 90 : -90;
+              const thick = 6;
 
-              const hingeEnd = o.kind === "door" && o.hinge === "end";
-              const swingOut = o.kind === "door" && o.swing === "out";
+              const style: React.CSSProperties = {
+                position: "absolute",
+                cursor: isH ? "ew-resize" : "ns-resize",
+                touchAction: "none",
+                zIndex: 5,
+              };
 
-              let adjustedOriginX = originX;
-              let adjustedOriginY = originY;
-
-              if (hingeEnd) {
-                if (o.wall === "bottom") adjustedOriginX = ppx + wpx;
-                else if (o.wall === "top") adjustedOriginX = ppx;
-                else if (o.wall === "left") adjustedOriginY = ppx + wpx;
-                else adjustedOriginY = ppx;
+              if (isH) {
+                style.width = wpx;
+                style.height = thick;
+                style.left = ppx;
+                style[o.wall] = -thick / 2;
+              } else {
+                style.width = thick;
+                style.height = wpx;
+                style.top = ppx;
+                style[o.wall] = -thick / 2;
               }
 
-              const transform =
-                `translate(${adjustedOriginX}px, ${adjustedOriginY}px) rotate(${rotation}deg)` +
-                (hingeEnd ? " scaleX(-1)" : "") +
-                (swingOut ? " scaleY(-1)" : "");
+              if (o.kind === "door") {
+                style.background = "var(--background)";
+                if (isH) {
+                  style.borderLeft = "1px solid hsl(var(--foreground) / 0.3)";
+                  style.borderRight = "1px solid hsl(var(--foreground) / 0.3)";
+                } else {
+                  style.borderTop = "1px solid hsl(var(--foreground) / 0.3)";
+                  style.borderBottom = "1px solid hsl(var(--foreground) / 0.3)";
+                }
+              } else {
+                style.background = "#c7d3dc";
+                style.border = "1px solid #7f8c99";
+              }
 
               const onOpeningDown = (e: React.PointerEvent) => {
                 e.stopPropagation();
@@ -236,81 +232,12 @@ export function CanvasArea({
               };
 
               return (
-                <svg
+                <div
                   key={o.id}
-                  width={1}
-                  height={1}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    overflow: "visible",
-                    transform,
-                    transformOrigin: "0 0",
-                    zIndex: 5,
-                  }}
-                >
-                  {/* hit area */}
-                  <rect
-                    x={0}
-                    y={-wallThick - 3}
-                    width={wpx}
-                    height={(wallThick + 3) * 2}
-                    fill="transparent"
-                    style={{ cursor: isH ? "ew-resize" : "ns-resize", touchAction: "none" }}
-                    onPointerDown={onOpeningDown}
-                  >
-                    <title>{`${o.kind === "door" ? "Door" : "Window"} (${o.width}cm) — drag to move`}</title>
-                  </rect>
-
-                  {/* wall gap */}
-                  <rect
-                    x={0}
-                    y={-wallThick / 2}
-                    width={wpx}
-                    height={wallThick}
-                    fill="var(--background)"
-                    pointerEvents="none"
-                  />
-
-                  {o.kind === "door" ? (
-                    <>
-                      {/* Swing Arc */}
-                      <path
-                        d={`M 0,0 A ${wpx},${wpx} 0 0,1 ${wpx * Math.cos((-35 * Math.PI) / 180)},${wpx * Math.sin((-35 * Math.PI) / 180)}`}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1}
-                        strokeDasharray="2 2"
-                        className="text-foreground/30"
-                        pointerEvents="none"
-                      />
-                      {/* Door panel */}
-                      <line
-                        x1={0}
-                        y1={0}
-                        x2={wpx}
-                        y2={0}
-                        stroke="#a0522d"
-                        strokeWidth={4}
-                        strokeLinecap="round"
-                        transform={`rotate(-35)`}
-                        pointerEvents="none"
-                      />
-                    </>
-                  ) : (
-                    <rect
-                      x={0}
-                      y={-wallThick / 2}
-                      width={wpx}
-                      height={wallThick}
-                      fill="#c7d3dc"
-                      stroke="#7f8c99"
-                      strokeWidth={0.75}
-                      pointerEvents="none"
-                    />
-                  )}
-                </svg>
+                  style={style}
+                  onPointerDown={onOpeningDown}
+                  title={`${o.kind === "door" ? "Door" : "Window"} (${o.width}cm) — drag to move`}
+                />
               );
             })}
 
