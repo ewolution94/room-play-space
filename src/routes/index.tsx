@@ -36,6 +36,8 @@ import {
   Eraser,
   Ruler,
   HelpCircle,
+  Zap,
+  ZapOff,
   X,
   MoreHorizontal,
   SlidersHorizontal,
@@ -169,6 +171,10 @@ const STRINGS = {
     rotation: "Rotation in degrees",
     duplicate: "Duplicate",
     selectedCount: (n: number) => `${n} selected`,
+    collision: "Collisions",
+    collisionOn: "Collisions On",
+    collisionOff: "Collisions Off",
+    collisionHint: "Toggle whether items block each other",
     categories: {
       seating: "Seating",
       sleeping: "Sleeping",
@@ -263,6 +269,10 @@ const STRINGS = {
     rotation: "Drehung in Grad",
     duplicate: "Duplizieren",
     selectedCount: (n: number) => `${n} ausgewählt`,
+    collision: "Kollisionen",
+    collisionOn: "Kollisionen An",
+    collisionOff: "Kollisionen Aus",
+    collisionHint: "Umschalten, ob sich Gegenstände gegenseitig blockieren",
     categories: {
       seating: "Sitzmöbel",
       sleeping: "Schlafen",
@@ -618,7 +628,13 @@ function obbOverlap(a: Parameters<typeof obbCorners>[0], b: Parameters<typeof ob
   return true;
 }
 
-function collidesWithOthers(candidate: Item, others: Item[], ignoreIds?: Set<string>): boolean {
+function collidesWithOthers(
+  candidate: Item,
+  others: Item[],
+  ignoreIds?: Set<string>,
+  collisionEnabled = true,
+): boolean {
+  if (!collisionEnabled) return false;
   return others.some(
     (o) => o.id !== candidate.id && !(ignoreIds && ignoreIds.has(o.id)) && obbOverlap(candidate, o),
   );
@@ -629,14 +645,20 @@ function findFreeSpot(
   others: Item[],
   roomW: number,
   roomL: number,
+  collisionEnabled = true,
 ): { x: number; y: number } | null {
   const step = 10;
+  // Try to find a non-overlapping spot first (always nice to avoid stacking)
   for (let y = 0; y <= roomL; y += step) {
     for (let x = 0; x <= roomW; x += step) {
       const c = clampPos(item, roomW, roomL, x, y);
       const candidate = { ...item, x: c.x, y: c.y };
-      if (!collidesWithOthers(candidate, others)) return c;
+      if (!collidesWithOthers(candidate, others, undefined, true)) return c;
     }
+  }
+  // If collision is disabled and we couldn't find a free spot, just return a clamped default position (e.g. center)
+  if (!collisionEnabled) {
+    return clampPos(item, roomW, roomL, roomW / 2, roomL / 2);
   }
   return null;
 }
@@ -947,7 +969,7 @@ function RoomPlanner() {
       kind: preset.iconUrl && preset.key === "chair-office" ? "chair" : "furniture",
       icon: preset.key,
     };
-    const spot = findFreeSpot(draft, items, roomW, roomL);
+    const spot = findFreeSpot(draft, items, roomW, roomL, collisionEnabled);
     if (!spot) {
       toast.error(t.noFreeSpace);
       return;
@@ -971,7 +993,7 @@ function RoomPlanner() {
       rotation: 0,
       kind: "furniture",
     };
-    const spot = findFreeSpot(draft, items, roomW, roomL);
+    const spot = findFreeSpot(draft, items, roomW, roomL, collisionEnabled);
     if (!spot) {
       toast.error(t.noFreeSpace);
       return;
@@ -1012,7 +1034,7 @@ function RoomPlanner() {
       const newIds: string[] = [];
       for (const src of toDup) {
         const draft: Item = { ...src, id: crypto.randomUUID(), x: src.x + 20, y: src.y + 20 };
-        const spot = findFreeSpot(draft, next, roomW, roomL);
+        const spot = findFreeSpot(draft, next, roomW, roomL, collisionEnabled);
         if (!spot) continue;
         const added = { ...draft, x: spot.x, y: spot.y };
         next.push(added);
@@ -1087,6 +1109,7 @@ function RoomPlanner() {
 
   // -------- Ruler --------
   const [rulerMode, setRulerMode] = useState(false);
+  const [collisionEnabled, setCollisionEnabled] = useState(true);
   const [rulerStart, setRulerStart] = useState<{ x: number; y: number } | null>(null);
   const [rulerEnd, setRulerEnd] = useState<{ x: number; y: number } | null>(null);
   const [rulerHover, setRulerHover] = useState<{ x: number; y: number } | null>(null);
@@ -1262,14 +1285,30 @@ function RoomPlanner() {
         const dx = (e.clientX - d.startMouseX) / scale;
         const dy = (e.clientY - d.startMouseY) / scale;
         const idsSet = new Set(d.ids);
-        // Collision detection is temporarily disabled while dragging.
-        // We only clamp to room bounds here; collisions are validated on pointer up.
         setItems((prev) =>
           prev.map((i) => {
             if (!idsSet.has(i.id)) return i;
             const start = d.startPos.get(i.id)!;
             const c = clampPos(i, roomW, roomL, start.x + dx, start.y + dy);
-            return { ...i, x: c.x, y: c.y };
+            const candidate = { ...i, x: c.x, y: c.y };
+
+            if (collisionEnabled) {
+              if (collidesWithOthers(candidate, prev, idsSet)) {
+                // Try sliding on X axis only
+                const xOnly = clampPos(i, roomW, roomL, start.x + dx, i.y);
+                const cx = { ...i, x: xOnly.x, y: xOnly.y };
+                if (!collidesWithOthers(cx, prev, idsSet)) return cx;
+
+                // Try sliding on Y axis only
+                const yOnly = clampPos(i, roomW, roomL, i.x, start.y + dy);
+                const cy = { ...i, x: yOnly.x, y: yOnly.y };
+                if (!collidesWithOthers(cy, prev, idsSet)) return cy;
+
+                // Otherwise, block movement entirely
+                return i;
+              }
+            }
+            return candidate;
           }),
         );
       } else {
@@ -1461,7 +1500,7 @@ function RoomPlanner() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomW, roomL]);
+  }, [roomW, roomL, collisionEnabled]);
 
   // -------- Export / Import --------
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1965,21 +2004,45 @@ function RoomPlanner() {
                 </PopoverContent>
               </Popover>
             </div>
-            {/* Ruler toggle (top-right of canvas) */}
-            <Button
-              variant={rulerMode ? "default" : "outline"}
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setRulerMode((v) => !v);
-              }}
+            {/* Canvas controls (top-right of canvas) */}
+            <div
+              className="absolute right-3 top-3 z-10 flex gap-2"
               onPointerDown={(e) => e.stopPropagation()}
-              title={t.rulerHint}
-              className="absolute right-3 top-3 z-10 shadow-sm"
             >
-              <Ruler className="mr-1 h-4 w-4" />
-              {rulerMode ? t.rulerOn : t.ruler}
-            </Button>
+              {/* Collision toggle */}
+              <Button
+                variant={collisionEnabled ? "outline" : "destructive"}
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCollisionEnabled((v) => !v);
+                }}
+                title={t.collisionHint}
+                className="shadow-sm transition-all duration-200"
+              >
+                {collisionEnabled ? (
+                  <Zap className="mr-1 h-4 w-4" />
+                ) : (
+                  <ZapOff className="mr-1 h-4 w-4" />
+                )}
+                {collisionEnabled ? t.collisionOn : t.collisionOff}
+              </Button>
+
+              {/* Ruler toggle */}
+              <Button
+                variant={rulerMode ? "default" : "outline"}
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRulerMode((v) => !v);
+                }}
+                title={t.rulerHint}
+                className="shadow-sm"
+              >
+                <Ruler className="mr-1 h-4 w-4" />
+                {rulerMode ? t.rulerOn : t.ruler}
+              </Button>
+            </div>
             {scale > 0 && (
               <div
                 className="absolute border-2 border-foreground bg-background shadow-sm"
