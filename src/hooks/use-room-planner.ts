@@ -9,6 +9,7 @@ import type {
   Snapshot,
   Point,
   MarqueeRect,
+  MarqueeState,
   DragState,
   UseRoomPlannerReturn,
 } from "@/types/planner";

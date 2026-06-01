@@ -81,6 +81,11 @@ export const STRINGS = {
     collisionOn: "Collisions On",
     collisionOff: "Collisions Off",
     collisionHint: "Toggle whether items block each other",
+    height: "Height (cm)",
+    elevation: "Elevation (cm)",
+    threeDMode: "3D Mode",
+    twoDMode: "2D Mode",
+    roomHeight: "Wall Height (cm)",
     categories: {
       seating: "Seating",
       sleeping: "Sleeping",
@@ -179,6 +184,11 @@ export const STRINGS = {
     collisionOn: "Kollisionen An",
     collisionOff: "Kollisionen Aus",
     collisionHint: "Umschalten, ob sich Gegenstände gegenseitig blockieren",
+    height: "Höhe (cm)",
+    elevation: "Bodenabstand (cm)",
+    threeDMode: "3D-Modus",
+    twoDMode: "2D-Modus",
+    roomHeight: "Wandhöhe (cm)",
     categories: {
       seating: "Sitzmöbel",
       sleeping: "Schlafen",
@@ -191,4 +201,12 @@ export const STRINGS = {
   },
 } as const;
 
-export type TranslationStrings = typeof STRINGS.en;
+export type DeepWritable<T> = {
+  -readonly [P in keyof T]: T[P] extends Function
+    ? T[P]
+    : T[P] extends object
+    ? DeepWritable<T[P]>
+    : string;
+};
+
+export type TranslationStrings = DeepWritable<typeof STRINGS.en>;

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Ruler, RotateCw, Zap, ZapOff, SlidersHorizontal } from "lucide-react";
+import { Ruler, RotateCw, Zap, ZapOff, SlidersHorizontal, Box } from "lucide-react";
 import { readableText } from "@/lib/planner-math";
 import type { CanvasAreaProps } from "@/types/planner";
+import { ThreeDView } from "./ThreeDView";
 
 export function CanvasArea({
   t,
@@ -42,21 +43,23 @@ export function CanvasArea({
   onRotateHandleDown,
   pushHistory,
 }: CanvasAreaProps) {
+  const [threeDActive, setThreeDActive] = useState(false);
+
   return (
     <main className="min-w-0 h-[calc(100vh-6rem)] lg:sticky lg:top-20 lg:self-start flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2 rounded-md border border-border/30 bg-background/40 backdrop-blur-sm px-3.5 py-2 shadow-sm">
         <p className="text-[11px] text-muted-foreground">
-          {rulerMode ? t.rulerHint : t.hint}{" "}
-          <span className="font-semibold text-foreground/75">{`(1cm ≈ ${scale.toFixed(2)}px)`}</span>
+          {threeDActive ? ((t.title as string) === "Raumplaner" ? "Ziehen: Drehen • Rechtsklick: Verschieben • Scrollen: Zoomen" : "Drag: Rotate • Right-click: Pan • Scroll: Zoom") : (rulerMode ? t.rulerHint : t.hint)}{" "}
+          <span className="font-semibold text-foreground/75">{threeDActive ? "" : `(1cm ≈ ${scale.toFixed(2)}px)`}</span>
         </p>
       </div>
       <div
         ref={stageRef}
-        className="relative min-h-0 flex-1 w-full overflow-visible rounded-lg border bg-muted/30"
-        onPointerDown={onStagePointerDown}
-        onPointerMove={onStagePointerMove}
-        onPointerUp={onStagePointerUp}
-        style={{ touchAction: "none", cursor: rulerMode ? "crosshair" : undefined }}
+        className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 ${threeDActive ? "overflow-hidden" : "overflow-visible"}`}
+        onPointerDown={threeDActive ? undefined : onStagePointerDown}
+        onPointerMove={threeDActive ? undefined : onStagePointerMove}
+        onPointerUp={threeDActive ? undefined : onStagePointerUp}
+        style={{ touchAction: threeDActive ? "auto" : "none", cursor: threeDActive ? undefined : (rulerMode ? "crosshair" : undefined) }}
       >
         {/* Room dimensions label (top-left of canvas) */}
         <div className="absolute left-3 top-3 z-10 select-none">
@@ -71,8 +74,17 @@ export function CanvasArea({
           </div>
         </div>
 
-        {scale > 0 && (
-          <div
+        {threeDActive ? (
+          <ThreeDView
+            roomW={roomW}
+            roomL={roomL}
+            items={items}
+            openings={openings}
+            selectedIds={selectedIds}
+          />
+        ) : (
+          scale > 0 && (
+            <div
             className="absolute box-content border-[4px] border-slate-700 dark:border-slate-400 bg-background shadow-md transition-all duration-100"
             style={{
               left: offsetX,
@@ -352,9 +364,12 @@ export function CanvasArea({
                     </g>
                   </svg>
                 );
-              })()}
+               })()}
           </div>
-        )}
+        ))
+      }
+
+
 
         {/* Floating bottom toolbar */}
         <div
@@ -369,6 +384,7 @@ export function CanvasArea({
               e.stopPropagation();
               setCollisionEnabled((v) => !v);
             }}
+            disabled={threeDActive}
             title={t.collisionHint}
             className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium transition-all ${
               collisionEnabled
@@ -394,6 +410,7 @@ export function CanvasArea({
               e.stopPropagation();
               setRulerMode((v) => !v);
             }}
+            disabled={threeDActive}
             title={t.rulerHint}
             className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium ${
               rulerMode
@@ -422,6 +439,26 @@ export function CanvasArea({
               </Button>
             </>
           )}
+
+          <div className="h-4 w-px bg-border/40" />
+
+          {/* 3D toggle */}
+          <Button
+            variant={threeDActive ? "secondary" : "ghost"}
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setThreeDActive((v) => !v);
+            }}
+            className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium ${
+              threeDActive
+                ? "text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Box className="h-3.5 w-3.5" />
+            {threeDActive ? t.twoDMode : t.threeDMode}
+          </Button>
         </div>
       </div>
     </main>

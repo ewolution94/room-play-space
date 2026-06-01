@@ -16,6 +16,8 @@ export interface Item {
   rotation: number; // degrees, rotated around center
   kind: ItemKind;
   icon?: string; // preset key, optional
+  height?: number; // cm
+  elevation?: number; // cm
 }
 
 export interface Preset {
@@ -27,6 +29,7 @@ export interface Preset {
   l: number;
   color: string;
   iconUrl?: string;
+  h?: number; // default height in cm
 }
 
 export interface Opening {
@@ -277,4 +280,5 @@ export interface UseRoomPlannerReturn {
   onStagePointerDown: (e: React.PointerEvent) => void;
   onStagePointerMove: (e: React.PointerEvent) => void;
   onStagePointerUp: () => void;
+  pushHistory: () => void;
 }

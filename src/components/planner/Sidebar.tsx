@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Copy, RotateCw, Square, Sliders, Layers, Package } from "lucide-react";
 import type { SidebarProps, Preset, Opening, Item } from "@/types/planner";
 import { PRESETS, PRESET_ICON } from "@/lib/planner-presets";
+import { getDefaultHeight } from "./ThreeDView";
 
 export function Sidebar({
   t,
@@ -438,6 +439,27 @@ export function Sidebar({
                     type="number"
                     value={selectedItem.length}
                     onChange={(e) => updateItem(selectedItem.id, { length: +e.target.value || 0 })}
+                    className="h-8 text-xs mt-0.5"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">{t.height}</Label>
+                  <Input
+                    type="number"
+                    value={selectedItem.height ?? getDefaultHeight(selectedItem.icon, selectedItem.kind)}
+                    onChange={(e) => updateItem(selectedItem.id, { height: +e.target.value || 0 })}
+                    className="h-8 text-xs mt-0.5"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">{t.elevation}</Label>
+                  <Input
+                    type="number"
+                    value={selectedItem.elevation ?? 0}
+                    onChange={(e) => updateItem(selectedItem.id, { elevation: +e.target.value || 0 })}
                     className="h-8 text-xs mt-0.5"
                   />
                 </div>
