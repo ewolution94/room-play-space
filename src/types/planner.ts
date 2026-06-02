@@ -142,6 +142,7 @@ export interface SidebarProps {
   updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
   duplicateSelected: () => void;
   removeSelected: () => void;
+  threeDActive?: boolean;
 }
 
 export interface CanvasAreaProps {
@@ -181,6 +182,8 @@ export interface CanvasAreaProps {
   onItemPointerDown: (e: React.PointerEvent, item: Item) => void;
   onRotateHandleDown: (e: React.PointerEvent, item: Item) => void;
   pushHistory: () => void;
+  threeDActive: boolean;
+  setThreeDActive: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export interface TourOverlayProps {
@@ -233,6 +236,8 @@ export interface UseRoomPlannerReturn {
   setTourOpen: React.Dispatch<React.SetStateAction<boolean>>;
   tourStep: number;
   setTourStep: React.Dispatch<React.SetStateAction<number>>;
+  threeDActive: boolean;
+  setThreeDActive: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Form inputs
   nName: string;

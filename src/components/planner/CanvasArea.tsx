@@ -42,8 +42,9 @@ export function CanvasArea({
   onItemPointerDown,
   onRotateHandleDown,
   pushHistory,
+  threeDActive,
+  setThreeDActive,
 }: CanvasAreaProps) {
-  const [threeDActive, setThreeDActive] = useState(false);
 
   return (
     <main className="min-w-0 h-[calc(100vh-6rem)] lg:sticky lg:top-20 lg:self-start flex flex-col gap-2">
@@ -76,6 +77,7 @@ export function CanvasArea({
 
         {threeDActive ? (
           <ThreeDView
+            t={t}
             roomW={roomW}
             roomL={roomL}
             items={items}

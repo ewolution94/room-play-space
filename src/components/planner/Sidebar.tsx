@@ -49,6 +49,7 @@ export function Sidebar({
   updateItem,
   duplicateSelected,
   removeSelected,
+  threeDActive = false,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"add" | "layers">("add");
 
@@ -70,6 +71,20 @@ export function Sidebar({
 
   return (
     <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)]">
+      {threeDActive && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-600 dark:text-amber-400 dark:bg-amber-500/10 backdrop-blur-sm shadow-sm flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+            {lang === "de" ? "3D-Ansicht Aktiv" : "3D Mode Active"}
+          </div>
+          <p className="text-[10.5px] leading-normal opacity-90">
+            {lang === "de"
+              ? "Das Hinzufügen von Möbeln, Ändern von Raummaßen und Bearbeiten von Elementen ist im 3D-Modus deaktiviert. Wechseln Sie in die 2D-Ansicht, um Änderungen vorzunehmen."
+              : "Adding furniture, changing room dimensions, and editing elements are disabled in 3D view. Switch to 2D mode to make changes."}
+          </p>
+        </div>
+      )}
+
       {/* Navigation tabs */}
       <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/50 p-1">
         <Button
@@ -120,8 +135,9 @@ export function Sidebar({
                           <button
                             key={p.key}
                             type="button"
+                            disabled={threeDActive}
                             onClick={() => addPreset(p)}
-                            className="group flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border border-border/40 bg-background/50 p-1 text-center transition-all duration-200 hover:border-primary hover:bg-accent/50"
+                            className="group flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border border-border/40 bg-background/50 p-1 text-center transition-all duration-200 hover:border-primary hover:bg-accent/50 disabled:opacity-50 disabled:pointer-events-none"
                             title={`${lang === "de" ? p.nameDe : p.nameEn} (${p.w}×${p.l}cm)`}
                           >
                             <Icon
@@ -154,6 +170,7 @@ export function Sidebar({
                     onChange={(e) => setNName(e.target.value)}
                     placeholder={t.namePlaceholder}
                     className="h-8 text-xs mt-1"
+                    disabled={threeDActive}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -164,6 +181,7 @@ export function Sidebar({
                       value={nW}
                       onChange={(e) => setNW(+e.target.value || 0)}
                       className="h-8 text-xs mt-1"
+                      disabled={threeDActive}
                     />
                   </div>
                   <div>
@@ -173,6 +191,7 @@ export function Sidebar({
                       value={nL}
                       onChange={(e) => setNL(+e.target.value || 0)}
                       className="h-8 text-xs mt-1"
+                      disabled={threeDActive}
                     />
                   </div>
                 </div>
@@ -182,10 +201,11 @@ export function Sidebar({
                     type="color"
                     value={nColor}
                     onChange={(e) => setNColor(e.target.value)}
-                    className="h-8 w-full cursor-pointer rounded-md border mt-1 bg-background p-0.5"
+                    className="h-8 w-full cursor-pointer rounded-md border mt-1 bg-background p-0.5 disabled:opacity-50 disabled:pointer-events-none"
+                    disabled={threeDActive}
                   />
                 </div>
-                <Button onClick={addCustomBox} className="w-full h-8 text-xs mt-1" size="sm">
+                <Button onClick={addCustomBox} className="w-full h-8 text-xs mt-1" size="sm" disabled={threeDActive}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> {t.addItem}
                 </Button>
               </CardContent>
@@ -202,9 +222,10 @@ export function Sidebar({
                   <div>
                     <Label className="text-xs">{t.type}</Label>
                     <select
-                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs mt-1"
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs mt-1 disabled:opacity-50 disabled:pointer-events-none"
                       value={oKind}
                       onChange={(e) => setOKind(e.target.value as "door" | "window")}
+                      disabled={threeDActive}
                     >
                       <option value="door">{t.door}</option>
                       <option value="window">{t.window}</option>
@@ -213,9 +234,10 @@ export function Sidebar({
                   <div>
                     <Label className="text-xs">{t.wall}</Label>
                     <select
-                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs mt-1"
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs mt-1 disabled:opacity-50 disabled:pointer-events-none"
                       value={oWall}
                       onChange={(e) => setOWall(e.target.value as Opening["wall"])}
+                      disabled={threeDActive}
                     >
                       <option value="top">{t.top}</option>
                       <option value="bottom">{t.bottom}</option>
@@ -230,6 +252,7 @@ export function Sidebar({
                       value={oPos}
                       onChange={(e) => setOPos(+e.target.value || 0)}
                       className="h-8 text-xs mt-1"
+                      disabled={threeDActive}
                     />
                   </div>
                   <div>
@@ -239,10 +262,11 @@ export function Sidebar({
                       value={oWidth}
                       onChange={(e) => setOWidth(+e.target.value || 0)}
                       className="h-8 text-xs mt-1"
+                      disabled={threeDActive}
                     />
                   </div>
                 </div>
-                <Button onClick={addOpening} size="sm" className="w-full h-8 text-xs">
+                <Button onClick={addOpening} size="sm" className="w-full h-8 text-xs" disabled={threeDActive}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> {t.addOpening}
                 </Button>
               </CardContent>
@@ -304,7 +328,8 @@ export function Sidebar({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive"
+                              disabled={threeDActive}
+                              className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeItem(it.id);
@@ -347,7 +372,8 @@ export function Sidebar({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive"
+                            disabled={threeDActive}
+                            className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
                             onClick={() => removeOpening(o.id)}
                           >
                             <Trash2 className="h-3 w-3" />
@@ -394,13 +420,15 @@ export function Sidebar({
                   type="color"
                   value={selectedItem.color}
                   onChange={(e) => updateItem(selectedItem.id, { color: e.target.value })}
-                  className="h-7 w-7 shrink-0 cursor-pointer rounded border border-border/40 p-0.5"
+                  className="h-7 w-7 shrink-0 cursor-pointer rounded border border-border/40 p-0.5 disabled:opacity-50 disabled:pointer-events-none"
                   title={t.color}
+                  disabled={threeDActive}
                 />
                 <Input
                   value={selectedItem.name}
                   onChange={(e) => updateItem(selectedItem.id, { name: e.target.value })}
                   className="h-8 text-xs font-medium"
+                  disabled={threeDActive}
                 />
                 <div className="flex gap-0.5 shrink-0">
                   <Button
@@ -409,6 +437,7 @@ export function Sidebar({
                     className="h-8 w-8"
                     onClick={duplicateSelected}
                     title={t.duplicate}
+                    disabled={threeDActive}
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
@@ -417,6 +446,7 @@ export function Sidebar({
                     size="icon"
                     className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => removeItem(selectedItem.id)}
+                    disabled={threeDActive}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -431,6 +461,7 @@ export function Sidebar({
                     value={selectedItem.width}
                     onChange={(e) => updateItem(selectedItem.id, { width: +e.target.value || 0 })}
                     className="h-8 text-xs mt-0.5"
+                    disabled={threeDActive}
                   />
                 </div>
                 <div>
@@ -440,6 +471,7 @@ export function Sidebar({
                     value={selectedItem.length}
                     onChange={(e) => updateItem(selectedItem.id, { length: +e.target.value || 0 })}
                     className="h-8 text-xs mt-0.5"
+                    disabled={threeDActive}
                   />
                 </div>
               </div>
@@ -452,6 +484,7 @@ export function Sidebar({
                     value={selectedItem.height ?? getDefaultHeight(selectedItem.icon, selectedItem.kind)}
                     onChange={(e) => updateItem(selectedItem.id, { height: +e.target.value || 0 })}
                     className="h-8 text-xs mt-0.5"
+                    disabled={threeDActive}
                   />
                 </div>
                 <div>
@@ -461,6 +494,7 @@ export function Sidebar({
                     value={selectedItem.elevation ?? 0}
                     onChange={(e) => updateItem(selectedItem.id, { elevation: +e.target.value || 0 })}
                     className="h-8 text-xs mt-0.5"
+                    disabled={threeDActive}
                   />
                 </div>
               </div>
@@ -477,6 +511,7 @@ export function Sidebar({
                   }
                   className="h-8 text-xs flex-1"
                   title={t.rotation}
+                  disabled={threeDActive}
                 />
                 <Button
                   variant="outline"
@@ -485,6 +520,7 @@ export function Sidebar({
                   onClick={() =>
                     updateItem(selectedItem.id, { rotation: (selectedItem.rotation + 90) % 360 })
                   }
+                  disabled={threeDActive}
                 >
                   +90°
                 </Button>
@@ -504,6 +540,7 @@ export function Sidebar({
                   size="sm"
                   onClick={duplicateSelected}
                   className="h-8 text-xs"
+                  disabled={threeDActive}
                 >
                   <Copy className="mr-1 h-3.5 w-3.5" /> {t.duplicate}
                 </Button>
@@ -512,6 +549,7 @@ export function Sidebar({
                   size="sm"
                   onClick={removeSelected}
                   className="h-8 text-xs"
+                  disabled={threeDActive}
                 >
                   <Trash2 className="mr-1 h-3.5 w-3.5" />
                   {lang === "de" ? "Löschen" : "Delete"}
@@ -528,6 +566,7 @@ export function Sidebar({
                     value={draftW}
                     onChange={(e) => setDraftW(e.target.value)}
                     className="h-8 text-xs mt-0.5"
+                    disabled={threeDActive}
                   />
                 </div>
                 <div>
@@ -536,6 +575,7 @@ export function Sidebar({
                     value={draftL}
                     onChange={(e) => setDraftL(e.target.value)}
                     className="h-8 text-xs mt-0.5"
+                    disabled={threeDActive}
                   />
                 </div>
               </div>
@@ -543,7 +583,7 @@ export function Sidebar({
                 onClick={applyRoom}
                 size="sm"
                 className="w-full h-8 text-xs"
-                disabled={!dirty}
+                disabled={!dirty || threeDActive}
               >
                 {t.apply}
               </Button>

@@ -34,6 +34,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   const [draftW, setDraftW] = useState("480");
   const [draftL, setDraftL] = useState("360");
   const dirty = draftW !== String(roomW) || draftL !== String(roomL);
+  const [threeDActive, setThreeDActive] = useState(false);
 
   // Cozy living-room + work-nook default. Door is on the bottom wall near the
   // bottom-left corner with its swing arc landing on clear floor space.
@@ -43,7 +44,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       name: "Desk",
       width: 160,
       length: 75,
-      color: "#6b4a2b",
+      color: "#c28a5e",
       x: 160,
       y: 15,
       rotation: 0,
@@ -55,7 +56,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       name: "Office chair",
       width: 60,
       length: 60,
-      color: "#1f2937",
+      color: "#556270",
       x: 210,
       y: 100,
       rotation: 0,
@@ -67,7 +68,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       name: "Bookshelf",
       width: 30,
       length: 200,
-      color: "#3d2b1f",
+      color: "#a07855",
       x: 440,
       y: 130,
       rotation: 0,
@@ -79,7 +80,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       name: "Filing cabinet",
       width: 60,
       length: 45,
-      color: "#9aa0a6",
+      color: "#cfd8dc",
       x: 340,
       y: 15,
       rotation: 0,
@@ -91,7 +92,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       name: "Plant",
       width: 50,
       length: 50,
-      color: "#2f6b3a",
+      color: "#4ade80",
       x: 20,
       y: 20,
       rotation: 0,
@@ -881,6 +882,8 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     setTourOpen,
     tourStep,
     setTourStep,
+    threeDActive,
+    setThreeDActive,
 
     // Form inputs
     nName,

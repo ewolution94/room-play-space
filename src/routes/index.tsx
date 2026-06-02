@@ -108,6 +108,7 @@ function RoomPlanner() {
           updateItem={planner.updateItem}
           duplicateSelected={planner.duplicateSelected}
           removeSelected={planner.removeSelected}
+          threeDActive={planner.threeDActive}
         />
 
         {/* Right column: Drawing Stage */}
@@ -148,6 +149,8 @@ function RoomPlanner() {
           onItemPointerDown={planner.onItemPointerDown}
           onRotateHandleDown={planner.onRotateHandleDown}
           pushHistory={planner.pushHistory}
+          threeDActive={planner.threeDActive}
+          setThreeDActive={planner.setThreeDActive}
         />
       </div>
     </div>

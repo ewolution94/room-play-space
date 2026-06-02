@@ -40,7 +40,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Bürostuhl",
     w: 60,
     l: 60,
-    color: "#1f2937",
+    color: "#556270",
     iconUrl: chairBaseUrl,
   },
   {
@@ -50,7 +50,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Sessel",
     w: 90,
     l: 90,
-    color: "#a0522d",
+    color: "#d97706",
     iconUrl: armchairUrl,
   },
   {
@@ -60,7 +60,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Sofa",
     w: 220,
     l: 95,
-    color: "#a8a39b",
+    color: "#cbd5e1",
     iconUrl: sofaUrl,
   },
   // Sleeping
@@ -92,7 +92,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Schreibtisch",
     w: 160,
     l: 75,
-    color: "#6b4a2b",
+    color: "#c28a5e",
   },
   {
     key: "round-table",
@@ -111,7 +111,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Couchtisch",
     w: 100,
     l: 55,
-    color: "#8a6a4a",
+    color: "#c28a5e",
   },
   {
     key: "side-table",
@@ -130,7 +130,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Bücherregal",
     w: 80,
     l: 30,
-    color: "#3d2b1f",
+    color: "#a07855",
   },
   {
     key: "wardrobe",
@@ -139,7 +139,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Kleiderschrank",
     w: 150,
     l: 60,
-    color: "#4a3729",
+    color: "#b5835a",
   },
   {
     key: "filing-cabinet",
@@ -148,7 +148,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Aktenschrank",
     w: 60,
     l: 45,
-    color: "#9aa0a6",
+    color: "#cfd8dc",
   },
   // Kitchen
   {
@@ -210,7 +210,7 @@ export const PRESETS: Preset[] = [
     nameDe: "Pflanze",
     w: 50,
     l: 50,
-    color: "#2f6b3a",
+    color: "#4ade80",
     iconUrl: plantUrl,
   },
   {
