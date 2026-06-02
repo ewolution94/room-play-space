@@ -70,7 +70,7 @@ export function Sidebar({
   }, [selectedIds, items]);
 
   return (
-    <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)]">
+    <aside id="tour-sidebar" className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)]">
       {threeDActive && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-600 dark:text-amber-400 dark:bg-amber-500/10 backdrop-blur-sm shadow-sm flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-1.5 font-semibold">
@@ -117,7 +117,7 @@ export function Sidebar({
         {activeTab === "add" ? (
           <>
             {/* Catalog Preset Cards */}
-            <Card className="border-border/40 shadow-sm bg-card/60 backdrop-blur-sm">
+            <Card id="tour-catalog" className="border-border/40 shadow-sm bg-card/60 backdrop-blur-sm">
               <div className="px-4 py-3 font-semibold text-sm border-b border-border/20 flex items-center gap-1.5">
                 <Package className="h-4 w-4 text-primary" />
                 {t.catalog}
@@ -212,7 +212,7 @@ export function Sidebar({
             </Card>
 
             {/* Openings */}
-            <Card className="border-border/40 shadow-sm bg-card/60 backdrop-blur-sm">
+            <Card id="tour-openings" className="border-border/40 shadow-sm bg-card/60 backdrop-blur-sm">
               <div className="px-4 py-3 font-semibold text-sm border-b border-border/20 flex items-center gap-1.5">
                 <Sliders className="h-4 w-4 text-primary" />
                 {t.openings}
@@ -390,7 +390,7 @@ export function Sidebar({
       </div>
 
       {/* Contextual Properties Inspector */}
-      <Card className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2">
+      <Card id="tour-inspector" className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2">
         <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary border-b border-border/20 flex items-center justify-between bg-primary/5">
           <span>
             {selectedItem

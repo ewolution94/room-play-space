@@ -56,6 +56,7 @@ export function CanvasArea({
       </div>
       <div
         ref={stageRef}
+        id="tour-canvas"
         className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 ${threeDActive ? "overflow-hidden" : "overflow-visible"}`}
         onPointerDown={threeDActive ? undefined : onStagePointerDown}
         onPointerMove={threeDActive ? undefined : onStagePointerMove}
@@ -406,6 +407,7 @@ export function CanvasArea({
 
           {/* Ruler toggle */}
           <Button
+            id="tour-ruler"
             variant={rulerMode ? "secondary" : "ghost"}
             size="sm"
             onClick={(e) => {
@@ -446,6 +448,7 @@ export function CanvasArea({
 
           {/* 3D toggle */}
           <Button
+            id="tour-3d-toggle"
             variant={threeDActive ? "secondary" : "ghost"}
             size="sm"
             onClick={(e) => {

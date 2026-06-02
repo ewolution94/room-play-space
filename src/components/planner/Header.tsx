@@ -40,7 +40,7 @@ export function Header({
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div id="tour-header" className="flex min-w-0 items-center gap-3">
           <img
             src="/logo.png"
             alt="Büro Planner Logo"
@@ -50,12 +50,13 @@ export function Header({
             <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-sky-400">
               {t.title}
             </h1>
-            <p className="truncate text-xs text-muted-foreground">{t.subtitle}</p>
+            <p className="hidden sm:block truncate text-xs text-muted-foreground">{t.subtitle}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Ctrl+Z">
-            <Undo2 className="mr-1 h-4 w-4" /> {t.undo}
+          <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Ctrl+Z" className="px-2 sm:px-3">
+            <Undo2 className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">{t.undo}</span>
           </Button>
           <Button
             variant="outline"
@@ -63,8 +64,10 @@ export function Header({
             onClick={redo}
             disabled={!canRedo}
             title="Ctrl+Shift+Z"
+            className="px-2 sm:px-3"
           >
-            <Redo2 className="mr-1 h-4 w-4" /> {t.redo}
+            <Redo2 className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">{t.redo}</span>
           </Button>
           <input
             ref={fileInputRef}
@@ -80,6 +83,15 @@ export function Header({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={() => {
+                  setTourStep(0);
+                  setTourOpen(true);
+                }}
+              >
+                <HelpCircle className="mr-2 h-4 w-4" /> {t.takeTheTour}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setLang(lang === "en" ? "de" : "en")}>
                 <Languages className="mr-2 h-4 w-4" />
                 {lang === "en" ? "Deutsch" : "English"}
@@ -103,17 +115,6 @@ export function Header({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setTourStep(0);
-              setTourOpen(true);
-            }}
-            title={t.takeTheTour}
-          >
-            <HelpCircle className="h-4 w-4" />
-          </Button>
         </div>
       </div>
     </header>

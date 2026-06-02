@@ -1,7 +1,7 @@
 export const STRINGS = {
   en: {
     title: "Room Planner",
-    subtitle: "Sketch your home office and drag furniture to find the right layout.",
+    subtitle: "Your room, your rules. Visualized.",
     roomLabel: "Room",
     export: "Export",
     import: "Import",
@@ -40,24 +40,31 @@ export const STRINGS = {
     tourNext: "Next",
     tourDone: "Done",
     tour: {
-      welcome: { title: "Welcome to Room Planner", body: "A 30-second tour of the essentials." },
+      welcome: { title: "Welcome to Room Planner", body: "Let's take a quick 45-second tour of the features to design your dream layout!" },
       catalog: {
-        title: "Catalog",
-        body: "Pick furniture presets from the left column to drop into the room.",
+        title: "Catalog & Openings",
+        body: "Click any furniture preset to drop it onto the grid, build custom boxes, or add doors and windows to the walls.",
       },
       canvas: {
-        title: "Canvas",
-        body: "Drag items, marquee-select, and use arrows or R to nudge/rotate.",
+        title: "Design Canvas",
+        body: "Drag furniture to place it. Use Arrow keys to nudge by 1cm (Shift for 10cm), R to rotate, and Ctrl+D to duplicate.",
       },
-      openings: {
-        title: "Doors & windows",
-        body: "Drag along the wall to reposition. Doors have hinge & swing toggles.",
+      inspector: {
+        title: "Properties Inspector",
+        body: "Select any item to adjust its width, length, height, elevation, and rotation. Clear selections to change the room size.",
       },
       ruler: {
-        title: "Ruler",
-        body: "Toggle the ruler then click two points to measure the distance.",
+        title: "Ruler Tool",
+        body: "Toggle the ruler, then click any two points on the canvas to measure distances and clearances between objects.",
       },
-      reset: { title: "Reset", body: "Use Clear items or Clear all to start over." },
+      threeD: {
+        title: "3D Preview Mode",
+        body: "Toggle 3D view to visualize your room! Rotate with Drag, pan with Right-click, and zoom with scroll. Use keyboard Arrows to walk inside.",
+      },
+      threeDControls: {
+        title: "3D Controls & Locking",
+        body: "In 3D mode, the sidebar locks to protect your layout. Use the top-right control overlay to toggle labels, sunlight angles, and wall fading!",
+      },
     },
 
     catalog: "Catalog",
@@ -98,7 +105,7 @@ export const STRINGS = {
   },
   de: {
     title: "Raumplaner",
-    subtitle: "Skizziere dein Homeoffice und ziehe Möbel, um das richtige Layout zu finden.",
+    subtitle: "Dein Raum. Deine Regeln. Visualisiert.",
     roomLabel: "Raum",
     export: "Exportieren",
     import: "Importieren",
@@ -139,27 +146,31 @@ export const STRINGS = {
     tour: {
       welcome: {
         title: "Willkommen im Raumplaner",
-        body: "Eine 30-Sekunden-Tour durch die wichtigsten Funktionen.",
+        body: "Lass uns eine kurze 45-Sekunden-Tour durch die Funktionen machen, um deinen Traumraum zu gestalten!",
       },
       catalog: {
-        title: "Katalog",
-        body: "Wähle Möbelvorlagen aus der linken Spalte, um sie im Raum zu platzieren.",
+        title: "Katalog & Öffnungen",
+        body: "Klicke auf eine Möbelvorlage, um sie auf dem Raster zu platzieren, erstelle eigene Elemente oder füge Türen und Fenster in die Wände ein.",
       },
       canvas: {
         title: "Arbeitsfläche",
-        body: "Ziehe Elemente, wähle mit Rahmen aus und nutze Pfeiltasten oder R zum Verschieben/Drehen.",
+        body: "Ziehe Wände und Möbel, um sie zu platzieren. Nutze die Pfeiltasten für 1cm-Schritte (Shift für 10cm), R zum Drehen und Strg+D zum Duplizieren.",
       },
-      openings: {
-        title: "Türen & Fenster",
-        body: "Entlang der Wand ziehen, um sie zu verschieben. Türen haben Anschlag- und Öffnungsrichtung-Schalter.",
+      inspector: {
+        title: "Eigenschaften-Editor",
+        body: "Wähle ein Element aus, um Breite, Länge, Höhe, Bodenabstand und Drehung anzupassen. Klicke ins Leere, um Raummaße zu ändern.",
       },
       ruler: {
-        title: "Lineal",
-        body: "Aktiviere das Lineal und klicke zwei Punkte, um den Abstand zu messen.",
+        title: "Messwerkzeug",
+        body: "Aktiviere das Lineal und klicke zwei Punkte auf der Arbeitsfläche an, um Abstände und Durchgänge präzise zu messen.",
       },
-      reset: {
-        title: "Zurücksetzen",
-        body: "Mit Möbel löschen oder Alles löschen kannst du neu beginnen.",
+      threeD: {
+        title: "3D-Vorschau",
+        body: "Wechsle in den 3D-Modus, um deinen Raum zu visualisieren! Drehe mit Ziehen, verschiebe mit Rechtsklick und zoome per Rädchen. Nutze Pfeiltasten zum Bewegen.",
+      },
+      threeDControls: {
+        title: "3D-Steuerung & Sperrung",
+        body: "Im 3D-Modus wird die Seitenleiste gesperrt, um dein Layout zu schützen. Nutze das Overlay oben rechts für Beschriftungen, Sonnenlicht und Wände!",
       },
     },
 
