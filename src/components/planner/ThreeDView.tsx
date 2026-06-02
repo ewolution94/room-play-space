@@ -321,15 +321,8 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
     floorMesh.receiveShadow = true;
     scene.add(floorMesh);
 
-    // Floor outline border
-    const borderGeo = new THREE.BoxGeometry(roomW + 2, 1, roomL + 2);
-    const borderMat = new THREE.MeshBasicMaterial({ color: "#cbd5e1" });
-    const borderMesh = new THREE.Mesh(borderGeo, borderMat);
-    borderMesh.position.y = -0.5;
-    scene.add(borderMesh);
-
-    // Grid helper
-    const maxDim = Math.max(roomW, roomL);
+    // Grid helper (extended by one grid box to all sides)
+    const maxDim = Math.max(roomW + 100, roomL + 100);
     const gridHelper = new THREE.GridHelper(maxDim, Math.round(maxDim / 50), "#94a3b8", "#cbd5e1");
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
@@ -384,8 +377,12 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
         .filter((o) => o.wall === wallSide)
         .sort((a, b) => a.position - b.position);
 
+      const isTopOrBottom = wallSide === "top" || wallSide === "bottom";
+      const startOffset = isTopOrBottom ? -wallThickness : 0;
+      const endOffset = isTopOrBottom ? wallThickness : 0;
+
       const segments: { start: number; end: number }[] = [];
-      let lastPos = 0;
+      let lastPos = startOffset;
 
       for (const o of wallOpenings) {
         if (o.position > lastPos) {
@@ -456,11 +453,11 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
           wallGroup.add(frameEdge);
         }
 
-        lastPos = Math.min(length, o.position + o.width);
+        lastPos = Math.min(length + endOffset, o.position + o.width);
       }
 
-      if (length > lastPos) {
-        segments.push({ start: lastPos, end: length });
+      if (length + endOffset > lastPos) {
+        segments.push({ start: lastPos, end: length + endOffset });
       }
 
       for (const seg of segments) {
