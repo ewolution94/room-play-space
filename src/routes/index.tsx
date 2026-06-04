@@ -71,7 +71,7 @@ function RoomPlanner() {
       />
 
       <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
-        {/* Left column: Unified Tabbed Sidebar + Properties Inspector */}
+        {/* Left column: Unified Tabbed Sidebar */}
         <Sidebar
           t={planner.t}
           lang={planner.lang}
@@ -97,21 +97,11 @@ function RoomPlanner() {
           setOWidth={planner.setOWidth}
           roomW={planner.roomW}
           roomL={planner.roomL}
-          draftW={planner.draftW}
-          setDraftW={planner.setDraftW}
-          draftL={planner.draftL}
-          setDraftL={planner.setDraftL}
-          dirty={planner.dirty}
-          applyRoom={planner.applyRoom}
           addPreset={planner.addPreset}
           addCustomBox={planner.addCustomBox}
           addOpening={planner.addOpening}
-          updateOpening={planner.updateOpening}
           removeOpening={planner.removeOpening}
           removeItem={planner.removeItem}
-          updateItem={planner.updateItem}
-          duplicateSelected={planner.duplicateSelected}
-          removeSelected={planner.removeSelected}
           threeDActive={planner.threeDActive}
           corners={planner.corners}
           setCorners={planner.setCorners}
@@ -170,6 +160,12 @@ function RoomPlanner() {
           zoomFactor={planner.zoomFactor}
           setZoomFactor={planner.setZoomFactor}
           isDark={isDark}
+          updateItem={planner.updateItem}
+          removeItem={planner.removeItem}
+          duplicateSelected={planner.duplicateSelected}
+          removeSelected={planner.removeSelected}
+          updateOpening={planner.updateOpening}
+          removeOpening={planner.removeOpening}
         />
       </div>
     </div>

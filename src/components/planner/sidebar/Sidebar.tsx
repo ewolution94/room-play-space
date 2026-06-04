@@ -7,7 +7,6 @@ import { CatalogSection } from "./CatalogSection";
 import { CustomItemDialog } from "./CustomItemDialog";
 import { OpeningsDialog } from "./OpeningsDialog";
 import { ElementsListSection } from "./ElementsListSection";
-import { InspectorSection } from "./InspectorSection";
 
 const SWATCHES = [
   { name: "Charcoal", value: "#343a40" },
@@ -45,21 +44,11 @@ export function Sidebar({
   setOWidth,
   roomW,
   roomL,
-  draftW,
-  setDraftW,
-  draftL,
-  setDraftL,
-  dirty,
-  applyRoom,
   addPreset,
   addCustomBox,
   addOpening,
-  updateOpening,
   removeOpening,
   removeItem,
-  updateItem,
-  duplicateSelected,
-  removeSelected,
   threeDActive = false,
   corners,
   setCorners,
@@ -81,18 +70,6 @@ export function Sidebar({
     return map;
   }, []);
 
-  // Find the currently selected item if exactly 1 is selected
-  const selectedItem = useMemo(() => {
-    if (selectedIds.size !== 1) return null;
-    const id = Array.from(selectedIds)[0];
-    return items.find((i) => i.id === id) || null;
-  }, [selectedIds, items]);
-
-  // Find the currently selected opening
-  const selectedOpening = useMemo(() => {
-    if (!selectedOpeningId) return null;
-    return openings.find((o) => o.id === selectedOpeningId) || null;
-  }, [selectedOpeningId, openings]);
 
   return (
     <aside id="tour-sidebar" className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:shrink-0">
@@ -206,34 +183,6 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Properties Inspector Card */}
-      <InspectorSection
-        t={t}
-        lang={lang}
-        threeDActive={threeDActive}
-        selectedItem={selectedItem}
-        selectedIds={selectedIds}
-        setSelectedIds={setSelectedIds}
-        selectedOpening={selectedOpening}
-        selectedOpeningId={selectedOpeningId}
-        setSelectedOpeningId={setSelectedOpeningId}
-        wallColors={wallColors}
-        setWallColors={setWallColors}
-        corners={corners}
-        items={items}
-        updateItem={updateItem}
-        removeItem={removeItem}
-        duplicateSelected={duplicateSelected}
-        removeSelected={removeSelected}
-        updateOpening={updateOpening}
-        removeOpening={removeOpening}
-        draftW={draftW}
-        setDraftW={setDraftW}
-        draftL={draftL}
-        setDraftL={setDraftL}
-        applyRoom={applyRoom}
-        dirty={dirty}
-      />
     </aside>
   );
 }

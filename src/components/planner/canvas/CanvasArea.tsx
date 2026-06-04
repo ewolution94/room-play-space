@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { CanvasAreaProps } from "@/types/planner";
 import { ThreeDView } from "../ThreeDView";
 import { HintBanner } from "./HintBanner";
@@ -8,6 +8,7 @@ import { CanvasItems } from "./CanvasItems";
 import { CanvasMarquee } from "./CanvasMarquee";
 import { CanvasRuler } from "./CanvasRuler";
 import { ToolbarOverlay } from "./ToolbarOverlay";
+import { InspectorSection } from "../sidebar/InspectorSection";
 import { HelpCircle } from "lucide-react";
 
 export function CanvasArea({
@@ -21,7 +22,12 @@ export function CanvasArea({
   cm,
   roomW,
   roomL,
+  draftW,
+  setDraftW,
+  draftL,
+  setDraftL,
   dirty,
+  applyRoom,
   collisionEnabled,
   setCollisionEnabled,
   rulerMode,
@@ -53,9 +59,105 @@ export function CanvasArea({
   zoomFactor,
   setZoomFactor,
   isDark,
+  updateItem,
+  removeItem,
+  duplicateSelected,
+  removeSelected,
+  updateOpening,
+  removeOpening,
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
   const [enableCornerDrag, setEnableCornerDrag] = useState(false);
+
+  // Floating Inspector state
+  const [inspectorPos, setInspectorPos] = useState({ x: 16, y: 80 });
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const inspectorRef = useRef<HTMLDivElement>(null);
+
+  // Derive selected item / opening for the inspector
+  const selectedItem = useMemo(() => {
+    if (selectedIds.size !== 1) return null;
+    const id = Array.from(selectedIds)[0];
+    return items.find((i) => i.id === id) || null;
+  }, [selectedIds, items]);
+
+  const selectedOpening = useMemo(() => {
+    if (!selectedOpeningId) return null;
+    return openings.find((o) => o.id === selectedOpeningId) || null;
+  }, [selectedOpeningId, openings]);
+
+  // Auto-expand inspector when selection changes
+  useEffect(() => {
+    if (selectedIds.size > 0 || selectedOpeningId) {
+      setInspectorCollapsed(false);
+    }
+  }, [selectedIds, selectedOpeningId]);
+
+  // Keep inspectorPos ref to avoid recreating the drag handler callback
+  const inspectorPosRef = useRef(inspectorPos);
+  useEffect(() => {
+    inspectorPosRef.current = inspectorPos;
+  }, [inspectorPos]);
+
+  // Drag handler for floating inspector header
+  const onInspectorHeaderPointerDown = useCallback((e: React.PointerEvent) => {
+    // Don't start drag on button clicks (collapse toggle)
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {}
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPosX = inspectorPosRef.current.x;
+    const startPosY = inspectorPosRef.current.y;
+
+    let currentX = startPosX;
+    let currentY = startPosY;
+
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      const container = stageRef.current;
+      const panel = inspectorRef.current;
+      if (!panel) return;
+
+      if (!container) {
+        currentX = startPosX + dx;
+        currentY = startPosY + dy;
+        panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+        return;
+      }
+
+      const bounds = container.getBoundingClientRect();
+      const panelW = panel.offsetWidth;
+      const panelH = panel.offsetHeight;
+
+      currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
+      currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
+      
+      panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+    };
+
+    const up = (ev: PointerEvent) => {
+      try { target.releasePointerCapture(ev.pointerId); } catch {}
+      window.removeEventListener('pointermove', move, { capture: true });
+      window.removeEventListener('pointerup', up, { capture: true });
+      window.removeEventListener('pointercancel', up, { capture: true });
+      
+      // Sync final position to state on release
+      setInspectorPos({ x: currentX, y: currentY });
+    };
+
+    window.addEventListener('pointermove', move, { capture: true });
+    window.addEventListener('pointerup', up, { capture: true });
+    window.addEventListener('pointercancel', up, { capture: true });
+  }, [stageRef]);
+
   const selectedLabel = selectedIds.size > 0 ? t.selectedCount(selectedIds.size) : undefined;
   const lang = t.title === "Raumplaner" ? "de" : "en";
   const scaleKey = Math.round(scale * 1000);
@@ -515,6 +617,58 @@ export function CanvasArea({
               {/* Right tick */}
               <div className="w-[1.5px] h-2 bg-muted-foreground" />
             </div>
+          </div>
+        )}
+
+        {/* Floating Draggable Inspector Panel (2D only) */}
+        {!threeDActive && (
+          <div
+            ref={inspectorRef}
+            className="absolute z-40 w-72 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
+            style={{
+              left: 0,
+              top: 0,
+              transform: `translate3d(${inspectorPos.x}px, ${inspectorPos.y}px, 0)`,
+              willChange: "transform",
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <InspectorSection
+              t={t}
+              lang={lang}
+              threeDActive={threeDActive}
+              selectedItem={selectedItem}
+              selectedIds={selectedIds}
+              setSelectedIds={setSelectedIds}
+              selectedOpening={selectedOpening}
+              selectedOpeningId={selectedOpeningId}
+              setSelectedOpeningId={setSelectedOpeningId}
+              wallColors={wallColors}
+              setWallColors={setWallColors}
+              corners={corners}
+              items={items}
+              updateItem={updateItem}
+              removeItem={removeItem}
+              duplicateSelected={duplicateSelected}
+              removeSelected={removeSelected}
+              updateOpening={updateOpening}
+              removeOpening={removeOpening}
+              draftW={draftW}
+              setDraftW={setDraftW}
+              draftL={draftL}
+              setDraftL={setDraftL}
+              applyRoom={applyRoom}
+              dirty={dirty}
+              isCollapsed={inspectorCollapsed}
+              onToggleCollapse={() => setInspectorCollapsed((c) => !c)}
+              onHeaderPointerDown={onInspectorHeaderPointerDown}
+            />
           </div>
         )}
       </div>

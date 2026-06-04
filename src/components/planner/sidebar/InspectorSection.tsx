@@ -16,6 +16,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Maximize2,
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
 } from "lucide-react";
 import type { Item, Opening, Point } from "@/types/planner";
 import { getDefaultHeight } from "../ThreeDView";
@@ -68,6 +71,9 @@ interface InspectorSectionProps {
   setDraftL: (l: string) => void;
   applyRoom: (customW?: number, customL?: number) => void;
   dirty: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  onHeaderPointerDown?: (e: React.PointerEvent) => void;
 }
 
 export function InspectorSection({
@@ -96,6 +102,9 @@ export function InspectorSection({
   setDraftL,
   applyRoom,
   dirty,
+  isCollapsed = false,
+  onToggleCollapse,
+  onHeaderPointerDown,
 }: InspectorSectionProps) {
   const handleNudge = (dx: number, dy: number, shift: boolean) => {
     if (!selectedItem || threeDActive) return;
@@ -107,40 +116,61 @@ export function InspectorSection({
   };
 
   return (
-    <Card id="tour-inspector" className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2">
-      <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary border-b border-border/20 flex items-center justify-between bg-primary/5">
-        <span>
-          {selectedOpening
-            ? selectedOpening.kind === "door"
-              ? lang === "de"
-                ? "Tür-Details"
-                : "Door Details"
-              : lang === "de"
-                ? "Fenster-Details"
-                : "Window Details"
-            : selectedItem
-              ? lang === "de"
-                ? "Möbel-Details"
-                : "Item Inspector"
-              : selectedIds.size > 1
+    <Card id="tour-inspector" className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2 overflow-hidden">
+      <div
+        className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary border-b border-border/20 flex items-center justify-between bg-primary/5 select-none"
+        style={{ cursor: onHeaderPointerDown ? "move" : undefined }}
+        onPointerDown={onHeaderPointerDown}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {onHeaderPointerDown && (
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+          )}
+          <span className="truncate">
+            {selectedOpening
+              ? selectedOpening.kind === "door"
                 ? lang === "de"
-                  ? "Mehrfachauswahl"
-                  : "Multiple Selection"
+                  ? "Tür-Details"
+                  : "Door Details"
                 : lang === "de"
-                  ? "Raum-Einstellungen"
-                  : "Room Inspector"}
-        </span>
-        {selectedOpening ? (
-          <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold capitalize">
-            {t[selectedOpening.wall] || selectedOpening.wall}
+                  ? "Fenster-Details"
+                  : "Window Details"
+              : selectedItem
+                ? lang === "de"
+                  ? "Möbel-Details"
+                  : "Item Inspector"
+                : selectedIds.size > 1
+                  ? lang === "de"
+                    ? "Mehrfachauswahl"
+                    : "Multiple Selection"
+                  : lang === "de"
+                    ? "Raum-Einstellungen"
+                    : "Room Inspector"}
           </span>
-        ) : selectedIds.size > 0 ? (
-          <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold">
-            {t.selectedCount(selectedIds.size)}
-          </span>
-        ) : null}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {selectedOpening ? (
+            <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold capitalize">
+              {t[selectedOpening.wall] || selectedOpening.wall}
+            </span>
+          ) : selectedIds.size > 0 ? (
+            <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold">
+              {t.selectedCount(selectedIds.size)}
+            </span>
+          ) : null}
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+              className="p-0.5 rounded hover:bg-primary/10 transition-colors"
+              title={isCollapsed ? (lang === "de" ? "Erweitern" : "Expand") : (lang === "de" ? "Einklappen" : "Collapse")}
+            >
+              {isCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
       </div>
-      <CardContent className="p-3">
+      {!isCollapsed && <CardContent className="p-3 max-h-[60vh] overflow-y-auto">
         {selectedOpening ? (
           /* Inspector for Selected Door/Window Opening */
           <div className="space-y-4 animate-in fade-in duration-200">
@@ -713,7 +743,7 @@ export function InspectorSection({
             </div>
           </div>
         )}
-      </CardContent>
+      </CardContent>}
     </Card>
   );
 }

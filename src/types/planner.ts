@@ -132,21 +132,11 @@ export interface SidebarProps {
   setOWidth: (width: number) => void;
   roomW: number;
   roomL: number;
-  draftW: string;
-  setDraftW: (w: string) => void;
-  draftL: string;
-  setDraftL: (l: string) => void;
-  dirty: boolean;
-  applyRoom: (customW?: number, customL?: number) => void;
   addPreset: (preset: Preset) => void;
   addCustomBox: () => void;
   addOpening: () => void;
-  updateOpening: (id: string, patch: Partial<Opening>) => void;
   removeOpening: (id: string) => void;
   removeItem: (id: string) => void;
-  updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
-  duplicateSelected: () => void;
-  removeSelected: () => void;
   threeDActive?: boolean;
   corners: Point[];
   setCorners: React.Dispatch<React.SetStateAction<Point[]>>;
@@ -204,6 +194,12 @@ export interface CanvasAreaProps {
   zoomFactor: number;
   setZoomFactor: React.Dispatch<React.SetStateAction<number>>;
   isDark: boolean;
+  updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
+  removeItem: (id: string) => void;
+  duplicateSelected: () => void;
+  removeSelected: () => void;
+  updateOpening: (id: string, patch: Partial<Opening>) => void;
+  removeOpening: (id: string) => void;
 }
 
 export interface TourOverlayProps {
