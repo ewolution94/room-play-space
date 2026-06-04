@@ -17,6 +17,8 @@ import {
   Trash2,
   HelpCircle,
   MoreHorizontal,
+  Sun,
+  Moon,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
 
@@ -36,6 +38,8 @@ export function Header({
   setResetMode,
   setTourOpen,
   setTourStep,
+  theme,
+  toggleTheme,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -76,6 +80,19 @@ export function Header({
             className="hidden"
             onChange={onImportFile}
           />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleTheme}
+            title={theme === "light" ? (lang === "de" ? "Dunkelmodus aktivieren" : "Switch to Dark Mode") : (lang === "de" ? "Hellmodus aktivieren" : "Switch to Light Mode")}
+            className="h-9 w-9 p-0 flex items-center justify-center"
+          >
+            {theme === "light" ? (
+              <Moon className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+            )}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" title="More">

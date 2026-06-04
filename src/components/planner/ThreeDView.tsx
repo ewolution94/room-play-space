@@ -14,6 +14,7 @@ interface ThreeDViewProps {
   selectedIds: Set<string>;
   corners: Point[];
   wallColors: Record<string, string>;
+  isDark?: boolean;
 }
 
 function parseColor(hex: string): { r: number; g: number; b: number } {
@@ -166,6 +167,7 @@ export function ThreeDView({
   selectedIds,
   corners,
   wallColors,
+  isDark = false,
 }: ThreeDViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -265,7 +267,7 @@ export function ThreeDView({
 
     // --- Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#f8fafc"); // slate-50
+    scene.background = new THREE.Color(isDark ? "#0f172a" : "#f8fafc"); // slate-900 vs slate-50
 
     // --- Camera Setup ---
     const width = container.clientWidth;
@@ -292,7 +294,7 @@ export function ThreeDView({
     controlsRef.current = controls;
 
     // --- Lighting ---
-    const ambientLight = new THREE.AmbientLight("#ffffff", 0.65);
+    const ambientLight = new THREE.AmbientLight("#ffffff", isDark ? 0.45 : 0.65);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight("#ffffff", 0.85);
@@ -316,13 +318,19 @@ export function ThreeDView({
     dirLightRef.current = dirLight;
 
     // Soft sky light to simulate indirect daylight
-    const hemiLight = new THREE.HemisphereLight("#bae6fd", "#fed7aa", 0.25); // sky-200 to orange-200
+    const hemiLight = new THREE.HemisphereLight(
+      isDark ? "#1e1b4b" : "#bae6fd", // indigo-950 vs sky-200
+      isDark ? "#0f172a" : "#fed7aa", // slate-900 vs orange-200
+      isDark ? 0.15 : 0.25
+    );
     scene.add(hemiLight);
 
     // Floor plane geometry removed as requested to leave only the grid helper
     // Grid helper (extended to cover a massive 80x80m layout space)
     const maxDim = 8000;
-    const gridHelper = new THREE.GridHelper(maxDim, Math.round(maxDim / 50), "#94a3b8", "#cbd5e1");
+    const gridColor1 = isDark ? "#475569" : "#94a3b8"; // slate-600 vs slate-400
+    const gridColor2 = isDark ? "#1e293b" : "#cbd5e1"; // slate-800 vs slate-200
+    const gridHelper = new THREE.GridHelper(maxDim, Math.round(maxDim / 50), gridColor1, gridColor2);
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
 
@@ -874,7 +882,7 @@ export function ThreeDView({
       controlsRef.current = null;
       cameraRef.current = null;
     };
-  }, [roomW, roomL, items, openings, selectedIds, showNames, corners, wallColors]);
+  }, [roomW, roomL, items, openings, selectedIds, showNames, corners, wallColors, isDark]);
 
   // Is German language active?
   const isDe = t.title === "Raumplaner";

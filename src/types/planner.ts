@@ -103,6 +103,8 @@ export interface HeaderProps {
   setResetMode: (mode: "items" | "all" | null) => void;
   setTourOpen: (open: boolean) => void;
   setTourStep: (step: React.SetStateAction<number>) => void;
+  theme: "light" | "dark";
+  toggleTheme: () => void;
 }
 
 export interface SidebarProps {
@@ -201,6 +203,7 @@ export interface CanvasAreaProps {
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   zoomFactor: number;
   setZoomFactor: React.Dispatch<React.SetStateAction<number>>;
+  isDark: boolean;
 }
 
 export interface TourOverlayProps {

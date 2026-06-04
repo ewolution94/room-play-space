@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
+import { useTheme } from "@/hooks/use-theme";
 import { Header } from "@/components/planner/Header";
 import { Sidebar } from "@/components/planner/sidebar";
 import { CanvasArea } from "@/components/planner/canvas";
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/")({
 });
 
 function RoomPlanner() {
+  const { theme, toggleTheme, isDark } = useTheme();
   const planner = useRoomPlanner();
   const { t, resetMode, setResetMode, confirmReset } = planner;
 
@@ -41,6 +43,8 @@ function RoomPlanner() {
         setResetMode={planner.setResetMode}
         setTourOpen={planner.setTourOpen}
         setTourStep={planner.setTourStep}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       <AlertDialog open={resetMode !== null} onOpenChange={(o) => !o && setResetMode(null)}>
@@ -165,6 +169,7 @@ function RoomPlanner() {
           setSelectedOpeningId={planner.setSelectedOpeningId}
           zoomFactor={planner.zoomFactor}
           setZoomFactor={planner.setZoomFactor}
+          isDark={isDark}
         />
       </div>
     </div>

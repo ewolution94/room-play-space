@@ -52,6 +52,7 @@ export function CanvasArea({
   setSelectedOpeningId,
   zoomFactor,
   setZoomFactor,
+  isDark,
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
   const [enableCornerDrag, setEnableCornerDrag] = useState(false);
@@ -183,6 +184,7 @@ export function CanvasArea({
             selectedIds={selectedIds}
             corners={corners}
             wallColors={wallColors}
+            isDark={isDark}
           />
         ) : (
           scale > 0 && (
