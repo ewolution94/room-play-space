@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { Header } from "@/components/planner/Header";
-import { Sidebar } from "@/components/planner/Sidebar";
+import { Sidebar } from "@/components/planner/sidebar";
 import { CanvasArea } from "@/components/planner/CanvasArea";
 import { TourOverlay } from "@/components/planner/TourOverlay";
 import {

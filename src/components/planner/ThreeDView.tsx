@@ -375,6 +375,15 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
 
       const wallOpenings = openings
         .filter((o) => o.wall === wallSide)
+        .map((o) => {
+          if (wallSide === "bottom" || wallSide === "left") {
+            return {
+              ...o,
+              position: length - o.position - o.width,
+            };
+          }
+          return o;
+        })
         .sort((a, b) => a.position - b.position);
 
       const isTopOrBottom = wallSide === "top" || wallSide === "bottom";

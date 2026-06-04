@@ -6,9 +6,9 @@
   - [x] Optimize spacing and layout for smaller screens
 
 ## Inspector & UI
-- [ ] Rework the inspector window/area
-  - [ ] Improve usability and intuitiveness
-  - [ ] Streamline inspector controls, placement, and visual hierarchy
+- [x] Rework the inspector window/area
+  - [x] Improve usability and intuitiveness
+  - [x] Streamline inspector controls, placement, and visual hierarchy
 
 ## Other
 - [x] Pan camera in 3D view with arrow keys; add key shortcut to reset view
