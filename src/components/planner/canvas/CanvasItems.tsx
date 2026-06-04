@@ -93,10 +93,9 @@ export function CanvasItems({
                   style={{
                     top: -34,
                     touchAction: "none",
-                    color: "hsl(var(--foreground, 0 0% 10%))",
                   }}
                 >
-                  <RotateCw className="h-3 w-3" strokeWidth={2.5} color="#111" />
+                  <RotateCw className="h-3 w-3" strokeWidth={2.5} />
                 </div>
               </>
             )}
