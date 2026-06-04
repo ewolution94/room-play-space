@@ -151,7 +151,7 @@ export function Sidebar({
           className="h-8 relative"
         >
           <Layers className="mr-1.5 h-4 w-4" />
-          {lang === "de" ? "Ebenen" : "Layers"}
+          {lang === "de" ? "Elemente" : "Elements"}
           {(items.length > 0 || openings.length > 0) && (
             <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
               {items.length + openings.length}
