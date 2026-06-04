@@ -132,7 +132,7 @@ export interface SidebarProps {
   draftL: string;
   setDraftL: (l: string) => void;
   dirty: boolean;
-  applyRoom: () => void;
+  applyRoom: (customW?: number, customL?: number) => void;
   addPreset: (preset: Preset) => void;
   addCustomBox: () => void;
   addOpening: () => void;
@@ -161,7 +161,7 @@ export interface CanvasAreaProps {
   draftL: string;
   setDraftL: (l: string) => void;
   dirty: boolean;
-  applyRoom: () => void;
+  applyRoom: (customW?: number, customL?: number) => void;
   collisionEnabled: boolean;
   setCollisionEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   rulerMode: boolean;
@@ -265,7 +265,7 @@ export interface UseRoomPlannerReturn {
   cm: (v: number) => number;
   undo: () => void;
   redo: () => void;
-  applyRoom: () => void;
+  applyRoom: (customW?: number, customL?: number) => void;
   addPreset: (preset: Preset) => void;
   addCustomBox: () => void;
   removeItem: (id: string) => void;

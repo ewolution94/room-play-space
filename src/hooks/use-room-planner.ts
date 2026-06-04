@@ -166,9 +166,9 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   const canRedo = futureRef.current.length > 0;
 
   // -------- Room dims --------
-  const applyRoom = () => {
-    const w = Math.max(50, parseInt(draftW, 10) || 0);
-    const l = Math.max(50, parseInt(draftL, 10) || 0);
+  const applyRoom = (customW?: number, customL?: number) => {
+    const w = customW !== undefined ? customW : Math.max(50, parseInt(draftW, 10) || 0);
+    const l = customL !== undefined ? customL : Math.max(50, parseInt(draftL, 10) || 0);
     if (w === roomW && l === roomL) return;
     pushHistory();
     setRoomW(w);

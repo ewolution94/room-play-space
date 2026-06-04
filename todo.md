@@ -1,9 +1,9 @@
 # Ewolution Room Play Space - TODO
 
 ## Header & Navigation
-- [ ] Rework header for mobile (currently not ideal)
-  - [ ] Shorten the undo/redo buttons to icons only (e.g., `Undo` -> ↩️/⬅️, `Redo` -> ↪️/➡️)
-  - [ ] Optimize spacing and layout for smaller screens
+- [x] Rework header for mobile (currently not ideal)
+  - [x] Shorten the undo/redo buttons to icons only (e.g., `Undo` -> ↩️/⬅️, `Redo` -> ↪️/➡️)
+  - [x] Optimize spacing and layout for smaller screens
 
 ## Inspector & UI
 - [ ] Rework the inspector window/area
