@@ -104,7 +104,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     {
       id: "default-door-1",
       wall: "bottom",
-      position: 30,
+      position: 233,
       width: 90,
       kind: "door",
       hinge: "start",
