@@ -61,6 +61,12 @@ export function Sidebar({
   duplicateSelected,
   removeSelected,
   threeDActive = false,
+  corners,
+  setCorners,
+  wallColors,
+  setWallColors,
+  selectedOpeningId,
+  setSelectedOpeningId,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"add" | "layers">("add");
   const [customBoxOpen, setCustomBoxOpen] = useState(false);
@@ -81,6 +87,12 @@ export function Sidebar({
     const id = Array.from(selectedIds)[0];
     return items.find((i) => i.id === id) || null;
   }, [selectedIds, items]);
+
+  // Find the currently selected opening
+  const selectedOpening = useMemo(() => {
+    if (!selectedOpeningId) return null;
+    return openings.find((o) => o.id === selectedOpeningId) || null;
+  }, [selectedOpeningId, openings]);
 
   return (
     <aside id="tour-sidebar" className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:shrink-0">
@@ -186,6 +198,8 @@ export function Sidebar({
             openings={openings}
             selectedIds={selectedIds}
             setSelectedIds={setSelectedIds}
+            selectedOpeningId={selectedOpeningId}
+            setSelectedOpeningId={setSelectedOpeningId}
             removeItem={removeItem}
             removeOpening={removeOpening}
           />
@@ -200,11 +214,19 @@ export function Sidebar({
         selectedItem={selectedItem}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
+        selectedOpening={selectedOpening}
+        selectedOpeningId={selectedOpeningId}
+        setSelectedOpeningId={setSelectedOpeningId}
+        wallColors={wallColors}
+        setWallColors={setWallColors}
+        corners={corners}
         items={items}
         updateItem={updateItem}
         removeItem={removeItem}
         duplicateSelected={duplicateSelected}
         removeSelected={removeSelected}
+        updateOpening={updateOpening}
+        removeOpening={removeOpening}
         draftW={draftW}
         setDraftW={setDraftW}
         draftL={draftL}

@@ -16,6 +16,7 @@ export const importSchema = z.object({
         kind: z.enum(["door", "window"]),
         hinge: z.enum(["start", "end"]).optional(),
         swing: z.enum(["in", "out"]).optional(),
+        color: z.string().optional(),
       }),
     )
     .max(200), // Capped at 200 openings to prevent tab freezing
@@ -38,4 +39,6 @@ export const importSchema = z.object({
       }),
     )
     .max(1000), // Capped at 1000 items to prevent tab freezing
+  corners: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
+  wallColors: z.record(z.string()).optional(),
 });

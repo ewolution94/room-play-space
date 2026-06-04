@@ -40,6 +40,7 @@ export interface Opening {
   kind: "door" | "window";
   hinge?: "start" | "end"; // doors only
   swing?: "in" | "out"; // doors only
+  color?: string;
 }
 
 export interface Snapshot {
@@ -47,6 +48,8 @@ export interface Snapshot {
   openings: Opening[];
   roomW: number;
   roomL: number;
+  corners?: Point[];
+  wallColors?: Record<string, string>;
 }
 
 export interface Point {
@@ -143,6 +146,12 @@ export interface SidebarProps {
   duplicateSelected: () => void;
   removeSelected: () => void;
   threeDActive?: boolean;
+  corners: Point[];
+  setCorners: React.Dispatch<React.SetStateAction<Point[]>>;
+  wallColors: Record<string, string>;
+  setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  selectedOpeningId: string | null;
+  setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export interface CanvasAreaProps {
@@ -184,6 +193,14 @@ export interface CanvasAreaProps {
   pushHistory: () => void;
   threeDActive: boolean;
   setThreeDActive: React.Dispatch<React.SetStateAction<boolean>>;
+  corners: Point[];
+  setCorners: React.Dispatch<React.SetStateAction<Point[]>>;
+  wallColors: Record<string, string>;
+  setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  selectedOpeningId: string | null;
+  setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
+  zoomFactor: number;
+  setZoomFactor: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export interface TourOverlayProps {
@@ -238,6 +255,8 @@ export interface UseRoomPlannerReturn {
   setTourStep: React.Dispatch<React.SetStateAction<number>>;
   threeDActive: boolean;
   setThreeDActive: React.Dispatch<React.SetStateAction<boolean>>;
+  zoomFactor: number;
+  setZoomFactor: React.Dispatch<React.SetStateAction<number>>;
 
   // Form inputs
   nName: string;
@@ -286,4 +305,10 @@ export interface UseRoomPlannerReturn {
   onStagePointerMove: (e: React.PointerEvent) => void;
   onStagePointerUp: () => void;
   pushHistory: () => void;
+  corners: Point[];
+  setCorners: React.Dispatch<React.SetStateAction<Point[]>>;
+  wallColors: Record<string, string>;
+  setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  selectedOpeningId: string | null;
+  setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { CanvasAreaProps } from "@/types/planner";
 import { ThreeDView } from "../ThreeDView";
 import { HintBanner } from "./HintBanner";
@@ -8,6 +8,7 @@ import { CanvasItems } from "./CanvasItems";
 import { CanvasMarquee } from "./CanvasMarquee";
 import { CanvasRuler } from "./CanvasRuler";
 import { ToolbarOverlay } from "./ToolbarOverlay";
+import { HelpCircle } from "lucide-react";
 
 export function CanvasArea({
   t,
@@ -43,8 +44,107 @@ export function CanvasArea({
   pushHistory,
   threeDActive,
   setThreeDActive,
+  corners,
+  setCorners,
+  wallColors,
+  setWallColors,
+  selectedOpeningId,
+  setSelectedOpeningId,
+  zoomFactor,
+  setZoomFactor,
 }: CanvasAreaProps) {
+  const [showGrid2D, setShowGrid2D] = useState(true);
+  const [enableCornerDrag, setEnableCornerDrag] = useState(false);
   const selectedLabel = selectedIds.size > 0 ? t.selectedCount(selectedIds.size) : undefined;
+  const lang = t.title === "Raumplaner" ? "de" : "en";
+  const scaleKey = Math.round(scale * 1000);
+
+  // Map-like scale calculation
+  const targetCm = 80 / scale;
+  let scaleCm = 100;
+  if (targetCm < 25) {
+    scaleCm = 10;
+  } else if (targetCm < 75) {
+    scaleCm = 50;
+  } else if (targetCm < 150) {
+    scaleCm = 100;
+  } else if (targetCm < 350) {
+    scaleCm = 200;
+  } else {
+    scaleCm = 500;
+  }
+  const scalePx = scaleCm * scale;
+
+  // Drag handler for room corners
+  const onCornerPointerDown = (e: React.PointerEvent, idx: number) => {
+    if (!enableCornerDrag) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    pushHistory();
+    const startMouseX = e.clientX;
+    const startMouseY = e.clientY;
+    const startCornerX = corners[idx].x;
+    const startCornerY = corners[idx].y;
+
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startMouseX) / scale;
+      const dy = (ev.clientY - startMouseY) / scale;
+      
+      let newX = Math.round(startCornerX + dx);
+      let newY = Math.round(startCornerY + dy);
+
+      // Allow negative coordinates to enable dragging left/top walls outward
+      newX = Math.max(-2000, Math.min(4000, newX));
+      newY = Math.max(-2000, Math.min(4000, newY));
+
+      setCorners((prev) => {
+        const next = [...prev];
+        next[idx] = { x: newX, y: newY };
+        return next;
+      });
+    };
+
+    const up = (ev: PointerEvent) => {
+      try {
+        target.releasePointerCapture(ev.pointerId);
+      } catch (err) {}
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      clampOpeningsToWalls();
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  // Clamps openings so they don't overflow resized walls
+  const clampOpeningsToWalls = () => {
+    setOpenings((prev) =>
+      prev.map((o) => {
+        let ptA = corners[0];
+        let ptB = corners[1];
+        if (o.wall === "right") {
+          ptA = corners[1];
+          ptB = corners[2];
+        } else if (o.wall === "bottom") {
+          ptA = corners[3];
+          ptB = corners[2];
+        } else if (o.wall === "left") {
+          ptA = corners[0];
+          ptB = corners[3];
+        }
+        const wallLength = Math.sqrt(
+          Math.pow(ptB.x - ptA.x, 2) + Math.pow(ptB.y - ptA.y, 2)
+        );
+        const maxPos = Math.max(0, wallLength - o.width);
+        const clampedPos = Math.min(maxPos, Math.max(0, o.position));
+        if (clampedPos === o.position) return o;
+        return { ...o, position: clampedPos };
+      })
+    );
+  };
 
   return (
     <main className="min-w-0 lg:h-full lg:min-h-0 flex flex-col gap-2">
@@ -57,9 +157,7 @@ export function CanvasArea({
       <div
         ref={stageRef}
         id="tour-canvas"
-        className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 ${
-          threeDActive ? "overflow-hidden" : "overflow-visible"
-        }`}
+        className="relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 overflow-hidden"
         onPointerDown={threeDActive ? undefined : onStagePointerDown}
         onPointerMove={threeDActive ? undefined : onStagePointerMove}
         onPointerUp={threeDActive ? undefined : onStagePointerUp}
@@ -83,31 +181,176 @@ export function CanvasArea({
             items={items}
             openings={openings}
             selectedIds={selectedIds}
+            corners={corners}
+            wallColors={wallColors}
           />
         ) : (
           scale > 0 && (
-            <div
-              className="absolute box-content border-[4px] border-slate-700 dark:border-slate-400 bg-background shadow-md transition-all duration-100"
-              style={{
-                left: offsetX,
-                top: offsetY,
-                width: roomPxW,
-                height: roomPxL,
-                backgroundImage:
-                  "radial-gradient(hsl(var(--foreground) / 0.08) 1.5px, transparent 1.5px)",
-                backgroundSize: `${cm(50)}px ${cm(50)}px`,
-              }}
-            >
+            <>
+              <div
+                className="absolute box-content"
+                style={{
+                  left: offsetX,
+                  top: offsetY,
+                  width: roomPxW,
+                  height: roomPxL,
+                }}
+              >
+              {/* Floor and Walls SVG */}
+              <svg
+                className="absolute pointer-events-none inset-0 overflow-visible"
+                style={{ zIndex: 0 }}
+              >
+                <defs>
+                  <pattern
+                    id={`canvasGridPattern-${scaleKey}`}
+                    width={cm(50)}
+                    height={cm(50)}
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <circle
+                      cx={1.5}
+                      cy={1.5}
+                      r={1.5}
+                      className="fill-foreground/10 dark:fill-foreground/15"
+                    />
+                  </pattern>
+                  <pattern
+                    id={`canvasLineGridPattern-${scaleKey}`}
+                    width={cm(50)}
+                    height={cm(50)}
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <path
+                      d={`M ${cm(50)} 0 L 0 0 L 0 ${cm(50)}`}
+                      fill="none"
+                      strokeWidth="1"
+                      className="stroke-foreground/10 dark:stroke-foreground/15"
+                    />
+                  </pattern>
+                </defs>
+
+                {/* Polygonal Floor plane shadow & background */}
+                <polygon
+                  points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
+                  className="fill-background stroke-none"
+                  style={{
+                    filter: "drop-shadow(0px 4px 16px rgba(0,0,0,0.06))",
+                  }}
+                />
+
+                {/* Floor grid dot texture */}
+                <polygon
+                  points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
+                  fill={`url(#canvasGridPattern-${scaleKey})`}
+                  className="stroke-none"
+                />
+
+                {/* Background Grid Lines (Symmetrical Mesh) */}
+                {showGrid2D && (
+                  <rect
+                    x={cm(-2000)}
+                    y={cm(-2000)}
+                    width={cm(6000)}
+                    height={cm(6000)}
+                    fill={`url(#canvasLineGridPattern-${scaleKey})`}
+                    className="stroke-none"
+                  />
+                )}
+
+                {/* --- Wall segments in 2D with inner color highlighting --- */}
+                {/* Top Wall (c0 -> c1) */}
+                <line
+                  x1={cm(corners[0].x)}
+                  y1={cm(corners[0].y)}
+                  x2={cm(corners[1].x)}
+                  y2={cm(corners[1].y)}
+                  className="stroke-slate-700 dark:stroke-slate-400"
+                  strokeWidth={8}
+                  strokeLinecap="round"
+                />
+                <line
+                  x1={cm(corners[0].x)}
+                  y1={cm(corners[0].y)}
+                  x2={cm(corners[1].x)}
+                  y2={cm(corners[1].y)}
+                  stroke={wallColors.top || "#f1f5f9"}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                />
+
+                {/* Right Wall (c1 -> c2) */}
+                <line
+                  x1={cm(corners[1].x)}
+                  y1={cm(corners[1].y)}
+                  x2={cm(corners[2].x)}
+                  y2={cm(corners[2].y)}
+                  className="stroke-slate-700 dark:stroke-slate-400"
+                  strokeWidth={8}
+                  strokeLinecap="round"
+                />
+                <line
+                  x1={cm(corners[1].x)}
+                  y1={cm(corners[1].y)}
+                  x2={cm(corners[2].x)}
+                  y2={cm(corners[2].y)}
+                  stroke={wallColors.right || "#f1f5f9"}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                />
+
+                {/* Bottom Wall (c3 -> c2, left-to-right) */}
+                <line
+                  x1={cm(corners[3].x)}
+                  y1={cm(corners[3].y)}
+                  x2={cm(corners[2].x)}
+                  y2={cm(corners[2].y)}
+                  className="stroke-slate-700 dark:stroke-slate-400"
+                  strokeWidth={8}
+                  strokeLinecap="round"
+                />
+                <line
+                  x1={cm(corners[3].x)}
+                  y1={cm(corners[3].y)}
+                  x2={cm(corners[2].x)}
+                  y2={cm(corners[2].y)}
+                  stroke={wallColors.bottom || "#f1f5f9"}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                />
+
+                {/* Left Wall (c0 -> c3, top-to-bottom) */}
+                <line
+                  x1={cm(corners[0].x)}
+                  y1={cm(corners[0].y)}
+                  x2={cm(corners[3].x)}
+                  y2={cm(corners[3].y)}
+                  className="stroke-slate-700 dark:stroke-slate-400"
+                  strokeWidth={8}
+                  strokeLinecap="round"
+                />
+                <line
+                  x1={cm(corners[0].x)}
+                  y1={cm(corners[0].y)}
+                  x2={cm(corners[3].x)}
+                  y2={cm(corners[3].y)}
+                  stroke={wallColors.left || "#f1f5f9"}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                />
+              </svg>
+
               {/* openings */}
               <CanvasOpenings
                 openings={openings}
                 setOpenings={setOpenings}
-                roomW={roomW}
-                roomL={roomL}
+                corners={corners}
                 scale={scale}
                 cm={cm}
                 pushHistory={pushHistory}
-                lang={t.title === "Raumplaner" ? "de" : "en"}
+                lang={lang}
+                selectedOpeningId={selectedOpeningId}
+                setSelectedOpeningId={setSelectedOpeningId}
               />
 
               {/* items */}
@@ -133,15 +376,122 @@ export function CanvasArea({
                 roomPxW={roomPxW}
                 roomPxL={roomPxL}
               />
-            </div>
-          )
-        )}
+
+              {/* Draggable Corner Handles */}
+              {enableCornerDrag && corners.map((c, idx) => (
+                <div
+                  key={idx}
+                  onPointerDown={(e) => onCornerPointerDown(e, idx)}
+                  className="absolute w-3.5 h-3.5 -ml-[7px] -mt-[7px] rounded-full border border-primary bg-background shadow-md hover:scale-125 cursor-move active:bg-primary transition-[transform,background-color] duration-150 flex items-center justify-center group"
+                  style={{
+                    left: cm(c.x),
+                    top: cm(c.y),
+                    touchAction: "none",
+                    zIndex: 20,
+                  }}
+                  title={lang === "de" ? "Wandecke anpassen" : "Adjust corner"}
+                >
+                  <span className="w-1 h-1 rounded-full bg-primary group-active:bg-background group-hover:bg-primary/80 transition-colors" />
+                </div>
+              ))}
+              </div>
+
+              {/* 2D Control Panel Overlay */}
+              <div 
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerMove={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseUp={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                className="absolute top-3 right-3 z-50 pointer-events-auto w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md select-none text-[11px] text-foreground animate-in fade-in slide-in-from-top-1 duration-200"
+              >
+                <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
+                  <span>{lang === "de" ? "Optionen (2D)" : "2D View Options"}</span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={showGrid2D}
+                      onChange={(e) => setShowGrid2D(e.target.checked)}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                    />
+                    <span>{lang === "de" ? "Raster anzeigen" : "Show Grid Lines"}</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={enableCornerDrag}
+                      onChange={(e) => setEnableCornerDrag(e.target.checked)}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                    />
+                    <span className="flex items-center gap-1">
+                      {lang === "de" ? "Ecken verschieben" : "Enable Corner Dragging"}
+                      <span 
+                        title={lang === "de" ? "Experimentelle Funktion: Ermöglicht das freie Ziehen der Raumecken zur Erstellung unregelmäßiger Grundrisse." : "Experimental Feature: Allows dragging room corners to shape custom non-rectangular layouts."}
+                        className="cursor-help inline-flex items-center"
+                      >
+                        <HelpCircle 
+                          className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" 
+                        />
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={collisionEnabled}
+                      onChange={(e) => setCollisionEnabled(e.target.checked)}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                    />
+                    <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
+                  </label>
+                </div>
+
+                {/* Zoom control */}
+                <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
+                  <div className="flex items-center justify-between font-medium text-[10.5px]">
+                    <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
+                    <span className="font-semibold text-primary">{Math.round(zoomFactor * 100)}%</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <button
+                      onClick={() => setZoomFactor((z) => Math.max(0.25, Math.round((z - 0.25) * 100) / 100))}
+                      className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                      title={lang === "de" ? "Herauszoomen" : "Zoom out"}
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min="0.25"
+                      max="3.0"
+                      step="0.05"
+                      value={zoomFactor}
+                      onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
+                      className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <button
+                      onClick={() => setZoomFactor((z) => Math.min(3.0, Math.round((z + 0.25) * 100) / 100))}
+                      className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                      title={lang === "de" ? "Hineinzoomen" : "Zoom in"}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+        )
+      )}
 
         {/* Floating bottom toolbar */}
         <ToolbarOverlay
           t={t}
-          collisionEnabled={collisionEnabled}
-          setCollisionEnabled={setCollisionEnabled}
           rulerMode={rulerMode}
           setRulerMode={setRulerMode}
           threeDActive={threeDActive}
@@ -150,6 +500,21 @@ export function CanvasArea({
           rulerEnd={rulerEnd}
           clearRuler={clearRuler}
         />
+
+        {/* 2D Map-style Scale Bar Indicator */}
+        {!threeDActive && scale > 0 && (
+          <div className="absolute bottom-4 right-4 z-20 pointer-events-none flex flex-col items-center select-none font-mono text-[9px] font-semibold text-muted-foreground bg-background/60 backdrop-blur-sm px-2 py-1 rounded border border-border/20 shadow-sm animate-in fade-in duration-200">
+            <span className="mb-0.5">{scaleCm >= 100 ? `${scaleCm / 100} m` : `${scaleCm} cm`}</span>
+            <div className="relative flex items-center justify-between" style={{ width: scalePx }}>
+              {/* Left tick */}
+              <div className="w-[1.5px] h-2 bg-muted-foreground" />
+              {/* Horizontal line */}
+              <div className="flex-1 h-[1.5px] bg-muted-foreground" />
+              {/* Right tick */}
+              <div className="w-[1.5px] h-2 bg-muted-foreground" />
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

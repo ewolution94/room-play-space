@@ -13,7 +13,7 @@
 ## Other
 - [x] Pan camera in 3D view with arrow keys; add key shortcut to reset view
 - [ ] Multi room support
-- [ ] Colored walls and windows
+- [x] Colored walls and windows
 - [x] Make mesh below room slightly bigger for aesthetics
 - [ ] Add smaller objects that belong into a room like an office, e.g. a monitor, pc, etc.
 
@@ -27,4 +27,6 @@
 - [ ] **Shareable Links & Blueprint Export**
   - [ ] Support generating a PDF blueprint that includes the room canvas drawing and a furniture inventory list
   - [ ] Allow encoding the room configuration in a compressed URL hash for instant sharing
+- [x] Add support for angled walls
+  - [x] In the canvas, users should be able to drag a corner further in/out easily to account for more special room layouts
 

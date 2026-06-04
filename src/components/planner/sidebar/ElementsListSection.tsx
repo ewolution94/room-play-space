@@ -13,6 +13,8 @@ interface ElementsListSectionProps {
   openings: Opening[];
   selectedIds: Set<string>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  selectedOpeningId?: string | null;
+  setSelectedOpeningId?: (id: string | null) => void;
   removeItem: (id: string) => void;
   removeOpening: (id: string) => void;
 }
@@ -25,6 +27,8 @@ export function ElementsListSection({
   openings,
   selectedIds,
   setSelectedIds,
+  selectedOpeningId,
+  setSelectedOpeningId,
   removeItem,
   removeOpening,
 }: ElementsListSectionProps) {
@@ -52,6 +56,8 @@ export function ElementsListSection({
                     key={it.id}
                     onClick={(e) => {
                       e.stopPropagation();
+                      // Clear opening selection when furniture is selected
+                      setSelectedOpeningId?.(null);
                       if (e.shiftKey) {
                         setSelectedIds((s) => {
                           const n = new Set(s);
@@ -113,29 +119,45 @@ export function ElementsListSection({
             </p>
           ) : (
             <div className="space-y-1 max-h-48 overflow-y-auto pr-0.5">
-              {openings.map((o) => (
-                <div
-                  key={o.id}
-                  className="flex items-center justify-between gap-1.5 p-1.5 rounded-md border border-border/40 bg-background/40 text-xs"
-                >
-                  <span className="truncate min-w-0 capitalize">
-                    {o.kind === "door" ? t.door : t.window} · {t[o.wall]} ·{" "}
-                    {Math.round(o.position)}cm
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] text-muted-foreground">{o.width}cm</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={threeDActive}
-                      className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
-                      onClick={() => removeOpening(o.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+              {openings.map((o) => {
+                const isSelected = selectedOpeningId === o.id;
+                return (
+                  <div
+                    key={o.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Set selected opening and clear furniture selections
+                      setSelectedOpeningId?.(o.id);
+                      setSelectedIds(new Set());
+                    }}
+                    className={`flex items-center justify-between gap-1.5 p-1.5 rounded-md border text-xs cursor-pointer transition-all duration-200 ${
+                      isSelected
+                        ? "bg-primary/10 border-primary font-medium"
+                        : "bg-background/40 hover:bg-accent/40 border-border/40"
+                    }`}
+                  >
+                    <span className="truncate min-w-0 capitalize">
+                      {o.kind === "door" ? t.door : t.window} · {t[o.wall]} ·{" "}
+                      {Math.round(o.position)}cm
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] text-muted-foreground">{o.width}cm</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={threeDActive}
+                        className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeOpening(o.id);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

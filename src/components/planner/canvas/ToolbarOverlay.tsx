@@ -1,13 +1,11 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Ruler, Zap, ZapOff, Box, X } from "lucide-react";
+import { Ruler, Box, X } from "lucide-react";
 import type { Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 
 interface ToolbarOverlayProps {
   t: TranslationStrings;
-  collisionEnabled: boolean;
-  setCollisionEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   rulerMode: boolean;
   setRulerMode: React.Dispatch<React.SetStateAction<boolean>>;
   threeDActive: boolean;
@@ -19,8 +17,6 @@ interface ToolbarOverlayProps {
 
 export function ToolbarOverlay({
   t,
-  collisionEnabled,
-  setCollisionEnabled,
   rulerMode,
   setRulerMode,
   threeDActive,
@@ -34,31 +30,6 @@ export function ToolbarOverlay({
       className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/80 backdrop-blur-md px-3.5 py-1.5 shadow-lg select-none"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {/* Collision toggle */}
-      <Button
-        variant={collisionEnabled ? "ghost" : "destructive"}
-        size="sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          setCollisionEnabled((v) => !v);
-        }}
-        disabled={threeDActive}
-        title={t.collisionHint}
-        className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium transition-all ${
-          collisionEnabled
-            ? "text-teal-600 hover:text-teal-700 hover:bg-teal-500/10 dark:text-teal-400 dark:hover:text-teal-300 dark:hover:bg-teal-400/10"
-            : ""
-        }`}
-      >
-        {collisionEnabled ? (
-          <Zap className="h-3.5 w-3.5" />
-        ) : (
-          <ZapOff className="h-3.5 w-3.5" />
-        )}
-        {collisionEnabled ? t.collisionOn : t.collisionOff}
-      </Button>
-
-      <div className="h-4 w-px bg-border/40" />
 
       {/* Ruler toggle */}
       <Button

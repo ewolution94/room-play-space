@@ -109,6 +109,12 @@ function RoomPlanner() {
           duplicateSelected={planner.duplicateSelected}
           removeSelected={planner.removeSelected}
           threeDActive={planner.threeDActive}
+          corners={planner.corners}
+          setCorners={planner.setCorners}
+          wallColors={planner.wallColors}
+          setWallColors={planner.setWallColors}
+          selectedOpeningId={planner.selectedOpeningId}
+          setSelectedOpeningId={planner.setSelectedOpeningId}
         />
 
         {/* Right column: Drawing Stage */}
@@ -151,6 +157,14 @@ function RoomPlanner() {
           pushHistory={planner.pushHistory}
           threeDActive={planner.threeDActive}
           setThreeDActive={planner.setThreeDActive}
+          corners={planner.corners}
+          setCorners={planner.setCorners}
+          wallColors={planner.wallColors}
+          setWallColors={planner.setWallColors}
+          selectedOpeningId={planner.selectedOpeningId}
+          setSelectedOpeningId={planner.setSelectedOpeningId}
+          zoomFactor={planner.zoomFactor}
+          setZoomFactor={planner.setZoomFactor}
         />
       </div>
     </div>

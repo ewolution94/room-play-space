@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { Item, Opening } from "@/types/planner";
+import type { Item, Opening, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
 
@@ -12,6 +12,8 @@ interface ThreeDViewProps {
   items: Item[];
   openings: Opening[];
   selectedIds: Set<string>;
+  corners: Point[];
+  wallColors: Record<string, string>;
 }
 
 function parseColor(hex: string): { r: number; g: number; b: number } {
@@ -155,7 +157,16 @@ export function getDefaultHeight(icon?: string, kind?: string): number {
   }
 }
 
-export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: ThreeDViewProps) {
+export function ThreeDView({
+  t,
+  roomW,
+  roomL,
+  items,
+  openings,
+  selectedIds,
+  corners,
+  wallColors,
+}: ThreeDViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -308,21 +319,9 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
     const hemiLight = new THREE.HemisphereLight("#bae6fd", "#fed7aa", 0.25); // sky-200 to orange-200
     scene.add(hemiLight);
 
-    // --- Floor Plan Grid ---
-    const floorGeo = new THREE.PlaneGeometry(roomW, roomL);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: "#e2e8f0", // slate-200
-      roughness: 0.8,
-      metalness: 0.1,
-    });
-    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.rotation.x = -Math.PI / 2;
-    floorMesh.position.y = -0.05;
-    floorMesh.receiveShadow = true;
-    scene.add(floorMesh);
-
-    // Grid helper (extended by one grid box to all sides)
-    const maxDim = Math.max(roomW + 100, roomL + 100);
+    // Floor plane geometry removed as requested to leave only the grid helper
+    // Grid helper (extended to cover a massive 80x80m layout space)
+    const maxDim = 8000;
     const gridHelper = new THREE.GridHelper(maxDim, Math.round(maxDim / 50), "#94a3b8", "#cbd5e1");
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
@@ -359,17 +358,31 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
     // Helper function to build segments for a single wall
     const buildWallSegments = (
       wallSide: "top" | "bottom" | "left" | "right",
-      length: number,
-      centerX: number,
-      centerZ: number,
-      rotationY: number
+      ptA: Point,
+      ptB: Point
     ) => {
+      const ax = ptA.x - roomW / 2;
+      const az = ptA.y - roomL / 2;
+      const bx = ptB.x - roomW / 2;
+      const bz = ptB.y - roomL / 2;
+
+      const dx = bx - ax;
+      const dz = bz - az;
+      const length = Math.sqrt(dx * dx + dz * dz);
+      if (length <= 0.1) return;
+
+      const centerX = (ax + bx) / 2;
+      const centerZ = (az + bz) / 2;
+      const rotationY = -Math.atan2(dz, dx);
+
       const wallGroup = new THREE.Group();
       wallGroup.position.set(centerX, 0, centerZ);
       wallGroup.rotation.y = rotationY;
 
       // Clone base materials to fade each wall group independently
       const localWallMat = wallMat.clone();
+      localWallMat.color.set(wallColors[wallSide] || "#f1f5f9");
+
       const localGlassMat = glassMat.clone();
       const localWoodMat = woodMat.clone();
 
@@ -423,16 +436,52 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
             wallGroup.add(lintelMesh);
           }
 
-          const glassGeo = new THREE.BoxGeometry(o.width - 2, windowHeight - 2, 4);
+          // Glass pane (rendered in the middle, slightly smaller to fit inside frame border)
+          const glassGeo = new THREE.BoxGeometry(o.width - 8, windowHeight - 8, 4);
           const glassMesh = new THREE.Mesh(glassGeo, localGlassMat);
           glassMesh.position.set(opCenterLocal, sillHeight + windowHeight / 2, 0);
           wallGroup.add(glassMesh);
 
-          const frameGeo = new THREE.BoxGeometry(o.width, windowHeight, wallThickness - 2);
-          const edges = new THREE.EdgesGeometry(frameGeo);
-          const frameEdge = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: "#475569" }));
-          frameEdge.position.set(opCenterLocal, sillHeight + windowHeight / 2, 0);
-          wallGroup.add(frameEdge);
+          // Solid Frame for high visibility and color reflection
+          const frameMat = new THREE.MeshStandardMaterial({
+            color: o.color || "#475569",
+            roughness: 0.7,
+            metalness: 0.15,
+          });
+          const frameThickness = wallThickness - 1; // Slightly inset to prevent z-fighting
+          const frameBorder = 4; // 4cm border width
+
+          // Top frame rail
+          const topRailGeo = new THREE.BoxGeometry(o.width, frameBorder, frameThickness);
+          const topRail = new THREE.Mesh(topRailGeo, frameMat);
+          topRail.position.set(opCenterLocal, sillHeight + windowHeight - frameBorder / 2, 0);
+          topRail.castShadow = true;
+          topRail.receiveShadow = true;
+          wallGroup.add(topRail);
+
+          // Bottom frame rail
+          const botRailGeo = new THREE.BoxGeometry(o.width, frameBorder, frameThickness);
+          const botRail = new THREE.Mesh(botRailGeo, frameMat);
+          botRail.position.set(opCenterLocal, sillHeight + frameBorder / 2, 0);
+          botRail.castShadow = true;
+          botRail.receiveShadow = true;
+          wallGroup.add(botRail);
+
+          // Left frame post
+          const leftPostGeo = new THREE.BoxGeometry(frameBorder, windowHeight - frameBorder * 2, frameThickness);
+          const leftPost = new THREE.Mesh(leftPostGeo, frameMat);
+          leftPost.position.set(opCenterLocal - o.width / 2 + frameBorder / 2, sillHeight + windowHeight / 2, 0);
+          leftPost.castShadow = true;
+          leftPost.receiveShadow = true;
+          wallGroup.add(leftPost);
+
+          // Right frame post
+          const rightPostGeo = new THREE.BoxGeometry(frameBorder, windowHeight - frameBorder * 2, frameThickness);
+          const rightPost = new THREE.Mesh(rightPostGeo, frameMat);
+          rightPost.position.set(opCenterLocal + o.width / 2 - frameBorder / 2, sillHeight + windowHeight / 2, 0);
+          rightPost.castShadow = true;
+          rightPost.receiveShadow = true;
+          wallGroup.add(rightPost);
         } else if (o.kind === "door") {
           const lintelH = wallHeight - doorHeight;
           if (lintelH > 0) {
@@ -447,17 +496,36 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
           const doorThick = 4;
           const doorWidth = o.width - 4;
           const leafGeo = new THREE.BoxGeometry(doorWidth, doorHeight - 2, doorThick);
-          const leafMesh = new THREE.Mesh(leafGeo, localWoodMat);
-          leafMesh.geometry.translate(doorWidth / 2, 0, 0);
-          leafMesh.position.set(opStart - length / 2 + 2, (doorHeight - 2) / 2, 0);
-          const angle = o.swing === "out" ? Math.PI / 4 : -Math.PI / 4;
-          leafMesh.rotation.y = angle;
+          const localDoorLeafMat = localWoodMat.clone();
+          if (o.color) {
+            localDoorLeafMat.color.set(o.color);
+          }
+          const leafMesh = new THREE.Mesh(leafGeo, localDoorLeafMat);
+          
+          const isReversed = wallSide === "bottom" || wallSide === "left";
+          const isStart = (o.hinge || "start") === "start";
+          const isStart3D = isReversed ? !isStart : isStart;
+          
+          if (isStart3D) {
+            leafMesh.geometry.translate(doorWidth / 2, 0, 0);
+            leafMesh.position.set(opStart - length / 2 + 2, (doorHeight - 2) / 2, 0);
+            const angle = o.swing === "out" ? Math.PI / 4 : -Math.PI / 4;
+            leafMesh.rotation.y = angle;
+          } else {
+            leafMesh.geometry.translate(-doorWidth / 2, 0, 0);
+            leafMesh.position.set(opStart + o.width - length / 2 - 2, (doorHeight - 2) / 2, 0);
+            const angle = o.swing === "out" ? -Math.PI / 4 : Math.PI / 4;
+            leafMesh.rotation.y = angle;
+          }
           leafMesh.castShadow = true;
           wallGroup.add(leafMesh);
 
           const frameGeo = new THREE.BoxGeometry(o.width, doorHeight, wallThickness - 2);
           const edges = new THREE.EdgesGeometry(frameGeo);
-          const frameEdge = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: "#475569" }));
+          const frameEdge = new THREE.LineSegments(
+            edges,
+            new THREE.LineBasicMaterial({ color: o.color || "#475569" })
+          );
           frameEdge.position.set(opCenterLocal, doorHeight / 2, 0);
           wallGroup.add(frameEdge);
         }
@@ -489,10 +557,10 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
       });
     };
 
-    buildWallSegments("top", roomW, 0, -roomL / 2 - wallThickness / 2, 0);
-    buildWallSegments("bottom", roomW, 0, roomL / 2 + wallThickness / 2, Math.PI);
-    buildWallSegments("left", roomL, -roomW / 2 - wallThickness / 2, 0, Math.PI / 2);
-    buildWallSegments("right", roomL, roomW / 2 + wallThickness / 2, 0, -Math.PI / 2);
+    buildWallSegments("top", corners[0], corners[1]);
+    buildWallSegments("right", corners[1], corners[2]);
+    buildWallSegments("bottom", corners[2], corners[3]);
+    buildWallSegments("left", corners[3], corners[0]);
 
     // --- Render Placed Items ---
     const activeItemMeshes = new Map<string, THREE.Mesh>();
@@ -806,7 +874,7 @@ export function ThreeDView({ t, roomW, roomL, items, openings, selectedIds }: Th
       controlsRef.current = null;
       cameraRef.current = null;
     };
-  }, [roomW, roomL, items, openings, selectedIds, showNames]);
+  }, [roomW, roomL, items, openings, selectedIds, showNames, corners, wallColors]);
 
   // Is German language active?
   const isDe = t.title === "Raumplaner";

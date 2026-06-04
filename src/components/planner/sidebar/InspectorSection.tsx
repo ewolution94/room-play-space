@@ -17,7 +17,7 @@ import {
   ArrowRight,
   Maximize2,
 } from "lucide-react";
-import type { Item } from "@/types/planner";
+import type { Item, Opening, Point } from "@/types/planner";
 import { getDefaultHeight } from "../ThreeDView";
 
 const SWATCHES = [
@@ -31,6 +31,17 @@ const SWATCHES = [
   { name: "Coral", value: "#d9746c" },
 ];
 
+const OPENING_SWATCHES = [
+  { name: "Anthracite", value: "#343a40" },
+  { name: "Slate", value: "#475569" },
+  { name: "Zinc", value: "#71717a" },
+  { name: "White", value: "#f8fafc" },
+  { name: "Oak/Wood", value: "#854d0e" },
+  { name: "Forest", value: "#14532d" },
+  { name: "Navy", value: "#1e3a8a" },
+  { name: "Chocolate", value: "#451a03" },
+];
+
 interface InspectorSectionProps {
   t: any;
   lang: string;
@@ -38,11 +49,19 @@ interface InspectorSectionProps {
   selectedItem: Item | null;
   selectedIds: Set<string>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  selectedOpening: Opening | null;
+  selectedOpeningId: string | null;
+  setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
+  wallColors: Record<string, string>;
+  setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  corners: Point[];
   items: Item[];
   updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
   removeItem: (id: string) => void;
   duplicateSelected: () => void;
   removeSelected: () => void;
+  updateOpening: (id: string, patch: Partial<Opening>) => void;
+  removeOpening: (id: string) => void;
   draftW: string;
   setDraftW: (w: string) => void;
   draftL: string;
@@ -58,11 +77,19 @@ export function InspectorSection({
   selectedItem,
   selectedIds,
   setSelectedIds,
+  selectedOpening,
+  selectedOpeningId,
+  setSelectedOpeningId,
+  wallColors,
+  setWallColors,
+  corners,
   items,
   updateItem,
   removeItem,
   duplicateSelected,
   removeSelected,
+  updateOpening,
+  removeOpening,
   draftW,
   setDraftW,
   draftL,
@@ -83,26 +110,184 @@ export function InspectorSection({
     <Card id="tour-inspector" className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2">
       <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary border-b border-border/20 flex items-center justify-between bg-primary/5">
         <span>
-          {selectedItem
-            ? lang === "de"
-              ? "Möbel-Details"
-              : "Item Inspector"
-            : selectedIds.size > 1
+          {selectedOpening
+            ? selectedOpening.kind === "door"
               ? lang === "de"
-                ? "Mehrfachauswahl"
-                : "Multiple Selection"
+                ? "Tür-Details"
+                : "Door Details"
               : lang === "de"
-                ? "Raum-Einstellungen"
-                : "Room Inspector"}
+                ? "Fenster-Details"
+                : "Window Details"
+            : selectedItem
+              ? lang === "de"
+                ? "Möbel-Details"
+                : "Item Inspector"
+              : selectedIds.size > 1
+                ? lang === "de"
+                  ? "Mehrfachauswahl"
+                  : "Multiple Selection"
+                : lang === "de"
+                  ? "Raum-Einstellungen"
+                  : "Room Inspector"}
         </span>
-        {selectedIds.size > 0 && (
+        {selectedOpening ? (
+          <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold capitalize">
+            {t[selectedOpening.wall] || selectedOpening.wall}
+          </span>
+        ) : selectedIds.size > 0 ? (
           <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold">
             {t.selectedCount(selectedIds.size)}
           </span>
-        )}
+        ) : null}
       </div>
       <CardContent className="p-3">
-        {selectedItem ? (
+        {selectedOpening ? (
+          /* Inspector for Selected Door/Window Opening */
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Opening title and delete action */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all flex-1 h-8 px-2 text-xs font-semibold select-none capitalize">
+                <Sliders className="h-3.5 w-3.5 mr-1.5 text-muted-foreground/75 shrink-0" />
+                {selectedOpening.kind === "door" ? t.door : t.window} · {t[selectedOpening.wall] || selectedOpening.wall}
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all"
+                  onClick={() => {
+                    removeOpening(selectedOpening.id);
+                    setSelectedOpeningId(null);
+                  }}
+                  disabled={threeDActive}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Frame/Panel Color Selection */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {lang === "de" ? "Rahmen- & Paneelfarbe" : "Frame & Panel Color"}
+              </Label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {OPENING_SWATCHES.map((sw) => {
+                  const isSelected = (selectedOpening.color || "#475569").toLowerCase() === sw.value.toLowerCase();
+                  return (
+                    <button
+                      key={sw.value}
+                      type="button"
+                      disabled={threeDActive}
+                      onClick={() => updateOpening(selectedOpening.id, { color: sw.value })}
+                      className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
+                        isSelected
+                          ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                          : "border-border/60"
+                      }`}
+                      style={{ backgroundColor: sw.value }}
+                      title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                    />
+                  );
+                })}
+                {/* Custom picker */}
+                <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
+                  <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="color"
+                    value={selectedOpening.color || "#475569"}
+                    onChange={(e) => updateOpening(selectedOpening.id, { color: e.target.value })}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    title={t.color}
+                    disabled={threeDActive}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Dimensions Section */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {lang === "de" ? "Maße & Position" : "Dimensions & Position"}
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground">{t.width}</span>
+                  <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                    <span className="pl-2 text-muted-foreground/75">
+                      <Ruler className="h-3.5 w-3.5" />
+                    </span>
+                    <Input
+                      type="number"
+                      value={selectedOpening.width}
+                      onChange={(e) => updateOpening(selectedOpening.id, { width: +e.target.value || 0 })}
+                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                      disabled={threeDActive}
+                    />
+                    <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground">
+                    {lang === "de" ? "Abstand ab Ecke" : "Pos from Corner"}
+                  </span>
+                  <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                    <span className="pl-2 text-muted-foreground/75">
+                      <Ruler className="h-3.5 w-3.5" />
+                    </span>
+                    <Input
+                      type="number"
+                      value={Math.round(selectedOpening.position)}
+                      onChange={(e) => updateOpening(selectedOpening.id, { position: +e.target.value || 0 })}
+                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                      disabled={threeDActive}
+                    />
+                    <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Hinge & Swing for Doors only */}
+            {selectedOpening.kind === "door" && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {lang === "de" ? "Tür-Konfiguration" : "Door Configuration"}
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    className="h-8 text-[11px] font-medium"
+                    disabled={threeDActive}
+                    onClick={() =>
+                      updateOpening(selectedOpening.id, {
+                        hinge: selectedOpening.hinge === "start" ? "end" : "start",
+                      })
+                    }
+                  >
+                    {t.flipHinge}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    className="h-8 text-[11px] font-medium"
+                    disabled={threeDActive}
+                    onClick={() =>
+                      updateOpening(selectedOpening.id, {
+                        swing: selectedOpening.swing === "in" ? "out" : "in",
+                      })
+                    }
+                  >
+                    {t.flipSwing}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : selectedItem ? (
           /* Inspector for Single Selected Item */
           <div className="space-y-4">
             {/* Item Name and Quick Actions */}
@@ -475,6 +660,57 @@ export function InspectorSection({
             >
               {t.apply}
             </Button>
+
+            <div className="h-px bg-border/20 my-3" />
+
+            {/* Wall Colors Section */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Palette className="h-3 w-3 text-muted-foreground" />
+                {lang === "de" ? "Wandfarben (2D/3D)" : "Wall Colors (2D/3D)"}
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["top", "right", "bottom", "left"] as const).map((side) => {
+                  const currentColor = wallColors?.[side] || "#f1f5f9";
+                  return (
+                    <div
+                      key={side}
+                      className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200"
+                    >
+                      {/* Color Preview & Native Picker */}
+                      <div
+                        className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
+                        style={{ backgroundColor: currentColor }}
+                      >
+                        <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
+                        <input
+                          type="color"
+                          value={currentColor}
+                          onChange={(e) => {
+                            const newCol = e.target.value;
+                            setWallColors((prev) => ({
+                              ...prev,
+                              [side]: newCol,
+                            }));
+                          }}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          title={`${t[side] || side} color`}
+                          disabled={threeDActive}
+                        />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
+                          {t[side] || side}
+                        </span>
+                        <span className="text-[8.5px] text-muted-foreground font-mono truncate uppercase leading-none">
+                          {currentColor}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </CardContent>

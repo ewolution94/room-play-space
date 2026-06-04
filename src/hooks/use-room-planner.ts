@@ -35,6 +35,20 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   const [draftL, setDraftL] = useState("360");
   const dirty = draftW !== String(roomW) || draftL !== String(roomL);
   const [threeDActive, setThreeDActive] = useState(false);
+  const [zoomFactor, setZoomFactor] = useState(1);
+  const [corners, setCorners] = useState<Point[]>(() => [
+    { x: 0, y: 0 },
+    { x: 480, y: 0 },
+    { x: 480, y: 360 },
+    { x: 0, y: 360 },
+  ]);
+  const [wallColors, setWallColors] = useState<Record<string, string>>(() => ({
+    top: "#f1f5f9",
+    right: "#f1f5f9",
+    bottom: "#f1f5f9",
+    left: "#f1f5f9",
+  }));
+  const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
   // Cozy living-room + work-nook default. Door is on the bottom wall near the
   // bottom-left corner with its swing arc landing on clear floor space.
@@ -115,10 +129,10 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   ]);
 
   // -------- History (undo / redo) --------
-  const stateRef = useRef<Snapshot>({ items, openings, roomW, roomL });
+  const stateRef = useRef<Snapshot>({ items, openings, roomW, roomL, corners, wallColors });
   useEffect(() => {
-    stateRef.current = { items, openings, roomW, roomL };
-  }, [items, openings, roomW, roomL]);
+    stateRef.current = { items, openings, roomW, roomL, corners, wallColors };
+  }, [items, openings, roomW, roomL, corners, wallColors]);
 
   const historyRef = useRef<Snapshot[]>([]);
   const futureRef = useRef<Snapshot[]>([]);
@@ -142,6 +156,26 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     setRoomL(s.roomL);
     setDraftW(String(s.roomW));
     setDraftL(String(s.roomL));
+    if (s.corners && s.corners.length === 4) {
+      setCorners(s.corners);
+    } else {
+      setCorners([
+        { x: 0, y: 0 },
+        { x: s.roomW, y: 0 },
+        { x: s.roomW, y: s.roomL },
+        { x: 0, y: s.roomL },
+      ]);
+    }
+    if (s.wallColors) {
+      setWallColors(s.wallColors);
+    } else {
+      setWallColors({
+        top: "#f1f5f9",
+        right: "#f1f5f9",
+        bottom: "#f1f5f9",
+        left: "#f1f5f9",
+      });
+    }
   };
 
   const undo = () => {
@@ -175,6 +209,12 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     setRoomL(l);
     setDraftW(String(w));
     setDraftL(String(l));
+    setCorners([
+      { x: 0, y: 0 },
+      { x: w, y: 0 },
+      { x: w, y: l },
+      { x: 0, y: l },
+    ]);
     setItems((prev) =>
       prev.map((i) => {
         const c = clampPos(i, w, l, i.x, i.y);
@@ -209,7 +249,8 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
   }, []);
 
   const pad = 40;
-  const scale = Math.min((stageSize.w - pad * 2) / roomW, (stageSize.h - pad * 2) / roomL);
+  const baseScale = Math.min((stageSize.w - pad * 2) / roomW, (stageSize.h - pad * 2) / roomL);
+  const scale = baseScale * zoomFactor;
   const cm = (v: number) => v * scale;
   const roomPxW = cm(roomW);
   const roomPxL = cm(roomL);
@@ -467,6 +508,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     }
     e.stopPropagation();
     (e.target as Element).setPointerCapture(e.pointerId);
+    setSelectedOpeningId(null);
 
     if (e.shiftKey) {
       setSelectedIds((s) => {
@@ -538,7 +580,10 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     const p = stageToCm(e.clientX, e.clientY);
     marqueeRef.current = { startCx: p.x, startCy: p.y, addToSelection: e.shiftKey };
-    if (!e.shiftKey) setSelectedIds(new Set());
+    if (!e.shiftKey) {
+      setSelectedIds(new Set());
+      setSelectedOpeningId(null);
+    }
     setMarqueeRect({ x: p.x, y: p.y, w: 0, h: 0 });
   };
 
@@ -760,10 +805,12 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
 
   const exportJSON = () => {
     const payload = {
-      version: 2,
+      version: 3,
       room: { width: roomW, length: roomL },
       openings,
       items,
+      corners,
+      wallColors,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json",
@@ -799,6 +846,29 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       setRoomL(nextL);
       setDraftW(String(nextW));
       setDraftL(String(nextL));
+
+      if (data.corners && data.corners.length === 4) {
+        setCorners(data.corners);
+      } else {
+        setCorners([
+          { x: 0, y: 0 },
+          { x: nextW, y: 0 },
+          { x: nextW, y: nextL },
+          { x: 0, y: nextL },
+        ]);
+      }
+
+      if (data.wallColors) {
+        setWallColors(data.wallColors);
+      } else {
+        setWallColors({
+          top: "#f1f5f9",
+          right: "#f1f5f9",
+          bottom: "#f1f5f9",
+          left: "#f1f5f9",
+        });
+      }
+
       setOpenings(
         data.openings.map((o) => ({
           id: o.id || crypto.randomUUID(),
@@ -808,6 +878,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
           kind: o.kind,
           hinge: o.kind === "door" ? (o.hinge === "end" ? "end" : "start") : undefined,
           swing: o.kind === "door" ? (o.swing === "out" ? "out" : "in") : undefined,
+          color: o.color,
         })),
       );
       setItems(
@@ -884,6 +955,8 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     setTourStep,
     threeDActive,
     setThreeDActive,
+    zoomFactor,
+    setZoomFactor,
 
     // Form inputs
     nName,
@@ -932,5 +1005,11 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     onStagePointerMove,
     onStagePointerUp,
     pushHistory,
+    corners,
+    setCorners,
+    wallColors,
+    setWallColors,
+    selectedOpeningId,
+    setSelectedOpeningId,
   };
 }
