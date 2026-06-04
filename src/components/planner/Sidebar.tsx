@@ -199,50 +199,92 @@ export function Sidebar({
                 <Plus className="h-4 w-4 text-primary" />
                 {t.customBox}
               </div>
-              <CardContent className="p-3 space-y-2.5">
-                <div>
-                  <Label className="text-xs">{t.name}</Label>
-                  <Input
-                    value={nName}
-                    onChange={(e) => setNName(e.target.value)}
-                    placeholder={t.namePlaceholder}
-                    className="h-8 text-xs mt-1"
-                    disabled={threeDActive}
-                  />
+              <CardContent className="p-3 space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.name}</Label>
+                  <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                    <span className="pl-2.5 text-muted-foreground/75">
+                      <Sliders className="h-3.5 w-3.5" />
+                    </span>
+                    <Input
+                      value={nName}
+                      onChange={(e) => setNName(e.target.value)}
+                      placeholder={t.namePlaceholder}
+                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 h-8 text-xs w-full bg-transparent"
+                      disabled={threeDActive}
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">{t.width}</Label>
-                    <Input
-                      type="number"
-                      value={nW}
-                      onChange={(e) => setNW(+e.target.value || 0)}
-                      className="h-8 text-xs mt-1"
-                      disabled={threeDActive}
-                    />
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.width}</Label>
+                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                      <span className="pl-2.5 text-muted-foreground/75">
+                        <Ruler className="h-3.5 w-3.5" />
+                      </span>
+                      <Input
+                        type="number"
+                        value={nW}
+                        onChange={(e) => setNW(+e.target.value || 0)}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                        disabled={threeDActive}
+                      />
+                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs">{t.length}</Label>
-                    <Input
-                      type="number"
-                      value={nL}
-                      onChange={(e) => setNL(+e.target.value || 0)}
-                      className="h-8 text-xs mt-1"
-                      disabled={threeDActive}
-                    />
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.length}</Label>
+                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                      <span className="pl-2.5 text-muted-foreground/75">
+                        <Ruler className="h-3.5 w-3.5" />
+                      </span>
+                      <Input
+                        type="number"
+                        value={nL}
+                        onChange={(e) => setNL(+e.target.value || 0)}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                        disabled={threeDActive}
+                      />
+                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <Label className="text-xs">{t.color}</Label>
-                  <input
-                    type="color"
-                    value={nColor}
-                    onChange={(e) => setNColor(e.target.value)}
-                    className="h-8 w-full cursor-pointer rounded-md border mt-1 bg-background p-0.5 disabled:opacity-50 disabled:pointer-events-none"
-                    disabled={threeDActive}
-                  />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.color}</Label>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {SWATCHES.map((sw) => {
+                      const isSelected = nColor.toLowerCase() === sw.value.toLowerCase();
+                      return (
+                        <button
+                          key={sw.value}
+                          type="button"
+                          disabled={threeDActive}
+                          onClick={() => setNColor(sw.value)}
+                          className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
+                            isSelected
+                              ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                              : "border-border/60"
+                          }`}
+                          style={{ backgroundColor: sw.value }}
+                          title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                        />
+                      );
+                    })}
+                    {/* Custom picker */}
+                    <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
+                      <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="color"
+                        value={nColor}
+                        onChange={(e) => setNColor(e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        title={t.color}
+                        disabled={threeDActive}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <Button onClick={addCustomBox} className="w-full h-8 text-xs mt-1" size="sm" disabled={threeDActive}>
+                <Button onClick={addCustomBox} className="w-full h-8 text-xs font-semibold active:scale-95 transition-all mt-1" size="sm" disabled={threeDActive}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> {t.addItem}
                 </Button>
               </CardContent>
@@ -254,56 +296,78 @@ export function Sidebar({
                 <Sliders className="h-4 w-4 text-primary" />
                 {t.openings}
               </div>
-              <CardContent className="p-3 space-y-2.5">
+              <CardContent className="p-3 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">{t.type}</Label>
-                    <select
-                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs mt-1 disabled:opacity-50 disabled:pointer-events-none"
-                      value={oKind}
-                      onChange={(e) => setOKind(e.target.value as "door" | "window")}
-                      disabled={threeDActive}
-                    >
-                      <option value="door">{t.door}</option>
-                      <option value="window">{t.window}</option>
-                    </select>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.type}</Label>
+                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                      <span className="pl-2.5 text-muted-foreground/75">
+                        <Square className="h-3.5 w-3.5" />
+                      </span>
+                      <select
+                        className="w-full bg-transparent pl-1.5 pr-2 h-8 text-xs focus:outline-none focus:ring-0 focus:border-0 border-0 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                        value={oKind}
+                        onChange={(e) => setOKind(e.target.value as "door" | "window")}
+                        disabled={threeDActive}
+                      >
+                        <option value="door" className="bg-background">{t.door}</option>
+                        <option value="window" className="bg-background">{t.window}</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs">{t.wall}</Label>
-                    <select
-                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs mt-1 disabled:opacity-50 disabled:pointer-events-none"
-                      value={oWall}
-                      onChange={(e) => setOWall(e.target.value as Opening["wall"])}
-                      disabled={threeDActive}
-                    >
-                      <option value="top">{t.top}</option>
-                      <option value="bottom">{t.bottom}</option>
-                      <option value="left">{t.left}</option>
-                      <option value="right">{t.right}</option>
-                    </select>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.wall}</Label>
+                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                      <span className="pl-2.5 text-muted-foreground/75">
+                        <Sliders className="h-3.5 w-3.5" />
+                      </span>
+                      <select
+                        className="w-full bg-transparent pl-1.5 pr-2 h-8 text-xs focus:outline-none focus:ring-0 focus:border-0 border-0 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                        value={oWall}
+                        onChange={(e) => setOWall(e.target.value as Opening["wall"])}
+                        disabled={threeDActive}
+                      >
+                        <option value="top" className="bg-background">{t.top}</option>
+                        <option value="bottom" className="bg-background">{t.bottom}</option>
+                        <option value="left" className="bg-background">{t.left}</option>
+                        <option value="right" className="bg-background">{t.right}</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs">{t.position}</Label>
-                    <Input
-                      type="number"
-                      value={oPos}
-                      onChange={(e) => setOPos(+e.target.value || 0)}
-                      className="h-8 text-xs mt-1"
-                      disabled={threeDActive}
-                    />
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.position}</Label>
+                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                      <span className="pl-2.5 text-muted-foreground/75">
+                        <Ruler className="h-3.5 w-3.5" />
+                      </span>
+                      <Input
+                        type="number"
+                        value={oPos}
+                        onChange={(e) => setOPos(+e.target.value || 0)}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                        disabled={threeDActive}
+                      />
+                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs">{t.width}</Label>
-                    <Input
-                      type="number"
-                      value={oWidth}
-                      onChange={(e) => setOWidth(+e.target.value || 0)}
-                      className="h-8 text-xs mt-1"
-                      disabled={threeDActive}
-                    />
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.width}</Label>
+                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                      <span className="pl-2.5 text-muted-foreground/75">
+                        <Ruler className="h-3.5 w-3.5" />
+                      </span>
+                      <Input
+                        type="number"
+                        value={oWidth}
+                        onChange={(e) => setOWidth(+e.target.value || 0)}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                        disabled={threeDActive}
+                      />
+                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                    </div>
                   </div>
                 </div>
-                <Button onClick={addOpening} size="sm" className="w-full h-8 text-xs" disabled={threeDActive}>
+                <Button onClick={addOpening} size="sm" className="w-full h-8 text-xs font-semibold active:scale-95 transition-all mt-1" disabled={threeDActive}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> {t.addOpening}
                 </Button>
               </CardContent>
