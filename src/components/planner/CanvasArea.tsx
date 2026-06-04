@@ -47,7 +47,7 @@ export function CanvasArea({
 }: CanvasAreaProps) {
 
   return (
-    <main className="min-w-0 h-[calc(100vh-6rem)] lg:sticky lg:top-20 lg:self-start flex flex-col gap-2">
+    <main className="min-w-0 lg:h-full lg:min-h-0 flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2 rounded-md border border-border/30 bg-background/40 backdrop-blur-sm px-3.5 py-2 shadow-sm">
         <p className="text-[11px] text-muted-foreground">
           {threeDActive ? ((t.title as string) === "Raumplaner" ? "Ziehen: Drehen • Rechtsklick: Verschieben • Scrollen: Zoomen" : "Drag: Rotate • Right-click: Pan • Scroll: Zoom") : (rulerMode ? t.rulerHint : t.hint)}{" "}

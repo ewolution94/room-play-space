@@ -24,7 +24,7 @@ function RoomPlanner() {
   const { t, resetMode, setResetMode, confirmReset } = planner;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-background">
       <Header
         t={planner.t}
         lang={planner.lang}
@@ -66,7 +66,7 @@ function RoomPlanner() {
         closeTour={planner.closeTour}
       />
 
-      <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
         {/* Left column: Unified Tabbed Sidebar + Properties Inspector */}
         <Sidebar
           t={planner.t}

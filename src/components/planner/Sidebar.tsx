@@ -107,7 +107,7 @@ export function Sidebar({
   };
 
   return (
-    <aside id="tour-sidebar" className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start lg:h-[calc(100vh-6rem)]">
+    <aside id="tour-sidebar" className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:shrink-0">
       {threeDActive && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-600 dark:text-amber-400 dark:bg-amber-500/10 backdrop-blur-sm shadow-sm flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-1.5 font-semibold">
