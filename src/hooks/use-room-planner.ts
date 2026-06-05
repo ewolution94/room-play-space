@@ -215,9 +215,16 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       { x: w, y: l },
       { x: 0, y: l },
     ]);
+    const nextCorners = [
+      { x: 0, y: 0 },
+      { x: w, y: 0 },
+      { x: w, y: l },
+      { x: 0, y: l },
+    ];
+    setCorners(nextCorners);
     setItems((prev) =>
       prev.map((i) => {
-        const c = clampPos(i, w, l, i.x, i.y);
+        const c = clampPos(i, nextCorners, i.x, i.y);
         return { ...i, x: c.x, y: c.y };
       }),
     );
@@ -308,7 +315,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       kind: preset.iconUrl && preset.key === "chair-office" ? "chair" : "furniture",
       icon: preset.key,
     };
-    const spot = findFreeSpot(draft, items, roomW, roomL, collisionEnabled);
+    const spot = findFreeSpot(draft, items, corners, collisionEnabled);
     if (!spot) {
       toast.error(t.noFreeSpace);
       return;
@@ -332,7 +339,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       rotation: 0,
       kind: "furniture",
     };
-    const spot = findFreeSpot(draft, items, roomW, roomL, collisionEnabled);
+    const spot = findFreeSpot(draft, items, corners, collisionEnabled);
     if (!spot) {
       toast.error(t.noFreeSpace);
       return;
@@ -373,7 +380,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       const newIds: string[] = [];
       for (const src of toDup) {
         const draft: Item = { ...src, id: crypto.randomUUID(), x: src.x + 20, y: src.y + 20 };
-        const spot = findFreeSpot(draft, next, roomW, roomL, collisionEnabled);
+        const spot = findFreeSpot(draft, next, corners, collisionEnabled);
         if (!spot) continue;
         const added = { ...draft, x: spot.x, y: spot.y };
         next.push(added);
@@ -394,7 +401,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       p.map((i) => {
         if (i.id !== id) return i;
         const merged = { ...i, ...patch };
-        const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
+        const c = clampPos(merged, corners, merged.x, merged.y);
         const candidate = { ...merged, x: c.x, y: c.y };
         if (collidesWithOthers(candidate, p)) return i;
         return candidate;
@@ -603,16 +610,16 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
           prev.map((i) => {
             if (!idsSet.has(i.id)) return i;
             const start = d.startPos.get(i.id)!;
-            const c = clampPos(i, roomW, roomL, start.x + dx, start.y + dy);
+            const c = clampPos(i, corners, start.x + dx, start.y + dy);
             const candidate = { ...i, x: c.x, y: c.y };
 
             if (collisionEnabled) {
               if (collidesWithOthers(candidate, prev, idsSet)) {
-                const xOnly = clampPos(i, roomW, roomL, start.x + dx, i.y);
+                const xOnly = clampPos(i, corners, start.x + dx, i.y);
                 const cx = { ...i, x: xOnly.x, y: xOnly.y };
                 if (!collidesWithOthers(cx, prev, idsSet)) return cx;
 
-                const yOnly = clampPos(i, roomW, roomL, i.x, start.y + dy);
+                const yOnly = clampPos(i, corners, i.x, start.y + dy);
                 const cy = { ...i, x: yOnly.x, y: yOnly.y };
                 if (!collidesWithOthers(cy, prev, idsSet)) return cy;
 
@@ -631,7 +638,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
           prev.map((i) => {
             if (i.id !== d.id) return i;
             const merged = { ...i, rotation: next };
-            const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
+            const c = clampPos(merged, corners, merged.x, merged.y);
             const candidate = { ...merged, x: c.x, y: c.y };
             if (collidesWithOthers(candidate, prev)) return i;
             return candidate;
@@ -759,7 +766,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
           prev.map((i) => {
             if (!ids.has(i.id)) return i;
             const merged = { ...i, rotation: (((i.rotation + dir) % 360) + 360) % 360 };
-            const c = clampPos(merged, roomW, roomL, merged.x, merged.y);
+            const c = clampPos(merged, corners, merged.x, merged.y);
             const candidate = { ...merged, x: c.x, y: c.y };
             if (collidesWithOthers(candidate, prev, ids)) return i;
             return candidate;
@@ -785,7 +792,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       setItems((prev) => {
         const next = prev.map((i) => {
           if (!ids.has(i.id)) return i;
-          const c = clampPos(i, roomW, roomL, i.x + dx, i.y + dy);
+          const c = clampPos(i, corners, i.x + dx, i.y + dy);
           return { ...i, x: c.x, y: c.y };
         });
         for (const i of next) {
@@ -798,7 +805,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomW, roomL, collisionEnabled]);
+  }, [roomW, roomL, collisionEnabled, corners]);
 
   // -------- Export / Import --------
   const fileInputRef = useRef<HTMLInputElement>(null);

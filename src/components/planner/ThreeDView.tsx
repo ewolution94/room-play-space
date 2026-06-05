@@ -848,18 +848,33 @@ export function ThreeDView({
       const camX = camera.position.x;
       const camZ = camera.position.z;
 
+      // Calculate camera polar angle (phi) relative to controls.target to check pitch angle
+      const dir = new THREE.Vector3().copy(camera.position).sub(controls.target);
+      const phi = Math.acos(THREE.MathUtils.clamp(dir.y / dir.length(), -1, 1));
+
+      // Fade factor scales from 0 (at phi <= 0.8 rad, viewed from above) to 1 (at phi >= 1.1 rad, horizontal view)
+      let fadeFactor = 0;
+      if (phi > 0.8) {
+        fadeFactor = Math.min(1, (phi - 0.8) / 0.3);
+      }
+
       for (const w of walls) {
         let targetOpacity = 1.0;
         
         // Determine if camera is outside this wall looking in
+        let isBlocking = false;
         if (w.side === "top" && camZ < -roomL * 0.1) {
-          targetOpacity = wallFadeOpacityRef.current;
+          isBlocking = true;
         } else if (w.side === "bottom" && camZ > roomL * 0.1) {
-          targetOpacity = wallFadeOpacityRef.current;
+          isBlocking = true;
         } else if (w.side === "left" && camX < -roomW * 0.1) {
-          targetOpacity = wallFadeOpacityRef.current;
+          isBlocking = true;
         } else if (w.side === "right" && camX > roomW * 0.1) {
-          targetOpacity = wallFadeOpacityRef.current;
+          isBlocking = true;
+        }
+
+        if (isBlocking) {
+          targetOpacity = THREE.MathUtils.lerp(1.0, wallFadeOpacityRef.current, fadeFactor);
         }
 
         w.currentOpacity = THREE.MathUtils.lerp(w.currentOpacity, targetOpacity, 0.12);

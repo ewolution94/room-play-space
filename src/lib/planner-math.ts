@@ -1,4 +1,4 @@
-import type { Item } from "@/types/planner";
+import type { Item, Point } from "@/types/planner";
 
 export function rotatedAABB(w: number, l: number, deg: number) {
   const r = (deg * Math.PI) / 180;
@@ -7,16 +7,27 @@ export function rotatedAABB(w: number, l: number, deg: number) {
   return { w: w * c + l * s, h: w * s + l * c };
 }
 
-export function clampPos(item: Item, roomW: number, roomL: number, x: number, y: number) {
+export function clampPos(item: Item, corners: Point[], x: number, y: number) {
   const aabb = rotatedAABB(item.width, item.length, item.rotation);
   const cx = x + item.width / 2;
   const cy = y + item.length / 2;
-  const minCx = aabb.w / 2;
-  const maxCx = roomW - aabb.w / 2;
-  const minCy = aabb.h / 2;
-  const maxCy = roomL - aabb.h / 2;
-  const ncx = aabb.w > roomW ? roomW / 2 : Math.max(minCx, Math.min(maxCx, cx));
-  const ncy = aabb.h > roomL ? roomL / 2 : Math.max(minCy, Math.min(maxCy, cy));
+
+  const halfThick = 6; // 6cm offset to account for half of the 12cm wall thickness
+  const leftBound = Math.max(corners[0].x, corners[3].x) + halfThick;
+  const rightBound = Math.min(corners[1].x, corners[2].x) - halfThick;
+  const topBound = Math.max(corners[0].y, corners[1].y) + halfThick;
+  const bottomBound = Math.min(corners[2].y, corners[3].y) - halfThick;
+
+  const w = Math.max(10, rightBound - leftBound);
+  const l = Math.max(10, bottomBound - topBound);
+
+  const minCx = leftBound + aabb.w / 2;
+  const maxCx = rightBound - aabb.w / 2;
+  const minCy = topBound + aabb.h / 2;
+  const maxCy = bottomBound - aabb.h / 2;
+
+  const ncx = aabb.w > w ? leftBound + w / 2 : Math.max(minCx, Math.min(maxCx, cx));
+  const ncy = aabb.h > l ? topBound + l / 2 : Math.max(minCy, Math.min(maxCy, cy));
   return { x: ncx - item.width / 2, y: ncy - item.length / 2 };
 }
 
@@ -94,22 +105,26 @@ export function collidesWithOthers(
 export function findFreeSpot(
   item: Item,
   others: Item[],
-  roomW: number,
-  roomL: number,
+  corners: Point[],
   collisionEnabled = true,
 ): { x: number; y: number } | null {
   const step = 10;
+  const leftBound = Math.max(corners[0].x, corners[3].x);
+  const rightBound = Math.min(corners[1].x, corners[2].x);
+  const topBound = Math.max(corners[0].y, corners[1].y);
+  const bottomBound = Math.min(corners[2].y, corners[3].y);
+
   // Try to find a non-overlapping spot first (always nice to avoid stacking)
-  for (let y = 0; y <= roomL; y += step) {
-    for (let x = 0; x <= roomW; x += step) {
-      const c = clampPos(item, roomW, roomL, x, y);
+  for (let y = topBound; y <= bottomBound; y += step) {
+    for (let x = leftBound; x <= rightBound; x += step) {
+      const c = clampPos(item, corners, x, y);
       const candidate = { ...item, x: c.x, y: c.y };
       if (!collidesWithOthers(candidate, others, undefined, true)) return c;
     }
   }
   // If collision is disabled and we couldn't find a free spot, just return a clamped default position (e.g. center)
   if (!collisionEnabled) {
-    return clampPos(item, roomW, roomL, roomW / 2, roomL / 2);
+    return clampPos(item, corners, (leftBound + rightBound) / 2, (topBound + bottomBound) / 2);
   }
   return null;
 }
