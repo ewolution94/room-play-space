@@ -106,14 +106,6 @@ export function InspectorSection({
   onToggleCollapse,
   onHeaderPointerDown,
 }: InspectorSectionProps) {
-  const handleNudge = (dx: number, dy: number, shift: boolean) => {
-    if (!selectedItem || threeDActive) return;
-    const step = shift ? 10 : 1;
-    updateItem(selectedItem.id, {
-      x: selectedItem.x + dx * step,
-      y: selectedItem.y + dy * step,
-    });
-  };
 
   return (
     <Card id="tour-inspector" className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2 overflow-hidden">
@@ -516,71 +508,6 @@ export function InspectorSection({
               </div>
             </div>
 
-            {/* Graphical Nudge Pad */}
-            <div className="flex flex-col items-center gap-2 p-3 bg-muted/40 dark:bg-muted/10 rounded-lg border border-border/30">
-              <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Move className="h-3.5 w-3.5" />
-                {lang === "de" ? "Feinpositionierung" : "Nudge Position"}
-              </div>
-              <div className="grid grid-cols-3 gap-1.5 w-28 aspect-square">
-                <div />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  className="h-8 w-8 active:scale-90 transition-all hover:bg-primary/5 hover:border-primary/40"
-                  onClick={(e) => handleNudge(0, -1, e.shiftKey)}
-                  title={lang === "de" ? "Nach oben verschieben (Shift für 10cm)" : "Nudge Up (Shift for 10cm)"}
-                  disabled={threeDActive}
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </Button>
-                <div />
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  className="h-8 w-8 active:scale-90 transition-all hover:bg-primary/5 hover:border-primary/40"
-                  onClick={(e) => handleNudge(-1, 0, e.shiftKey)}
-                  title={lang === "de" ? "Nach links verschieben (Shift für 10cm)" : "Nudge Left (Shift for 10cm)"}
-                  disabled={threeDActive}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex items-center justify-center text-muted-foreground text-[9px] font-bold select-none bg-background border border-border/40 rounded shadow-sm w-8 h-8">
-                  Shift
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  className="h-8 w-8 active:scale-90 transition-all hover:bg-primary/5 hover:border-primary/40"
-                  onClick={(e) => handleNudge(1, 0, e.shiftKey)}
-                  title={lang === "de" ? "Nach rechts verschieben (Shift für 10cm)" : "Nudge Right (Shift for 10cm)"}
-                  disabled={threeDActive}
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-
-                <div />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  className="h-8 w-8 active:scale-90 transition-all hover:bg-primary/5 hover:border-primary/40"
-                  onClick={(e) => handleNudge(0, 1, e.shiftKey)}
-                  title={lang === "de" ? "Nach unten verschieben (Shift für 10cm)" : "Nudge Down (Shift for 10cm)"}
-                  disabled={threeDActive}
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-                <div />
-              </div>
-              <span className="text-[9px] text-muted-foreground/80 italic text-center select-none">
-                {lang === "de" ? "Shift gedrückt halten: 10cm Schritte" : "Hold Shift: 10cm steps"}
-              </span>
-            </div>
           </div>
         ) : selectedIds.size > 1 ? (
           /* Inspector for Multiple Selected Items */
