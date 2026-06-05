@@ -106,9 +106,17 @@ export function CanvasArea({
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
+    const panel = inspectorRef.current;
+    if (!panel) return;
+
     try {
       target.setPointerCapture(e.pointerId);
     } catch {}
+
+    // Disable CSS transitions during drag and apply global grabbing styles
+    panel.style.transition = "none";
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -117,30 +125,30 @@ export function CanvasArea({
 
     let currentX = startPosX;
     let currentY = startPosY;
+    let rafId: number | null = null;
 
     const move = (ev: PointerEvent) => {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
 
       const container = stageRef.current;
-      const panel = inspectorRef.current;
-      if (!panel) return;
-
       if (!container) {
         currentX = startPosX + dx;
         currentY = startPosY + dy;
-        panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
-        return;
+      } else {
+        const bounds = container.getBoundingClientRect();
+        const panelW = panel.offsetWidth;
+        const panelH = panel.offsetHeight;
+        currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
+        currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
       }
 
-      const bounds = container.getBoundingClientRect();
-      const panelW = panel.offsetWidth;
-      const panelH = panel.offsetHeight;
-
-      currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
-      currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
-      
-      panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+          rafId = null;
+        });
+      }
     };
 
     const up = (ev: PointerEvent) => {
@@ -148,7 +156,17 @@ export function CanvasArea({
       window.removeEventListener('pointermove', move, { capture: true });
       window.removeEventListener('pointerup', up, { capture: true });
       window.removeEventListener('pointercancel', up, { capture: true });
-      
+
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+
+      // Restore style states
+      panel.style.transition = "";
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
       // Sync final position to state on release
       setInspectorPos({ x: currentX, y: currentY });
     };
@@ -564,7 +582,7 @@ export function CanvasArea({
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <button
-                      onClick={() => setZoomFactor((z) => Math.max(0.25, Math.round((z - 0.25) * 100) / 100))}
+                      onClick={() => setZoomFactor((z) => Math.max(0.1, Math.round((z - 0.1) * 10) / 10))}
                       className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
                       title={lang === "de" ? "Herauszoomen" : "Zoom out"}
                     >
@@ -572,15 +590,15 @@ export function CanvasArea({
                     </button>
                     <input
                       type="range"
-                      min="0.25"
-                      max="3.0"
+                      min="0.1"
+                      max="2.0"
                       step="0.05"
                       value={zoomFactor}
                       onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
                       className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
                     />
                     <button
-                      onClick={() => setZoomFactor((z) => Math.min(3.0, Math.round((z + 0.25) * 100) / 100))}
+                      onClick={() => setZoomFactor((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))}
                       className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
                       title={lang === "de" ? "Hineinzoomen" : "Zoom in"}
                     >
