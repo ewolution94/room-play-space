@@ -60,7 +60,7 @@ export function CanvasOpenings({
         const isSelected = selectedOpeningId === o.id;
         const hitThick = 24; // 24px hit target
         const isWindow = o.kind === "window";
-        const visualThick = isWindow ? 10 : 6;
+        const visualThickCm = 5;
 
         const containerStyle: React.CSSProperties = {
           position: "absolute",
@@ -78,7 +78,7 @@ export function CanvasOpenings({
 
         const visualStyle: React.CSSProperties = {
           width: "100%",
-          height: `${visualThick}px`,
+          height: cm(visualThickCm),
           margin: "auto",
           position: "absolute",
           top: 0,
@@ -138,10 +138,10 @@ export function CanvasOpenings({
         const onOpeningDown = (e: React.PointerEvent) => {
           e.stopPropagation();
           e.preventDefault();
-          
+
           // Select this opening and clear furniture selections
           setSelectedOpeningId(o.id);
-          
+
           const target = e.currentTarget;
           target.setPointerCapture(e.pointerId);
           pushHistory();
@@ -166,9 +166,7 @@ export function CanvasOpenings({
             const shift = pdx * Ux + pdy * Uy;
             const next = Math.min(maxPos, Math.max(0, startPos + shift));
 
-            setOpenings((prev) =>
-              prev.map((x) => (x.id === o.id ? { ...x, position: next } : x))
-            );
+            setOpenings((prev) => prev.map((x) => (x.id === o.id ? { ...x, position: next } : x)));
           };
 
           const up = (ev: PointerEvent) => {
@@ -183,7 +181,14 @@ export function CanvasOpenings({
           window.addEventListener("pointerup", up);
         };
 
-        const kindLabel = o.kind === "door" ? (lang === "de" ? "Tür" : "Door") : (lang === "de" ? "Fenster" : "Window");
+        const kindLabel =
+          o.kind === "door"
+            ? lang === "de"
+              ? "Tür"
+              : "Door"
+            : lang === "de"
+              ? "Fenster"
+              : "Window";
         const dragLabel = lang === "de" ? "ziehen zum Bewegen" : "drag to move";
 
         return (
