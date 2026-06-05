@@ -68,6 +68,8 @@ function RoomPlanner() {
         tourStep={planner.tourStep}
         setTourStep={planner.setTourStep}
         closeTour={planner.closeTour}
+        threeDActive={planner.threeDActive}
+        setThreeDActive={planner.setThreeDActive}
       />
 
       <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">

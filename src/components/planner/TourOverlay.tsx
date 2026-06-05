@@ -25,7 +25,15 @@ function getClipPath(rect: { left: number; top: number; width: number; height: n
   )`;
 }
 
-export function TourOverlay({ t, tourOpen, tourStep, setTourStep, closeTour }: TourOverlayProps) {
+export function TourOverlay({
+  t,
+  tourOpen,
+  tourStep,
+  setTourStep,
+  closeTour,
+  threeDActive = false,
+  setThreeDActive,
+}: TourOverlayProps) {
   const [spotlight, setSpotlight] = useState<{
     left: number;
     top: number;
@@ -42,6 +50,20 @@ export function TourOverlay({ t, tourOpen, tourStep, setTourStep, closeTour }: T
     { key: "threeD" as const, selector: "#tour-3d-toggle" },
     { key: "threeDControls" as const, selector: "#tour-sidebar" },
   ];
+
+  // Synchronize 3D active state with current tour step
+  useEffect(() => {
+    if (!tourOpen || !setThreeDActive) return;
+
+    const step = steps[Math.min(tourStep, steps.length - 1)];
+    const is3dStep = step.key === "threeD" || step.key === "threeDControls";
+
+    if (is3dStep && !threeDActive) {
+      setThreeDActive(true);
+    } else if (!is3dStep && threeDActive) {
+      setThreeDActive(false);
+    }
+  }, [tourStep, tourOpen, threeDActive, setThreeDActive]);
 
   useEffect(() => {
     if (!tourOpen) {
@@ -82,7 +104,7 @@ export function TourOverlay({ t, tourOpen, tourStep, setTourStep, closeTour }: T
       window.removeEventListener("resize", updateSpotlight);
       window.removeEventListener("scroll", updateSpotlight, true);
     };
-  }, [tourStep, tourOpen]);
+  }, [tourStep, tourOpen, threeDActive]);
 
   if (!tourOpen) return null;
 

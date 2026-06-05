@@ -208,6 +208,8 @@ export interface TourOverlayProps {
   tourStep: number;
   setTourStep: React.Dispatch<React.SetStateAction<number>>;
   closeTour: () => void;
+  threeDActive?: boolean;
+  setThreeDActive?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export interface UseRoomPlannerReturn {

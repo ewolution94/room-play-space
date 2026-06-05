@@ -107,8 +107,124 @@ export function InspectorSection({
   onHeaderPointerDown,
 }: InspectorSectionProps) {
 
+  // Local draft states for selected item
+  const [itemDraftW, setItemDraftW] = React.useState("");
+  const [itemDraftL, setItemDraftL] = React.useState("");
+  const [itemDraftH, setItemDraftH] = React.useState("");
+  const [itemDraftElev, setItemDraftElev] = React.useState("");
+  const [itemDraftRot, setItemDraftRot] = React.useState("");
+
+  // Local draft states for selected opening
+  const [opDraftW, setOpDraftW] = React.useState("");
+  const [opDraftPos, setOpDraftPos] = React.useState("");
+
+  // Sync draft states when selections change
+  React.useEffect(() => {
+    if (selectedItem) {
+      setItemDraftW(String(selectedItem.width));
+      setItemDraftL(String(selectedItem.length));
+      setItemDraftH(String(selectedItem.height ?? getDefaultHeight(selectedItem.icon, selectedItem.kind)));
+      setItemDraftElev(String(selectedItem.elevation ?? 0));
+      setItemDraftRot(String(selectedItem.rotation));
+    }
+  }, [
+    selectedItem?.id,
+    selectedItem?.width,
+    selectedItem?.length,
+    selectedItem?.height,
+    selectedItem?.elevation,
+    selectedItem?.rotation
+  ]);
+
+  React.useEffect(() => {
+    if (selectedOpening) {
+      setOpDraftW(String(selectedOpening.width));
+      setOpDraftPos(String(Math.round(selectedOpening.position)));
+    }
+  }, [
+    selectedOpening?.id,
+    selectedOpening?.width,
+    selectedOpening?.position
+  ]);
+
+  const itemDirty = React.useMemo(() => {
+    if (!selectedItem) return false;
+    return (
+      itemDraftW !== String(selectedItem.width) ||
+      itemDraftL !== String(selectedItem.length) ||
+      itemDraftH !== String(selectedItem.height ?? getDefaultHeight(selectedItem.icon, selectedItem.kind)) ||
+      itemDraftElev !== String(selectedItem.elevation ?? 0) ||
+      itemDraftRot !== String(selectedItem.rotation)
+    );
+  }, [
+    selectedItem,
+    itemDraftW,
+    itemDraftL,
+    itemDraftH,
+    itemDraftElev,
+    itemDraftRot
+  ]);
+
+  const openingDirty = React.useMemo(() => {
+    if (!selectedOpening) return false;
+    return (
+      opDraftW !== String(selectedOpening.width) ||
+      opDraftPos !== String(Math.round(selectedOpening.position))
+    );
+  }, [
+    selectedOpening,
+    opDraftW,
+    opDraftPos
+  ]);
+
+  const handleApplyItem = () => {
+    if (!selectedItem) return;
+    const w = parseFloat(itemDraftW);
+    const l = parseFloat(itemDraftL);
+    const h = parseFloat(itemDraftH);
+    const elev = parseFloat(itemDraftElev);
+    const rot = parseFloat(itemDraftRot);
+
+    const patch: Partial<Item> = {};
+    if (!isNaN(w) && w > 0) patch.width = w;
+    if (!isNaN(l) && l > 0) patch.length = l;
+    if (!isNaN(h) && h >= 0) patch.height = h;
+    if (!isNaN(elev)) patch.elevation = elev;
+    if (!isNaN(rot)) patch.rotation = ((rot % 360) + 360) % 360;
+
+    updateItem(selectedItem.id, patch);
+  };
+
+  const handleApplyOpening = () => {
+    if (!selectedOpening) return;
+    const w = parseFloat(opDraftW);
+    const pos = parseFloat(opDraftPos);
+
+    const patch: Partial<Opening> = {};
+    if (!isNaN(w) && w > 0) patch.width = w;
+    if (!isNaN(pos) && pos >= 0) patch.position = pos;
+
+    updateOpening(selectedOpening.id, patch);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, type: "item" | "opening") => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (type === "item") {
+        handleApplyItem();
+      } else {
+        handleApplyOpening();
+      }
+      (e.target as HTMLElement).blur();
+    }
+  };
+
   return (
-    <Card id="tour-inspector" className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2 overflow-hidden">
+    <Card
+      id="tour-inspector"
+      className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2 overflow-hidden"
+      style={{ transform: "translate3d(0,0,0)", backfaceVisibility: "hidden" }}
+    >
       <div
         className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary border-b border-border/20 flex items-center justify-between bg-primary/5 select-none"
         style={{ cursor: onHeaderPointerDown ? "move" : undefined }}
@@ -202,7 +318,7 @@ export function InspectorSection({
                       type="button"
                       disabled={threeDActive}
                       onClick={() => updateOpening(selectedOpening.id, { color: sw.value })}
-                      className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
+                      className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
                         isSelected
                           ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
                           : "border-border/60"
@@ -213,7 +329,7 @@ export function InspectorSection({
                   );
                 })}
                 {/* Custom picker */}
-                <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
+                <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
                   <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
                   <input
                     type="color"
@@ -240,9 +356,9 @@ export function InspectorSection({
                       <Ruler className="h-3.5 w-3.5" />
                     </span>
                     <Input
-                      type="number"
-                      value={selectedOpening.width}
-                      onChange={(e) => updateOpening(selectedOpening.id, { width: +e.target.value || 0 })}
+                      value={opDraftW}
+                      onChange={(e) => setOpDraftW(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, "opening")}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                       disabled={threeDActive}
                     />
@@ -258,9 +374,9 @@ export function InspectorSection({
                       <Ruler className="h-3.5 w-3.5" />
                     </span>
                     <Input
-                      type="number"
-                      value={Math.round(selectedOpening.position)}
-                      onChange={(e) => updateOpening(selectedOpening.id, { position: +e.target.value || 0 })}
+                      value={opDraftPos}
+                      onChange={(e) => setOpDraftPos(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, "opening")}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                       disabled={threeDActive}
                     />
@@ -308,6 +424,16 @@ export function InspectorSection({
                 </div>
               </div>
             )}
+
+            <Button
+              onClick={handleApplyOpening}
+              size="sm"
+              type="button"
+              className="w-full h-8 text-xs font-semibold active:scale-95 transition-all mt-1"
+              disabled={!openingDirty || threeDActive}
+            >
+              {t.apply}
+            </Button>
           </div>
         ) : selectedItem ? (
           /* Inspector for Single Selected Item */
@@ -362,7 +488,7 @@ export function InspectorSection({
                       type="button"
                       disabled={threeDActive}
                       onClick={() => updateItem(selectedItem.id, { color: sw.value })}
-                      className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
+                      className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
                         isSelected
                           ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
                           : "border-border/60"
@@ -373,7 +499,7 @@ export function InspectorSection({
                   );
                 })}
                 {/* Custom picker */}
-                <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
+                <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
                   <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
                   <input
                     type="color"
@@ -400,9 +526,9 @@ export function InspectorSection({
                       <Ruler className="h-3.5 w-3.5" />
                     </span>
                     <Input
-                      type="number"
-                      value={selectedItem.width}
-                      onChange={(e) => updateItem(selectedItem.id, { width: +e.target.value || 0 })}
+                      value={itemDraftW}
+                      onChange={(e) => setItemDraftW(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, "item")}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                       disabled={threeDActive}
                     />
@@ -416,9 +542,9 @@ export function InspectorSection({
                       <Ruler className="h-3.5 w-3.5" />
                     </span>
                     <Input
-                      type="number"
-                      value={selectedItem.length}
-                      onChange={(e) => updateItem(selectedItem.id, { length: +e.target.value || 0 })}
+                      value={itemDraftL}
+                      onChange={(e) => setItemDraftL(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, "item")}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                       disabled={threeDActive}
                     />
@@ -435,9 +561,9 @@ export function InspectorSection({
                       <Ruler className="h-3.5 w-3.5" />
                     </span>
                     <Input
-                      type="number"
-                      value={selectedItem.height ?? getDefaultHeight(selectedItem.icon, selectedItem.kind)}
-                      onChange={(e) => updateItem(selectedItem.id, { height: +e.target.value || 0 })}
+                      value={itemDraftH}
+                      onChange={(e) => setItemDraftH(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, "item")}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                       disabled={threeDActive}
                     />
@@ -451,9 +577,9 @@ export function InspectorSection({
                       <ArrowUp className="h-3.5 w-3.5" />
                     </span>
                     <Input
-                      type="number"
-                      value={selectedItem.elevation ?? 0}
-                      onChange={(e) => updateItem(selectedItem.id, { elevation: +e.target.value || 0 })}
+                      value={itemDraftElev}
+                      onChange={(e) => setItemDraftElev(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, "item")}
                       className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                       disabled={threeDActive}
                     />
@@ -474,13 +600,9 @@ export function InspectorSection({
                     <RotateCw className="h-3.5 w-3.5" />
                   </span>
                   <Input
-                    type="number"
-                    value={Math.round(selectedItem.rotation)}
-                    onChange={(e) =>
-                      updateItem(selectedItem.id, {
-                        rotation: (((+e.target.value || 0) % 360) + 360) % 360,
-                      })
-                    }
+                    value={itemDraftRot}
+                    onChange={(e) => setItemDraftRot(e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, "item")}
                     className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-6 h-8 text-xs w-full bg-transparent"
                     title={t.rotation}
                     disabled={threeDActive}
@@ -508,6 +630,15 @@ export function InspectorSection({
               </div>
             </div>
 
+            <Button
+              onClick={handleApplyItem}
+              size="sm"
+              type="button"
+              className="w-full h-8 text-xs font-semibold active:scale-95 transition-all mt-1"
+              disabled={!itemDirty || threeDActive}
+            >
+              {t.apply}
+            </Button>
           </div>
         ) : selectedIds.size > 1 ? (
           /* Inspector for Multiple Selected Items */
