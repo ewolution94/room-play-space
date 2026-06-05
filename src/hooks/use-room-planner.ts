@@ -118,13 +118,13 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     {
       id: "default-door-1",
       wall: "bottom",
-      position: 233,
+      position: 65,
       width: 90,
       kind: "door",
       hinge: "start",
       swing: "in",
     },
-    { id: "default-window-1", wall: "top", position: 60, width: 80, kind: "window" },
+    { id: "default-window-1", wall: "top", position: 60, width: 120, kind: "window" },
     { id: "default-window-2", wall: "right", position: 30, width: 80, kind: "window" },
   ]);
 
