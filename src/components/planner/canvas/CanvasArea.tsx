@@ -388,7 +388,7 @@ export function CanvasArea({
                   x2={cm(corners[1].x)}
                   y2={cm(corners[1].y)}
                   className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(12)}
+                  strokeWidth={cm(6)}
                   strokeLinecap="round"
                 />
                 <line
@@ -397,7 +397,7 @@ export function CanvasArea({
                   x2={cm(corners[1].x)}
                   y2={cm(corners[1].y)}
                   stroke={wallColors.top || "#f1f5f9"}
-                  strokeWidth={cm(8)}
+                  strokeWidth={cm(4)}
                   strokeLinecap="round"
                 />
 
@@ -408,7 +408,7 @@ export function CanvasArea({
                   x2={cm(corners[2].x)}
                   y2={cm(corners[2].y)}
                   className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(12)}
+                  strokeWidth={cm(6)}
                   strokeLinecap="round"
                 />
                 <line
@@ -417,7 +417,7 @@ export function CanvasArea({
                   x2={cm(corners[2].x)}
                   y2={cm(corners[2].y)}
                   stroke={wallColors.right || "#f1f5f9"}
-                  strokeWidth={cm(8)}
+                  strokeWidth={cm(4)}
                   strokeLinecap="round"
                 />
 
@@ -428,7 +428,7 @@ export function CanvasArea({
                   x2={cm(corners[2].x)}
                   y2={cm(corners[2].y)}
                   className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(12)}
+                  strokeWidth={cm(6)}
                   strokeLinecap="round"
                 />
                 <line
@@ -437,7 +437,7 @@ export function CanvasArea({
                   x2={cm(corners[2].x)}
                   y2={cm(corners[2].y)}
                   stroke={wallColors.bottom || "#f1f5f9"}
-                  strokeWidth={cm(8)}
+                  strokeWidth={cm(4)}
                   strokeLinecap="round"
                 />
 
@@ -448,7 +448,7 @@ export function CanvasArea({
                   x2={cm(corners[3].x)}
                   y2={cm(corners[3].y)}
                   className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(12)}
+                  strokeWidth={cm(6)}
                   strokeLinecap="round"
                 />
                 <line
@@ -457,7 +457,7 @@ export function CanvasArea({
                   x2={cm(corners[3].x)}
                   y2={cm(corners[3].y)}
                   stroke={wallColors.left || "#f1f5f9"}
-                  strokeWidth={cm(8)}
+                  strokeWidth={cm(4)}
                   strokeLinecap="round"
                 />
               </svg>

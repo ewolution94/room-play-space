@@ -336,7 +336,7 @@ export function ThreeDView({
 
     // --- Draw segmented walls with door/window openings ---
     const wallHeight = 240; // cm
-    const wallThickness = 12; // cm
+    const wallThickness = 6; // cm
     const wallMat = new THREE.MeshStandardMaterial({
       color: "#f1f5f9", // slate-100
       roughness: 0.9,

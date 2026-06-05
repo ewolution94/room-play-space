@@ -12,7 +12,7 @@ export function clampPos(item: Item, corners: Point[], x: number, y: number) {
   const cx = x + item.width / 2;
   const cy = y + item.length / 2;
 
-  const halfThick = 6; // 6cm offset to account for half of the 12cm wall thickness
+  const halfThick = 3; // 3cm offset to account for half of the 6cm wall thickness
   const leftBound = Math.max(corners[0].x, corners[3].x) + halfThick;
   const rightBound = Math.min(corners[1].x, corners[2].x) - halfThick;
   const topBound = Math.max(corners[0].y, corners[1].y) + halfThick;
