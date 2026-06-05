@@ -263,7 +263,7 @@ export function ThreeDView({
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (!container || !canvas) return;
+    if (!container || !canvas || !corners || corners.length < 4) return;
 
     // --- Scene Setup ---
     const scene = new THREE.Scene();
@@ -357,6 +357,50 @@ export function ThreeDView({
       roughness: 0.6,
     });
 
+    // Calculate wall directions and intersection angles to get clean joint offsets
+    const getUnitVector = (p1: Point, p2: Point) => {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len <= 0.1) return { x: 1, y: 0 };
+      return { x: dx / len, y: dy / len };
+    };
+
+    const w0 = getUnitVector(corners[0], corners[1]); // top
+    const w1 = getUnitVector(corners[1], corners[2]); // right
+    const w2 = getUnitVector(corners[2], corners[3]); // bottom
+    const w3 = getUnitVector(corners[3], corners[0]); // left
+
+    const getSinTheta = (v1: { x: number; y: number }, v2: { x: number; y: number }) => {
+      return Math.max(0.1, Math.abs(v1.x * v2.y - v1.y * v2.x));
+    };
+
+    const sin0 = getSinTheta(w3, w0); // corner 0 (left-top)
+    const sin1 = getSinTheta(w0, w1); // corner 1 (top-right)
+    const sin2 = getSinTheta(w1, w2); // corner 2 (right-bottom)
+    const sin3 = getSinTheta(w2, w3); // corner 3 (bottom-left)
+
+    const halfThick = wallThickness / 2;
+
+    const wallOffsets = {
+      top: {
+        start: -halfThick / sin0,
+        end: halfThick / sin1,
+      },
+      right: {
+        start: halfThick / sin1,
+        end: -halfThick / sin2,
+      },
+      bottom: {
+        start: -halfThick / sin2,
+        end: halfThick / sin3,
+      },
+      left: {
+        start: halfThick / sin3,
+        end: -halfThick / sin0,
+      },
+    };
+
     const walls: {
       side: "top" | "bottom" | "left" | "right";
       group: THREE.Group;
@@ -407,9 +451,8 @@ export function ThreeDView({
         })
         .sort((a, b) => a.position - b.position);
 
-      const isTopOrBottom = wallSide === "top" || wallSide === "bottom";
-      const startOffset = isTopOrBottom ? -wallThickness : 0;
-      const endOffset = isTopOrBottom ? wallThickness : 0;
+      const startOffset = wallOffsets[wallSide].start;
+      const endOffset = wallOffsets[wallSide].end;
 
       const segments: { start: number; end: number }[] = [];
       let lastPos = startOffset;
