@@ -147,6 +147,9 @@ function RoomPlannerWrapper() {
           rulerHover={planner.rulerHover}
           clearRuler={planner.clearRuler}
           marqueeRect={planner.marqueeRect}
+          multiSelectMode={planner.multiSelectMode}
+          setMultiSelectMode={planner.setMultiSelectMode}
+          isPanning={planner.isPanning}
           onStagePointerDown={planner.onStagePointerDown}
           onStagePointerMove={planner.onStagePointerMove}
           onStagePointerUp={planner.onStagePointerUp}

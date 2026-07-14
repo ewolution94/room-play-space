@@ -28,7 +28,7 @@ export function CanvasItems({
           <div
             key={it.id}
             onPointerDown={(e) => onItemPointerDown(e, it)}
-            className="absolute flex cursor-grab items-center justify-center rounded-sm text-center text-xs font-medium active:cursor-grabbing border border-foreground/30 shadow-sm"
+            className="absolute flex cursor-all-scroll items-center justify-center rounded-sm text-center text-xs font-medium border border-foreground/30 shadow-sm"
             style={{
               left: cm(it.x),
               top: cm(it.y),

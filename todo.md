@@ -12,7 +12,7 @@
 
 ## Other
 - [x] Pan camera in 3D view with arrow keys; add key shortcut to reset view
-- [ ] Multi room support
+- [x] Multi room support
 - [x] Colored walls and windows
 - [x] Make mesh below room slightly bigger for aesthetics
 - [ ] Add smaller objects that belong into a room like an office, e.g. a monitor, pc, etc.

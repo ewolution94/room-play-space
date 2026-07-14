@@ -195,9 +195,12 @@ export interface CanvasAreaProps {
   rulerHover: Point | null;
   clearRuler: () => void;
   marqueeRect: MarqueeRect | null;
+  multiSelectMode: boolean;
+  setMultiSelectMode: React.Dispatch<React.SetStateAction<boolean>>;
+  isPanning: boolean;
   onStagePointerDown: (e: React.PointerEvent) => void;
   onStagePointerMove: (e: React.PointerEvent) => void;
-  onStagePointerUp: () => void;
+  onStagePointerUp: (e: React.PointerEvent) => void;
   onItemPointerDown: (e: React.PointerEvent, item: Item) => void;
   onRotateHandleDown: (e: React.PointerEvent, item: Item) => void;
   pushHistory: () => void;
@@ -260,6 +263,9 @@ export interface UseRoomPlannerReturn {
   resetMode: "items" | "all" | null;
   setResetMode: React.Dispatch<React.SetStateAction<"items" | "all" | null>>;
   marqueeRect: MarqueeRect | null;
+  multiSelectMode: boolean;
+  setMultiSelectMode: React.Dispatch<React.SetStateAction<boolean>>;
+  isPanning: boolean;
   stageSize: { w: number; h: number };
   scale: number;
   roomPxW: number;
@@ -322,7 +328,7 @@ export interface UseRoomPlannerReturn {
   onRotateHandleDown: (e: React.PointerEvent, item: Item) => void;
   onStagePointerDown: (e: React.PointerEvent) => void;
   onStagePointerMove: (e: React.PointerEvent) => void;
-  onStagePointerUp: () => void;
+  onStagePointerUp: (e: React.PointerEvent) => void;
   pushHistory: () => void;
   corners: Point[];
   setCorners: React.Dispatch<React.SetStateAction<Point[]>>;

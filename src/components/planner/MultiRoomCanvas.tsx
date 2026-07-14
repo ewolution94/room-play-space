@@ -1,17 +1,19 @@
-import React, { useRef, useState, useEffect } from "react";
-import type { RoomLayout, Point, TranslationStrings } from "@/types/planner";
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import type { RoomLayout, Point } from "@/types/planner";
+import type { TranslationStrings } from "@/lib/planner-translations";
 import { obbOverlap } from "@/lib/planner-math";
+import {
+  FLOOR_W,
+  FLOOR_L,
+  rotateRoomLayout,
+  duplicateRoomLayout,
+  removeRoomLayout,
+  clampRoomResize,
+} from "@/lib/multi-room-actions";
 import { Button } from "@/components/ui/button";
-import { 
-  ArrowRight, 
-  RotateCw, 
-  Copy, 
-  Trash2, 
-  Maximize2, 
-  HelpCircle,
-  FolderOpen
-} from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { ArrowRight, HelpCircle, FolderOpen } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { MultiRoomInspector } from "./MultiRoomInspector";
 
 interface MultiRoomCanvasProps {
   t: TranslationStrings;
@@ -19,6 +21,8 @@ interface MultiRoomCanvasProps {
   setRooms: React.Dispatch<React.SetStateAction<RoomLayout[]>>;
   selectedRoomId: string | null;
   setSelectedRoomId: (id: string | null) => void;
+  selectedRoomIds: Set<string>;
+  setSelectedRoomIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   collisionEnabled: boolean;
   setCollisionEnabled: (enabled: boolean) => void;
   zoomFactor: number;
@@ -27,6 +31,8 @@ interface MultiRoomCanvasProps {
   isDark: boolean;
   showFurniture: boolean;
   setShowFurniture: (show: boolean) => void;
+  multiSelectMode: boolean;
+  setMultiSelectMode: (enabled: boolean) => void;
 }
 
 export function MultiRoomCanvas({
@@ -35,6 +41,8 @@ export function MultiRoomCanvas({
   setRooms,
   selectedRoomId,
   setSelectedRoomId,
+  selectedRoomIds,
+  setSelectedRoomIds,
   collisionEnabled,
   setCollisionEnabled,
   zoomFactor,
@@ -42,11 +50,35 @@ export function MultiRoomCanvas({
   lang,
   isDark,
   showFurniture,
-  setShowFurniture
+  setShowFurniture,
+  multiSelectMode,
+  setMultiSelectMode,
 }: MultiRoomCanvasProps) {
+  const navigate = useNavigate();
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 800, h: 600 });
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [activeDragIds, setActiveDragIds] = useState<Set<string>>(new Set());
+  const [blockedRoomIds, setBlockedRoomIds] = useState<Set<string>>(new Set());
+  const blockedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Floating draggable inspector state -- mirrors the single-room planner's
+  // floating Inspector panel in CanvasArea.tsx exactly, so editing a room's
+  // properties works the same way in both views instead of living in a
+  // static sidebar card.
+  const [inspectorPos, setInspectorPos] = useState({ x: 16, y: 16 });
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const inspectorRef = useRef<HTMLDivElement>(null);
+  const inspectorPosRef = useRef(inspectorPos);
+  useEffect(() => {
+    inspectorPosRef.current = inspectorPos;
+  }, [inspectorPos]);
+
+  // Auto-expand inspector when selection changes
+  useEffect(() => {
+    if (selectedRoomId || selectedRoomIds.size > 0) {
+      setInspectorCollapsed(false);
+    }
+  }, [selectedRoomId, selectedRoomIds]);
 
   // Monitor stage size changes
   useEffect(() => {
@@ -59,9 +91,15 @@ export function MultiRoomCanvas({
     return () => ro.disconnect();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (blockedTimeoutRef.current) clearTimeout(blockedTimeoutRef.current);
+    };
+  }, []);
+
   // Fixed virtual workspace size: 2000cm x 1500cm (20m x 15m)
-  const floorW = 2000;
-  const floorL = 1500;
+  const floorW = FLOOR_W;
+  const floorL = FLOOR_L;
 
   const pad = 40;
   const baseScale = Math.min((stageSize.w - pad * 2) / floorW, (stageSize.h - pad * 2) / floorL);
@@ -89,17 +127,114 @@ export function MultiRoomCanvas({
 
   const scaleKey = Math.round(scale * 1000);
 
+  // Marquee multi-select state (only active when multiSelectMode is on --
+  // otherwise dragging on empty canvas pans, see onStagePointerDown below).
+  const marqueeRef = useRef<{ startCx: number; startCy: number } | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  const stageToCm = (clientX: number, clientY: number) => {
+    const r = stageRef.current!.getBoundingClientRect();
+    return {
+      x: (clientX - r.left - offsetX) / scale,
+      y: (clientY - r.top - offsetY) / scale,
+    };
+  };
+
+  // Drag handler for the floating inspector header -- ported directly from
+  // CanvasArea.tsx's onInspectorHeaderPointerDown.
+  const onInspectorHeaderPointerDown = useCallback((e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    const panel = inspectorRef.current;
+    if (!panel) return;
+
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {}
+
+    panel.style.transition = "none";
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPosX = inspectorPosRef.current.x;
+    const startPosY = inspectorPosRef.current.y;
+
+    let currentX = startPosX;
+    let currentY = startPosY;
+    let rafId: number | null = null;
+
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      const container = stageRef.current;
+      if (!container) {
+        currentX = startPosX + dx;
+        currentY = startPosY + dy;
+      } else {
+        const bounds = container.getBoundingClientRect();
+        const panelW = panel.offsetWidth;
+        const panelH = panel.offsetHeight;
+        currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
+        currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
+      }
+
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+          rafId = null;
+        });
+      }
+    };
+
+    const up = (ev: PointerEvent) => {
+      try {
+        target.releasePointerCapture(ev.pointerId);
+      } catch {}
+      window.removeEventListener("pointermove", move, { capture: true });
+      window.removeEventListener("pointerup", up, { capture: true });
+      window.removeEventListener("pointercancel", up, { capture: true });
+
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+
+      panel.style.transition = "";
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
+      setInspectorPos({ x: currentX, y: currentY });
+    };
+
+    window.addEventListener("pointermove", move, { capture: true });
+    window.addEventListener("pointerup", up, { capture: true });
+    window.addEventListener("pointercancel", up, { capture: true });
+  }, []);
+
   const onStagePointerDown = (e: React.PointerEvent) => {
     // Left click or touch only
     if (e.button !== 0) return;
-    
-    setSelectedRoomId(null);
-    setIsPanning(true);
+    if (!stageRef.current) return;
 
-    const container = stageRef.current;
-    if (container) {
-      container.setPointerCapture(e.pointerId);
+    if (multiSelectMode) {
+      setSelectedRoomId(null);
+      setSelectedRoomIds(new Set());
+      stageRef.current.setPointerCapture(e.pointerId);
+      const p = stageToCm(e.clientX, e.clientY);
+      marqueeRef.current = { startCx: p.x, startCy: p.y };
+      setMarqueeRect({ x: p.x, y: p.y, w: 0, h: 0 });
+      return;
     }
+
+    setSelectedRoomId(null);
+    setSelectedRoomIds(new Set());
+    setIsPanning(true);
+    stageRef.current.setPointerCapture(e.pointerId);
 
     panDragRef.current = {
       startX: e.clientX,
@@ -110,6 +245,16 @@ export function MultiRoomCanvas({
   };
 
   const onStagePointerMove = (e: React.PointerEvent) => {
+    if (marqueeRef.current) {
+      const p = stageToCm(e.clientX, e.clientY);
+      const x = Math.min(p.x, marqueeRef.current.startCx);
+      const y = Math.min(p.y, marqueeRef.current.startCy);
+      const w = Math.abs(p.x - marqueeRef.current.startCx);
+      const h = Math.abs(p.y - marqueeRef.current.startCy);
+      setMarqueeRect({ x, y, w, h });
+      return;
+    }
+
     if (!panDragRef.current || !isPanning) return;
     const dx = e.clientX - panDragRef.current.startX;
     const dy = e.clientY - panDragRef.current.startY;
@@ -118,6 +263,27 @@ export function MultiRoomCanvas({
   };
 
   const onStagePointerUp = (e: React.PointerEvent) => {
+    if (marqueeRef.current) {
+      const rect = marqueeRect;
+      if (rect && rect.w > 1 && rect.h > 1) {
+        const picked = rooms
+          .filter((r) => {
+            const cx = r.x + r.width / 2;
+            const cy = r.y + r.length / 2;
+            return cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
+          })
+          .map((r) => r.id);
+        setSelectedRoomIds(new Set(picked));
+        if (picked.length === 1) setSelectedRoomId(picked[0]);
+      }
+      marqueeRef.current = null;
+      setMarqueeRect(null);
+      try {
+        (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+      } catch {}
+      return;
+    }
+
     if (isPanning) {
       const container = stageRef.current;
       if (container) {
@@ -130,235 +296,312 @@ export function MultiRoomCanvas({
     panDragRef.current = null;
   };
 
-  // Drag states
+  // Drag states. Note: dx/dy are recomputed against the *live* `scale` on every
+  // pointer-move (not a value captured at drag-start), so this stays correct
+  // even if the container is resized mid-drag. `startPos` holds every dragged
+  // room's position at drag-start (mirrors the single-room item-drag's
+  // startPos map) so a marquee-selected group of rooms all move together.
   const dragRef = useRef<{
-    roomId: string;
+    roomIds: string[];
     startX: number;
     startY: number;
-    startRoomX: number;
-    startRoomY: number;
-    dragScale: number;
+    startPos: Map<string, { x: number; y: number }>;
   } | null>(null);
+
+  const flashBlocked = (roomIds: string[]) => {
+    setBlockedRoomIds(new Set(roomIds));
+    if (blockedTimeoutRef.current) clearTimeout(blockedTimeoutRef.current);
+    blockedTimeoutRef.current = setTimeout(() => setBlockedRoomIds(new Set()), 220);
+  };
 
   const onRoomPointerDown = (e: React.PointerEvent, room: RoomLayout) => {
     // Left click or touch only
     if (e.button !== 0) return;
     e.stopPropagation();
-    setSelectedRoomId(room.id);
-    setActiveDragId(room.id);
+
+    // If the clicked room is already part of a multi-room selection, drag the
+    // whole group together; otherwise dragging always collapses the
+    // selection down to just this one room (mirrors the single-room item
+    // multi-select/drag behavior in use-room-planner.ts).
+    const isPartOfGroup = selectedRoomIds.has(room.id) && selectedRoomIds.size > 1;
+    const ids = isPartOfGroup ? Array.from(selectedRoomIds) : [room.id];
+
+    if (!isPartOfGroup) {
+      setSelectedRoomId(room.id);
+      setSelectedRoomIds(new Set());
+    }
+    setActiveDragIds(new Set(ids));
 
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
+    const startPos = new Map<string, { x: number; y: number }>();
+    for (const id of ids) {
+      const r = rooms.find(rr => rr.id === id);
+      if (r) startPos.set(id, { x: r.x, y: r.y });
+    }
+
     dragRef.current = {
-      roomId: room.id,
+      roomIds: ids,
       startX: e.clientX,
       startY: e.clientY,
-      startRoomX: room.x,
-      startRoomY: room.y,
-      dragScale: scale,
+      startPos,
     };
   };
 
   const onRoomPointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current || dragRef.current.roomId !== activeDragId) return;
+    if (!dragRef.current) return;
     e.stopPropagation();
 
     const drag = dragRef.current;
-    const dx = (e.clientX - drag.startX) / drag.dragScale;
-    const dy = (e.clientY - drag.startY) / drag.dragScale;
+    const dx = (e.clientX - drag.startX) / scale;
+    const dy = (e.clientY - drag.startY) / scale;
 
-    let targetX = drag.startRoomX + dx;
-    let targetY = drag.startRoomY + dy;
+    // Everything below reads and writes through the setRooms(prev => ...)
+    // updater -- never the `rooms` prop captured by this render's closure.
+    // That matters: React 18 batches pointermove events, so several of these
+    // handler calls can run back-to-back before a re-render happens. Reading
+    // `rooms` directly (as an earlier version of this did, and as it still
+    // does for e.g. rotateRoom/duplicateRoom, which aren't drag-rate-sensitive)
+    // means every event in that batch would see the *same* stale snapshot and
+    // resolve its collision independently of the others, instead of each one
+    // building on the previous. The single-room item-drag code in
+    // use-room-planner.ts avoids exactly this by doing all of its
+    // `collidesWithOthers(candidate, prev, idsSet)` work inside the
+    // setItems(prev => ...) updater -- this mirrors that.
+    const blockedIds: string[] = [];
+    const idsSet = new Set(drag.roomIds);
 
-    // Bounds checking inside the 2000 x 1500 canvas
-    const currentRoom = rooms.find(r => r.id === drag.roomId);
-    if (!currentRoom) return;
+    setRooms(prev => {
+      let next = prev;
 
-    // Keep center/corners within bounds
-    targetX = Math.max(0, Math.min(floorW - currentRoom.width, targetX));
-    targetY = Math.max(0, Math.min(floorL - currentRoom.length, targetY));
+      // Each dragged room is resolved independently against everything
+      // *outside* the dragged group (mirroring how single-room resolves each
+      // selected item independently) -- so if one room in the group snags on
+      // an obstacle, it can lag/slide along its own axis while the rest of
+      // the group keeps moving, rather than the whole group locking up.
+      for (const roomId of drag.roomIds) {
+        const start = drag.startPos.get(roomId);
+        const currentRoom = next.find(r => r.id === roomId);
+        if (!start || !currentRoom) continue;
 
-    // Collision check: block moves that would overlap any other room
-    if (collisionEnabled) {
-      const candidateObb = { x: targetX, y: targetY, width: currentRoom.width, length: currentRoom.length, rotation: currentRoom.rotation };
+        const clampToFloor = (x: number, y: number) => ({
+          x: Math.max(0, Math.min(floorW - currentRoom.width, x)),
+          y: Math.max(0, Math.min(floorL - currentRoom.length, y)),
+        });
 
-      const hasCollision = rooms.some(other => {
-        if (other.id === currentRoom.id) return false;
-        return obbOverlap(
-          candidateObb,
-          { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation }
-        );
-      });
+        const collides = (x: number, y: number) => {
+          if (!collisionEnabled) return false;
+          const candidateObb = { x, y, width: currentRoom.width, length: currentRoom.length, rotation: currentRoom.rotation };
+          return next.some(other =>
+            !idsSet.has(other.id) &&
+            obbOverlap(candidateObb, { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation })
+          );
+        };
 
-      if (hasCollision) return;
-    }
+        // `from` is this room's last committed (and therefore known-valid)
+        // position. Only testing the exact target coordinate is a "discrete"
+        // check: at low zoom a single pointer-move event can carry a large cm
+        // delta, large enough that the target lands entirely on the far side
+        // of a neighboring room -- the endpoint alone looks collision-free
+        // even though the straight-line path to it passes right through that
+        // room, so the dragged room visibly tunnels through it.
+        // Binary-searching along the segment from `from` to the target finds
+        // the true contact point regardless of how big the jump is.
+        const from = { x: currentRoom.x, y: currentRoom.y };
 
-    setRooms(prev => prev.map(r => r.id === drag.roomId ? { ...r, x: targetX, y: targetY } : r));
+        const resolve = (toX: number, toY: number) => {
+          const to = clampToFloor(toX, toY);
+          if (!collides(to.x, to.y)) return to;
+          if (collides(from.x, from.y)) return null; // already overlapping (e.g. collision was just re-enabled) -- bail safely
+
+          let lo = 0;
+          let hi = 1;
+          for (let i = 0; i < 24; i++) {
+            const t = (lo + hi) / 2;
+            const p = clampToFloor(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
+            if (!collides(p.x, p.y)) lo = t;
+            else hi = t;
+          }
+          const resolved = clampToFloor(from.x + (to.x - from.x) * lo, from.y + (to.y - from.y) * lo);
+          return resolved.x === from.x && resolved.y === from.y ? null : resolved;
+        };
+
+        const target = clampToFloor(start.x + dx, start.y + dy);
+
+        // Try the full diagonal move first (swept), then slide along a single
+        // axis (also swept) so a room dragged diagonally toward a neighbor
+        // still slides flush along its face instead of stopping dead the
+        // moment either axis touches something.
+        const resolved = resolve(target.x, target.y) ?? resolve(target.x, currentRoom.y) ?? resolve(currentRoom.x, target.y);
+
+        if (!resolved) {
+          blockedIds.push(roomId);
+          continue;
+        }
+
+        next = next.map(r => (r.id === roomId ? { ...r, x: resolved.x, y: resolved.y } : r));
+      }
+
+      return next;
+    });
+
+    // Fully blocked on both axes -- give a brief visual nudge instead of silently doing nothing.
+    // (Done outside the updater above since setRooms(prev => ...) can run more
+    // than once per call under React 18 Strict Mode and should stay a pure
+    // computation; `blockedIds` just mirrors its outcome.)
+    if (blockedIds.length > 0) flashBlocked(blockedIds);
   };
 
   const onRoomPointerUp = (e: React.PointerEvent) => {
-    if (activeDragId) {
+    if (activeDragIds.size > 0) {
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       } catch {}
-      setActiveDragId(null);
+      setActiveDragIds(new Set());
     }
     dragRef.current = null;
   };
 
   const rotateRoom = (roomId: string) => {
-    setRooms(prev => prev.map(r => {
-      if (r.id !== roomId) return r;
-      const nextRotation = (r.rotation + 90) % 360;
-      const nextW = r.length;
-      const nextL = r.width;
-
-      // Rotate openings (doors/windows)
-      const rotatedOpenings = r.openings.map(op => {
-        let newWall = op.wall;
-        let newPosition = op.position;
-        if (op.wall === "top") {
-          newWall = "right";
-          newPosition = op.position;
-        } else if (op.wall === "right") {
-          newWall = "bottom";
-          newPosition = r.length - op.position - op.width;
-        } else if (op.wall === "bottom") {
-          newWall = "left";
-          newPosition = op.position;
-        } else if (op.wall === "left") {
-          newWall = "top";
-          newPosition = r.length - op.position - op.width;
-        }
-        return { ...op, wall: newWall, position: Math.max(0, newPosition) };
-      });
-
-      // Rotate items (furniture)
-      const rotatedItems = r.items.map(item => {
-        const newX = r.length - (item.y + item.length);
-        const newY = item.x;
-        const newW = item.length;
-        const newL = item.width;
-        const newRot = (item.rotation + 90) % 360;
-        return {
-          ...item,
-          x: Math.max(0, newX),
-          y: Math.max(0, newY),
-          width: newW,
-          length: newL,
-          rotation: newRot,
-        };
-      });
-
-      const candidate = {
-        ...r,
-        rotation: nextRotation,
-        width: nextW,
-        length: nextL,
-        openings: rotatedOpenings,
-        items: rotatedItems,
-      };
-
-      // Collision check
-      const hasCollision = collisionEnabled && prev.some(other => {
-        if (other.id === r.id) return false;
-        return obbOverlap(
-          { x: candidate.x, y: candidate.y, width: candidate.width, length: candidate.length, rotation: candidate.rotation },
-          { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation }
-        );
-      });
-
-      if (hasCollision) return r; // prevent rotation if it collides
-      return candidate;
-    }));
+    setRooms(prev => rotateRoomLayout(prev, roomId, collisionEnabled));
   };
 
   const duplicateRoom = (roomId: string) => {
-    const source = rooms.find(r => r.id === roomId);
-    if (!source) return;
-
-    const margin = 30;
-    let found = false;
-
-    const candidate = {
-      x: source.x + source.width + margin,
-      y: source.y,
-      width: source.width,
-      length: source.length,
-      rotation: source.rotation
-    };
-
-    // First try placing directly to the right of the source
-    const paddedFirst = {
-      x: candidate.x - margin,
-      y: candidate.y - margin,
-      width: source.width + margin * 2,
-      length: source.length + margin * 2,
-      rotation: source.rotation
-    };
-    if (
-      candidate.x + source.width <= 1950 &&
-      !rooms.some(other => obbOverlap(
-        paddedFirst,
-        { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation }
-      ))
-    ) {
-      found = true;
-    }
-
-    // Grid scan fallback
-    if (!found) {
-      const stepX = Math.max(60, Math.round(source.width / 3));
-      const stepY = Math.max(60, Math.round(source.length / 3));
-
-      for (let cy = 50; cy + source.length <= 1450 && !found; cy += stepY) {
-        for (let cx = 50; cx + source.width <= 1950 && !found; cx += stepX) {
-          const paddedCandidate = {
-            x: cx - margin,
-            y: cy - margin,
-            width: source.width + margin * 2,
-            length: source.length + margin * 2,
-            rotation: source.rotation
-          };
-          const hasOverlap = rooms.some(other => obbOverlap(
-            paddedCandidate,
-            { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation }
-          ));
-          if (!hasOverlap) {
-            candidate.x = cx;
-            candidate.y = cy;
-            found = true;
-          }
-        }
-      }
-    }
-
-    // Final fallback: below all existing rooms
-    if (!found) {
-      const maxY = rooms.reduce((m, r) => Math.max(m, r.y + r.length), 0);
-      candidate.x = 50;
-      candidate.y = maxY + margin;
-    }
-
-    const newRoom: RoomLayout = {
-      ...JSON.parse(JSON.stringify(source)),
-      id: crypto.randomUUID(),
-      name: `${source.name} (${lang === "de" ? "Kopie" : "Copy"})`,
-      x: candidate.x,
-      y: candidate.y,
-    };
-
+    const newRoom = duplicateRoomLayout(rooms, roomId, lang);
+    if (!newRoom) return;
     setRooms(prev => [...prev, newRoom]);
     setSelectedRoomId(newRoom.id);
   };
 
   const deleteRoom = (roomId: string) => {
-    setRooms(prev => prev.filter(r => r.id !== roomId));
+    setRooms(prev => removeRoomLayout(prev, roomId));
     if (selectedRoomId === roomId) {
       setSelectedRoomId(null);
     }
   };
+
+  const updateSelectedRoom = (patch: Partial<RoomLayout>) => {
+    if (!selectedRoomId) return;
+    setRooms(prev => prev.map(r => {
+      if (r.id !== selectedRoomId) return r;
+
+      let nextPatch = patch;
+
+      // Width/length changes used to be applied directly with no collision
+      // check at all, so growing a room here could freely overlap a neighbor
+      // even with collision enabled. Clamp the requested size to the largest
+      // one that still fits (room's top-left x/y stays put).
+      if (patch.width !== undefined || patch.length !== undefined) {
+        const clamped = clampRoomResize(
+          r,
+          patch.width ?? r.width,
+          patch.length ?? r.length,
+          prev,
+          collisionEnabled,
+        );
+        nextPatch = { ...patch, width: clamped.width, length: clamped.length };
+      }
+
+      const updated = { ...r, ...nextPatch };
+
+      // Re-scale corners if width/length changed
+      if (nextPatch.width !== undefined || nextPatch.length !== undefined) {
+        const w = updated.width;
+        const l = updated.length;
+        updated.corners = [
+          { x: 0, y: 0 },
+          { x: w, y: 0 },
+          { x: w, y: l },
+          { x: 0, y: l },
+        ];
+      }
+      return updated;
+    }));
+  };
+
+  // Bulk actions for a marquee-selected group of rooms.
+  const deleteSelectedRooms = () => {
+    setRooms(prev => prev.filter(r => !selectedRoomIds.has(r.id)));
+    setSelectedRoomIds(new Set());
+  };
+
+  const duplicateSelectedRooms = () => {
+    let working = rooms;
+    const newIds: string[] = [];
+    for (const id of selectedRoomIds) {
+      const newRoom = duplicateRoomLayout(working, id, lang);
+      if (!newRoom) continue;
+      working = [...working, newRoom];
+      newIds.push(newRoom.id);
+    }
+    setRooms(working);
+    setSelectedRoomIds(new Set(newIds));
+  };
+
+  // Keyboard nudge for the selected room(s) -- mirrors the single-room
+  // planner's item nudge (1cm per press, 10cm with Shift), so arrow keys work
+  // the same way in both views for fine alignment.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const ids = selectedRoomIds.size > 0 ? selectedRoomIds : selectedRoomId ? new Set([selectedRoomId]) : new Set<string>();
+      if (ids.size === 0) return;
+
+      const step = e.shiftKey ? 10 : 1;
+      let dx = 0;
+      let dy = 0;
+      if (e.key === "ArrowLeft") dx = -step;
+      else if (e.key === "ArrowRight") dx = step;
+      else if (e.key === "ArrowUp") dy = -step;
+      else if (e.key === "ArrowDown") dy = step;
+      else return;
+
+      e.preventDefault();
+      setRooms(prev => {
+        const next = prev.map(r => {
+          if (!ids.has(r.id)) return r;
+          return {
+            ...r,
+            x: Math.max(0, Math.min(floorW - r.width, r.x + dx)),
+            y: Math.max(0, Math.min(floorL - r.length, r.y + dy)),
+          };
+        });
+
+        if (collisionEnabled) {
+          const collided = next.some(
+            r =>
+              ids.has(r.id) &&
+              next.some(
+                other =>
+                  other.id !== r.id &&
+                  !ids.has(other.id) &&
+                  obbOverlap(
+                    { x: r.x, y: r.y, width: r.width, length: r.length, rotation: r.rotation },
+                    { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation },
+                  ),
+              ),
+          );
+          if (collided) return prev;
+        }
+
+        return next;
+      });
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedRoomId, selectedRoomIds, collisionEnabled, floorW, floorL, setRooms]);
 
   return (
     <main className="min-w-0 lg:h-full lg:min-h-0 flex flex-col gap-2">
@@ -373,7 +616,7 @@ export function MultiRoomCanvas({
       <div
         ref={stageRef}
         className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 overflow-hidden select-none transition-colors duration-150
-          ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+          ${multiSelectMode ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         style={{ touchAction: "none" }}
         onPointerDown={onStagePointerDown}
         onPointerMove={onStagePointerMove}
@@ -419,6 +662,16 @@ export function MultiRoomCanvas({
               className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
             />
             <span>{lang === "de" ? "Möbel anzeigen" : "Show Furniture"}</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+            <input
+              type="checkbox"
+              checked={multiSelectMode}
+              onChange={(e) => setMultiSelectMode(e.target.checked)}
+              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+            />
+            <span>{lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}</span>
           </label>
 
           {/* Zoom controls */}
@@ -499,13 +752,28 @@ export function MultiRoomCanvas({
               <rect width="100%" height="100%" fill={`url(#multiCanvasGridPattern-${scaleKey})`} />
             </svg>
 
+            {/* Marquee multi-select box */}
+            {marqueeRect && (
+              <div
+                className="absolute border-2 border-primary/70 bg-primary/10 pointer-events-none z-30 rounded-sm"
+                style={{
+                  left: cm(marqueeRect.x),
+                  top: cm(marqueeRect.y),
+                  width: cm(marqueeRect.w),
+                  height: cm(marqueeRect.h),
+                }}
+              />
+            )}
+
             {/* Render Rooms */}
             {rooms.map((room) => {
               const rx = cm(room.x);
               const ry = cm(room.y);
               const rw = cm(room.width);
               const rl = cm(room.length);
-              const isSelected = selectedRoomId === room.id;
+              const isSelected = selectedRoomId === room.id || selectedRoomIds.has(room.id);
+              const isDragging = activeDragIds.has(room.id);
+              const isBlocked = blockedRoomIds.has(room.id);
 
               return (
                 <div
@@ -513,9 +781,12 @@ export function MultiRoomCanvas({
                   onPointerDown={(e) => onRoomPointerDown(e, room)}
                   onPointerMove={onRoomPointerMove}
                   onPointerUp={onRoomPointerUp}
-                  className={`absolute rounded-lg border-2 shadow-sm transition-shadow group cursor-move select-none flex flex-col items-center justify-center overflow-hidden
+                  className={`absolute rounded-lg border-2 shadow-sm transition-shadow group cursor-all-scroll select-none flex flex-col items-center justify-center overflow-hidden
+                    ${isDragging ? "shadow-2xl scale-[1.015] transition-none" : "transition-transform duration-150"}
                     ${
-                      isSelected
+                      isBlocked
+                        ? "border-rose-500 ring-2 ring-rose-500/60"
+                        : isSelected
                         ? "border-primary bg-card shadow-lg ring-1 ring-primary"
                         : "border-border/80 hover:border-primary/50 bg-card hover:shadow-md"
                     }`}
@@ -526,12 +797,11 @@ export function MultiRoomCanvas({
                     height: rl,
                     transformOrigin: "center center",
                     touchAction: "none",
-                    zIndex: isSelected ? 10 : 5,
+                    zIndex: isDragging ? 15 : isSelected ? 10 : 5,
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
-                    // Go to room page
-                    window.location.hash = `/rooms/${room.id}`;
+                    navigate({ to: "/rooms/$roomId", params: { roomId: room.id } });
                   }}
                 >
                   {/* Miniature Inside preview (scaled SVG Blueprint style) */}
@@ -697,6 +967,43 @@ export function MultiRoomCanvas({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Floating Draggable Inspector Panel -- mirrors CanvasArea.tsx's single-room inspector */}
+        {(selectedRoomId || selectedRoomIds.size > 0) && (
+          <div
+            ref={inspectorRef}
+            className="absolute z-40 w-72 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
+            style={{
+              left: 0,
+              top: 0,
+              transform: `translate3d(${inspectorPos.x}px, ${inspectorPos.y}px, 0)`,
+              willChange: "transform",
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <MultiRoomInspector
+              t={t}
+              lang={lang}
+              selectedRoom={rooms.find(r => r.id === selectedRoomId) || null}
+              selectedRoomIds={selectedRoomIds}
+              updateSelectedRoom={updateSelectedRoom}
+              rotateRoom={rotateRoom}
+              duplicateRoom={duplicateRoom}
+              deleteRoom={deleteRoom}
+              duplicateSelectedRooms={duplicateSelectedRooms}
+              deleteSelectedRooms={deleteSelectedRooms}
+              isCollapsed={inspectorCollapsed}
+              onToggleCollapse={() => setInspectorCollapsed(c => !c)}
+              onHeaderPointerDown={onInspectorHeaderPointerDown}
+            />
           </div>
         )}
       </div>

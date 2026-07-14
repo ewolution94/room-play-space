@@ -1,0 +1,301 @@
+import type { Lang, RoomLayout } from "@/types/planner";
+import { obbOverlap } from "@/lib/planner-math";
+
+// Shared helpers for the multi-room master floor plan.
+// Previously this logic (rotate / duplicate / delete a room, plus the
+// collision-aware placement scan) was copy-pasted into both
+// MultiRoomCanvas.tsx and MultiRoomSidebar.tsx. Keeping a single copy here
+// avoids the two views drifting apart when the placement/rotation behavior
+// needs to change.
+
+export const FLOOR_W = 2000; // cm, virtual master-plan workspace width
+export const FLOOR_L = 1500; // cm, virtual master-plan workspace length
+
+type OBB = { x: number; y: number; width: number; length: number; rotation: number };
+
+function toOBB(r: Pick<RoomLayout, "x" | "y" | "width" | "length" | "rotation">): OBB {
+  return { x: r.x, y: r.y, width: r.width, length: r.length, rotation: r.rotation };
+}
+
+/** Rotates a single room 90° clockwise, rotating its openings and items with it. */
+export function rotateRoomLayout(
+  rooms: RoomLayout[],
+  roomId: string,
+  collisionEnabled: boolean,
+): RoomLayout[] {
+  return rooms.map((r) => {
+    if (r.id !== roomId) return r;
+
+    const nextRotation = (r.rotation + 90) % 360;
+    const nextW = r.length;
+    const nextL = r.width;
+
+    const rotatedOpenings = r.openings.map((op) => {
+      let newWall = op.wall;
+      let newPosition = op.position;
+      if (op.wall === "top") {
+        newWall = "right";
+        newPosition = op.position;
+      } else if (op.wall === "right") {
+        newWall = "bottom";
+        newPosition = r.length - op.position - op.width;
+      } else if (op.wall === "bottom") {
+        newWall = "left";
+        newPosition = op.position;
+      } else if (op.wall === "left") {
+        newWall = "top";
+        newPosition = r.length - op.position - op.width;
+      }
+      return { ...op, wall: newWall, position: Math.max(0, newPosition) };
+    });
+
+    const rotatedItems = r.items.map((item) => {
+      const newX = r.length - (item.y + item.length);
+      const newY = item.x;
+      return {
+        ...item,
+        x: Math.max(0, newX),
+        y: Math.max(0, newY),
+        width: item.length,
+        length: item.width,
+        rotation: (item.rotation + 90) % 360,
+      };
+    });
+
+    const candidate: RoomLayout = {
+      ...r,
+      rotation: nextRotation,
+      width: nextW,
+      length: nextL,
+      openings: rotatedOpenings,
+      items: rotatedItems,
+    };
+
+    const hasCollision =
+      collisionEnabled &&
+      rooms.some((other) => other.id !== r.id && obbOverlap(toOBB(candidate), toOBB(other)));
+
+    return hasCollision ? r : candidate;
+  });
+}
+
+/** Finds a collision-free spot for a room-sized box, scanning the master grid. */
+function findFreeRoomSpot(
+  rooms: RoomLayout[],
+  width: number,
+  length: number,
+  preferred?: { x: number; y: number },
+): { x: number; y: number } {
+  const margin = 30; // cm gap kept between rooms
+
+  const overlapsAny = (x: number, y: number) => {
+    const padded = { x: x - margin, y: y - margin, width: width + margin * 2, length: length + margin * 2, rotation: 0 };
+    return rooms.some((other) => obbOverlap(padded, toOBB(other)));
+  };
+
+  if (preferred && preferred.x + width <= FLOOR_W - 50 && preferred.y + length <= FLOOR_L - 50) {
+    if (!overlapsAny(preferred.x, preferred.y)) return preferred;
+  }
+
+  const stepX = Math.max(60, Math.round(width / 3));
+  const stepY = Math.max(60, Math.round(length / 3));
+
+  for (let cy = 50; cy + length <= FLOOR_L - 50; cy += stepY) {
+    for (let cx = 50; cx + width <= FLOOR_W - 50; cx += stepX) {
+      if (!overlapsAny(cx, cy)) return { x: cx, y: cy };
+    }
+  }
+
+  // Fallback: stack below everything else
+  const maxY = rooms.reduce((m, r) => Math.max(m, r.y + r.length), 0);
+  return { x: 50, y: maxY + margin };
+}
+
+/** Builds a duplicate of the given room placed in the nearest free spot, or null if the room doesn't exist. */
+export function duplicateRoomLayout(rooms: RoomLayout[], roomId: string, lang: Lang): RoomLayout | null {
+  const source = rooms.find((r) => r.id === roomId);
+  if (!source) return null;
+
+  const margin = 30;
+  const preferred = { x: source.x + source.width + margin, y: source.y };
+  const spot = findFreeRoomSpot(rooms, source.width, source.length, preferred);
+
+  return {
+    ...JSON.parse(JSON.stringify(source)),
+    id: crypto.randomUUID(),
+    name: `${source.name} (${lang === "de" ? "Kopie" : "Copy"})`,
+    x: spot.x,
+    y: spot.y,
+  };
+}
+
+/** Builds a brand-new room placed in the nearest free spot (or at an explicit x/y if given). */
+export function createRoomLayout(
+  rooms: RoomLayout[],
+  opts: { name: string; width: number; length: number; color: string; x?: number; y?: number },
+): RoomLayout {
+  const spot = opts.x !== undefined && opts.y !== undefined
+    ? { x: opts.x, y: opts.y }
+    : findFreeRoomSpot(rooms, opts.width, opts.length);
+
+  return {
+    id: crypto.randomUUID(),
+    name: opts.name,
+    width: opts.width,
+    length: opts.length,
+    x: spot.x,
+    y: spot.y,
+    rotation: 0,
+    color: opts.color,
+    items: [],
+    openings: [
+      {
+        id: crypto.randomUUID(),
+        wall: "bottom",
+        position: Math.max(10, Math.round((opts.width - 90) / 2)),
+        width: 90,
+        kind: "door",
+        hinge: "start",
+        swing: "in",
+      },
+    ],
+    corners: [
+      { x: 0, y: 0 },
+      { x: opts.width, y: 0 },
+      { x: opts.width, y: opts.length },
+      { x: 0, y: opts.length },
+    ],
+    wallColors: {
+      top: "#f1f5f9",
+      right: "#f1f5f9",
+      bottom: "#f1f5f9",
+      left: "#f1f5f9",
+    },
+  };
+}
+
+export function removeRoomLayout(rooms: RoomLayout[], roomId: string): RoomLayout[] {
+  return rooms.filter((r) => r.id !== roomId);
+}
+
+const RANDOM_ROOM_TEMPLATES: { nameEn: string; nameDe: string; color: string; minW: number; maxW: number; minL: number; maxL: number }[] = [
+  { nameEn: "Living Room", nameDe: "Wohnzimmer", color: "#3b82f6", minW: 380, maxW: 550, minL: 320, maxL: 420 },
+  { nameEn: "Home Office", nameDe: "Home-Office", color: "#14b8a6", minW: 280, maxW: 400, minL: 250, maxL: 340 },
+  { nameEn: "Bedroom", nameDe: "Schlafzimmer", color: "#8b5cf6", minW: 300, maxW: 420, minL: 280, maxL: 380 },
+  { nameEn: "Kitchen", nameDe: "Küche", color: "#f59e0b", minW: 260, maxW: 380, minL: 240, maxL: 320 },
+  { nameEn: "Bathroom", nameDe: "Badezimmer", color: "#06b6d4", minW: 180, maxW: 260, minL: 200, maxL: 280 },
+  { nameEn: "Dining Room", nameDe: "Esszimmer", color: "#ef4444", minW: 320, maxW: 440, minL: 280, maxL: 360 },
+];
+
+function randomInt(min: number, max: number): number {
+  return Math.round((min + Math.random() * (max - min)) / 10) * 10;
+}
+
+/**
+ * A random-ish free spot: tries a handful of random points first (so rooms
+ * don't always land back on the same deterministic top-left grid cell), and
+ * only falls back to the deterministic scan if nothing random panned out.
+ */
+function findRandomFreeSpot(rooms: RoomLayout[], width: number, length: number): { x: number; y: number } {
+  const margin = 30;
+  const overlapsAny = (x: number, y: number) => {
+    const padded = { x: x - margin, y: y - margin, width: width + margin * 2, length: length + margin * 2, rotation: 0 };
+    return rooms.some((other) => obbOverlap(padded, toOBB(other)));
+  };
+
+  const maxX = Math.max(50, FLOOR_W - width - 50);
+  const maxY = Math.max(50, FLOOR_L - length - 50);
+
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const x = 50 + Math.round(Math.random() * (maxX - 50));
+    const y = 50 + Math.round(Math.random() * (maxY - 50));
+    if (!overlapsAny(x, y)) return { x, y };
+  }
+
+  return findFreeRoomSpot(rooms, width, length);
+}
+
+/**
+ * Generates a fresh, randomized set of rooms (varied templates, sizes, and
+ * positions) for a clean-slate master floor plan. Used on true app startup so
+ * every session starts from uncluttered, non-overlapping positions instead of
+ * accumulating leftover test layouts.
+ */
+export function generateRandomRoomLayout(lang: Lang): RoomLayout[] {
+  const pool = [...RANDOM_ROOM_TEMPLATES];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  const count = 2 + Math.floor(Math.random() * 2); // 2-3 rooms
+  let rooms: RoomLayout[] = [];
+
+  for (const template of pool.slice(0, count)) {
+    const width = randomInt(template.minW, template.maxW);
+    const length = randomInt(template.minL, template.maxL);
+    const spot = findRandomFreeSpot(rooms, width, length);
+    const room = createRoomLayout(rooms, {
+      name: lang === "de" ? template.nameDe : template.nameEn,
+      width,
+      length,
+      color: template.color,
+      x: spot.x,
+      y: spot.y,
+    });
+    rooms = [...rooms, room];
+  }
+
+  return rooms;
+}
+
+/**
+ * Clamps a requested width/length change for `room` so it doesn't grow into an
+ * overlap with any other room (the room's x/y top-left anchor stays fixed).
+ * Used by the "Edit Room Properties" width/height inputs, which previously
+ * applied size changes directly with no collision check at all -- unlike
+ * dragging or rotating, resizing a room past a neighbor was always silently
+ * allowed even with collision enabled.
+ */
+export function clampRoomResize(
+  room: RoomLayout,
+  requestedWidth: number,
+  requestedLength: number,
+  otherRooms: RoomLayout[],
+  collisionEnabled: boolean,
+): { width: number; length: number } {
+  if (!collisionEnabled) return { width: requestedWidth, length: requestedLength };
+
+  const collidesAt = (width: number, length: number) =>
+    otherRooms.some(
+      (other) =>
+        other.id !== room.id &&
+        obbOverlap({ x: room.x, y: room.y, width, length, rotation: room.rotation }, toOBB(other)),
+    );
+
+  if (!collidesAt(requestedWidth, requestedLength)) {
+    return { width: requestedWidth, length: requestedLength };
+  }
+
+  // The room's current size is assumed valid (it was already on the floor plan).
+  // If it isn't (e.g. collision was toggled on after an overlapping resize),
+  // there's nothing safe to interpolate from, so just refuse the growth.
+  if (collidesAt(room.width, room.length)) {
+    return { width: room.width, length: room.length };
+  }
+
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const t = (lo + hi) / 2;
+    const w = room.width + (requestedWidth - room.width) * t;
+    const l = room.length + (requestedLength - room.length) * t;
+    if (!collidesAt(w, l)) lo = t;
+    else hi = t;
+  }
+
+  return {
+    width: room.width + (requestedWidth - room.width) * lo,
+    length: room.length + (requestedLength - room.length) * lo,
+  };
+}

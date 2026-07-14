@@ -42,6 +42,9 @@ export function CanvasArea({
   rulerHover,
   clearRuler,
   marqueeRect,
+  multiSelectMode,
+  setMultiSelectMode,
+  isPanning,
   onStagePointerDown,
   onStagePointerMove,
   onStagePointerUp,
@@ -284,7 +287,15 @@ export function CanvasArea({
         onPointerUp={threeDActive ? undefined : onStagePointerUp}
         style={{
           touchAction: threeDActive ? "auto" : "none",
-          cursor: threeDActive ? undefined : rulerMode ? "crosshair" : undefined,
+          cursor: threeDActive
+            ? undefined
+            : rulerMode
+            ? "crosshair"
+            : !multiSelectMode
+            ? isPanning
+              ? "grabbing"
+              : "grab"
+            : undefined,
         }}
       >
         {/* Room dimensions label (top-left of canvas) */}
@@ -571,6 +582,24 @@ export function CanvasArea({
                       className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
                     />
                     <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={multiSelectMode}
+                      onChange={(e) => setMultiSelectMode(e.target.checked)}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                    />
+                    <span className="flex items-center gap-1">
+                      {lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}
+                      <span
+                        title={lang === "de" ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf." : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead."}
+                        className="cursor-help inline-flex items-center"
+                      >
+                        <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
+                      </span>
+                    </span>
                   </label>
                 </div>
 

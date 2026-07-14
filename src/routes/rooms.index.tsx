@@ -5,6 +5,7 @@ import { STRINGS } from "@/lib/planner-translations";
 import type { RoomLayout, Lang } from "@/types/planner";
 import { MultiRoomCanvas } from "@/components/planner/MultiRoomCanvas";
 import { MultiRoomSidebar } from "@/components/planner/MultiRoomSidebar";
+import { generateRandomRoomLayout } from "@/lib/multi-room-actions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,141 +34,13 @@ export const Route = createFileRoute("/rooms/")({
   component: MultiRoomOverview,
 });
 
-// Cozy default layout data to present a premium experience instantly
-const INITIAL_DEFAULT_ROOMS: RoomLayout[] = [
-  {
-    id: "default-living-room",
-    name: "Living Room",
-    width: 480,
-    length: 360,
-    x: 150,
-    y: 150,
-    rotation: 0,
-    color: "#3b82f6",
-    corners: [
-      { x: 0, y: 0 },
-      { x: 480, y: 0 },
-      { x: 480, y: 360 },
-      { x: 0, y: 360 },
-    ],
-    wallColors: {
-      top: "#f1f5f9",
-      right: "#f1f5f9",
-      bottom: "#f1f5f9",
-      left: "#f1f5f9",
-    },
-    openings: [
-      {
-        id: "living-door",
-        wall: "bottom",
-        position: 65,
-        width: 90,
-        kind: "door",
-        hinge: "start",
-        swing: "in",
-      },
-      { id: "living-window-1", wall: "top", position: 60, width: 120, kind: "window" },
-    ],
-    items: [
-      {
-        id: "living-desk",
-        name: "Desk",
-        width: 160,
-        length: 75,
-        color: "#c28a5e",
-        x: 160,
-        y: 15,
-        rotation: 0,
-        kind: "furniture",
-        icon: "desk",
-      },
-      {
-        id: "living-chair",
-        name: "Office chair",
-        width: 60,
-        length: 60,
-        color: "#556270",
-        x: 210,
-        y: 100,
-        rotation: 0,
-        kind: "chair",
-        icon: "chair-office",
-      },
-      {
-        id: "living-plant",
-        name: "Plant",
-        width: 50,
-        length: 50,
-        color: "#4ade80",
-        x: 20,
-        y: 20,
-        rotation: 0,
-        kind: "furniture",
-        icon: "plant",
-      },
-    ],
-  },
-  {
-    id: "default-office",
-    name: "Home Office",
-    width: 360,
-    length: 300,
-    x: 670,
-    y: 150,
-    rotation: 0,
-    color: "#14b8a6",
-    corners: [
-      { x: 0, y: 0 },
-      { x: 360, y: 0 },
-      { x: 360, y: 300 },
-      { x: 0, y: 300 },
-    ],
-    wallColors: {
-      top: "#f1f5f9",
-      right: "#f1f5f9",
-      bottom: "#f1f5f9",
-      left: "#f1f5f9",
-    },
-    openings: [
-      {
-        id: "office-door",
-        wall: "left",
-        position: 100,
-        width: 90,
-        kind: "door",
-        hinge: "end",
-        swing: "in",
-      },
-      { id: "office-window", wall: "right", position: 90, width: 120, kind: "window" },
-    ],
-    items: [
-      {
-        id: "office-desk-2",
-        name: "Executive Desk",
-        width: 140,
-        length: 80,
-        color: "#a07855",
-        x: 180,
-        y: 20,
-        rotation: 180,
-        kind: "furniture",
-        icon: "desk",
-      },
-      {
-        id: "office-chair-2",
-        name: "Comfy Chair",
-        width: 60,
-        length: 60,
-        color: "#27272a",
-        x: 220,
-        y: 120,
-        rotation: 0,
-        kind: "chair",
-        icon: "chair-office",
-      },
-    ],
-  },
-];
+// Tracks whether this browser tab has already generated a random layout this
+// session. Module-level (not component state) so it survives SPA navigation
+// between /rooms and /rooms/$roomId -- it only resets on an actual page
+// reload, which is what "on startup" should mean. Without this, navigating
+// back to /rooms after editing a room inside /rooms/$roomId would regenerate
+// a fresh layout and wipe out the edit you just made.
+let hasGeneratedRoomsThisSession = false;
 
 function MultiRoomOverview() {
   const { theme, toggleTheme, isDark } = useTheme();
@@ -190,27 +63,50 @@ function MultiRoomOverview() {
   // Rooms state loaded from localStorage
   const [rooms, setRooms] = useState<RoomLayout[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
   const [collisionEnabled, setCollisionEnabled] = useState(true);
   const [zoomFactor, setZoomFactor] = useState(0.85);
   const [showFurniture, setShowFurniture] = useState(false);
+  // Off by default so dragging on empty canvas pans the view (consistent with
+  // the single-room planner); when on, empty-canvas drag draws a marquee box
+  // to select multiple rooms at once instead.
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Load rooms initial state
+  // Load rooms initial state. On true app startup (first mount this session)
+  // we always generate a fresh randomized layout rather than reloading
+  // whatever was left over from last time, so collision/drag testing always
+  // starts from clean, non-overlapping positions. Returning to this route
+  // later in the same session (e.g. back from /rooms/$roomId) just reloads
+  // from localStorage as normal, preserving whatever you were just editing.
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    if (!hasGeneratedRoomsThisSession) {
+      hasGeneratedRoomsThisSession = true;
+      const fresh = generateRandomRoomLayout(lang);
+      setRooms(fresh);
+      window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
+      return;
+    }
+
     const saved = window.localStorage.getItem("planner-multi-rooms");
     if (saved) {
       try {
         setRooms(JSON.parse(saved));
       } catch (e) {
-        console.error("Failed to parse saved rooms, reverting to default", e);
-        setRooms(INITIAL_DEFAULT_ROOMS);
+        console.error("Failed to parse saved rooms, generating a fresh layout", e);
+        const fresh = generateRandomRoomLayout(lang);
+        setRooms(fresh);
+        window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
       }
     } else {
-      setRooms(INITIAL_DEFAULT_ROOMS);
-      window.localStorage.setItem("planner-multi-rooms", JSON.stringify(INITIAL_DEFAULT_ROOMS));
+      const fresh = generateRandomRoomLayout(lang);
+      setRooms(fresh);
+      window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save rooms to localStorage on changes
@@ -362,8 +258,9 @@ function MultiRoomOverview() {
           setRooms={setRooms}
           selectedRoomId={selectedRoomId}
           setSelectedRoomId={setSelectedRoomId}
+          selectedRoomIds={selectedRoomIds}
+          setSelectedRoomIds={setSelectedRoomIds}
           lang={lang}
-          collisionEnabled={collisionEnabled}
         />
 
         {/* Right Column: master floor canvas */}
@@ -373,6 +270,8 @@ function MultiRoomOverview() {
           setRooms={setRooms}
           selectedRoomId={selectedRoomId}
           setSelectedRoomId={setSelectedRoomId}
+          selectedRoomIds={selectedRoomIds}
+          setSelectedRoomIds={setSelectedRoomIds}
           collisionEnabled={collisionEnabled}
           setCollisionEnabled={setCollisionEnabled}
           zoomFactor={zoomFactor}
@@ -381,6 +280,8 @@ function MultiRoomOverview() {
           isDark={isDark}
           showFurniture={showFurniture}
           setShowFurniture={setShowFurniture}
+          multiSelectMode={multiSelectMode}
+          setMultiSelectMode={setMultiSelectMode}
         />
       </div>
     </div>

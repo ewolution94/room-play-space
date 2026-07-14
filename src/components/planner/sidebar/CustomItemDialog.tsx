@@ -1,6 +1,7 @@
 import React from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { NumberField } from "@/components/ui/number-field";
 import { Button } from "@/components/ui/button";
 import { Sliders, Ruler, Palette, Plus } from "lucide-react";
 import {
@@ -96,10 +97,10 @@ export function CustomItemDialog({
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Ruler className="h-3.5 w-3.5" />
                 </span>
-                <Input
-                  type="number"
+                <NumberField
+                  min={1}
                   value={nW}
-                  onChange={(e) => setNW(+e.target.value || 0)}
+                  onCommit={setNW}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                 />
                 <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
@@ -111,10 +112,10 @@ export function CustomItemDialog({
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Ruler className="h-3.5 w-3.5" />
                 </span>
-                <Input
-                  type="number"
+                <NumberField
+                  min={1}
                   value={nL}
-                  onChange={(e) => setNL(+e.target.value || 0)}
+                  onCommit={setNL}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                 />
                 <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>

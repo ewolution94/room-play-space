@@ -303,8 +303,24 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   const cm = (v: number) => v * scale;
   const roomPxW = cm(roomW);
   const roomPxL = cm(roomL);
-  const offsetX = (stageSize.w - roomPxW) / 2 - 4;
-  const offsetY = (stageSize.h - roomPxL) / 2 - 4;
+
+  // -------- Multi-select mode & canvas panning --------
+  // Off by default: dragging on empty canvas pans the view (matches the
+  // multi-room master floor plan). Turning it on switches empty-canvas drag
+  // over to the marquee multi-select box instead.
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const [isPanning, setIsPanning] = useState(false);
+  const panDragRef = useRef<{
+    startX: number;
+    startY: number;
+    startPanX: number;
+    startPanY: number;
+  } | null>(null);
+
+  const offsetX = (stageSize.w - roomPxW) / 2 - 4 + panX;
+  const offsetY = (stageSize.h - roomPxL) / 2 - 4 + panY;
 
   // -------- Selection --------
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -626,6 +642,24 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       }
       return;
     }
+
+    if (!multiSelectMode) {
+      // Empty-canvas drag pans the view (matches the multi-room master floor
+      // plan) instead of marquee-selecting.
+      if (e.button !== 0) return;
+      setSelectedIds(new Set());
+      setSelectedOpeningId(null);
+      setIsPanning(true);
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      panDragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startPanX: panX,
+        startPanY: panY,
+      };
+      return;
+    }
+
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     const p = stageToCm(e.clientX, e.clientY);
     marqueeRef.current = { startCx: p.x, startCy: p.y, addToSelection: e.shiftKey };
@@ -642,6 +676,15 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       setRulerHover({ x: p.x, y: p.y });
       return;
     }
+
+    if (panDragRef.current) {
+      const dx = e.clientX - panDragRef.current.startX;
+      const dy = e.clientY - panDragRef.current.startY;
+      setPanX(panDragRef.current.startPanX + dx);
+      setPanY(panDragRef.current.startPanY + dy);
+      return;
+    }
+
     const d = dragRef.current;
     if (d) {
       if (d.mode === "move") {
@@ -701,7 +744,16 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     }
   };
 
-  const onStagePointerUp = () => {
+  const onStagePointerUp = (e: React.PointerEvent) => {
+    if (panDragRef.current) {
+      try {
+        (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+      } catch {}
+      setIsPanning(false);
+      panDragRef.current = null;
+      return;
+    }
+
     const d = dragRef.current;
     if (d) {
       if (d.mode === "move") {
@@ -990,6 +1042,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     resetMode,
     setResetMode,
     marqueeRect,
+    multiSelectMode,
+    setMultiSelectMode,
+    isPanning,
     stageSize,
     scale,
     roomPxW,
