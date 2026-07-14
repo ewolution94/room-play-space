@@ -90,6 +90,49 @@ export function obbOverlap(
   return true;
 }
 
+/**
+ * Returns the minimum penetration depth between two OBBs using SAT.
+ * Returns 0 if the shapes do not overlap.
+ */
+export function obbOverlapDepth(
+  a: Parameters<typeof obbCorners>[0],
+  b: Parameters<typeof obbCorners>[0],
+): number {
+  const A = obbCorners(a);
+  const B = obbCorners(b);
+  const eps = 0.5;
+  let minDepth = Infinity;
+  for (const poly of [A, B]) {
+    for (let i = 0; i < 4; i++) {
+      const p1 = poly[i];
+      const p2 = poly[(i + 1) % 4];
+      const ex = p2.x - p1.x;
+      const ey = p2.y - p1.y;
+      const len = Math.hypot(ex, ey) || 1;
+      const ax = -ey / len;
+      const ay = ex / len;
+      let aMin = Infinity,
+        aMax = -Infinity,
+        bMin = Infinity,
+        bMax = -Infinity;
+      for (const p of A) {
+        const d = p.x * ax + p.y * ay;
+        if (d < aMin) aMin = d;
+        if (d > aMax) aMax = d;
+      }
+      for (const p of B) {
+        const d = p.x * ax + p.y * ay;
+        if (d < bMin) bMin = d;
+        if (d > bMax) bMax = d;
+      }
+      if (aMax - eps <= bMin || bMax - eps <= aMin) return 0;
+      const depth = Math.min(aMax - bMin, bMax - aMin);
+      if (depth < minDepth) minDepth = depth;
+    }
+  }
+  return minDepth;
+}
+
 export function collidesWithOthers(
   candidate: Item,
   others: Item[],

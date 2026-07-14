@@ -17,7 +17,7 @@ import { STRINGS } from "@/lib/planner-translations";
 import { clampPos, collidesWithOthers, findFreeSpot } from "@/lib/planner-math";
 import { importSchema } from "@/lib/planner-schema";
 
-export function useRoomPlanner(): UseRoomPlannerReturn {
+export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   const [lang, setLang] = useState<Lang>("en");
   const t = STRINGS[lang];
   useEffect(() => {
@@ -29,30 +29,45 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     if (typeof window !== "undefined") window.localStorage.setItem("planner-lang", lang);
   }, [lang]);
 
-  const [roomW, setRoomW] = useState(480);
-  const [roomL, setRoomL] = useState(360);
-  const [draftW, setDraftW] = useState("480");
-  const [draftL, setDraftL] = useState("360");
+  // Load data for a specific room if requested
+  const getInitialRoomData = () => {
+    if (typeof window === "undefined" || !roomId) return null;
+    try {
+      const saved = window.localStorage.getItem("planner-multi-rooms");
+      if (!saved) return null;
+      const rooms = JSON.parse(saved);
+      return rooms.find((r: any) => r.id === roomId) || null;
+    } catch (e) {
+      console.error("Failed to load room data from localStorage", e);
+      return null;
+    }
+  };
+  const initialRoom = getInitialRoomData();
+
+  const [roomW, setRoomW] = useState(() => initialRoom?.width ?? 480);
+  const [roomL, setRoomL] = useState(() => initialRoom?.length ?? 360);
+  const [draftW, setDraftW] = useState(() => String(initialRoom?.width ?? 480));
+  const [draftL, setDraftL] = useState(() => String(initialRoom?.length ?? 360));
   const dirty = draftW !== String(roomW) || draftL !== String(roomL);
   const [threeDActive, setThreeDActive] = useState(false);
   const [zoomFactor, setZoomFactor] = useState(1);
-  const [corners, setCorners] = useState<Point[]>(() => [
+  const [corners, setCorners] = useState<Point[]>(() => initialRoom?.corners ?? [
     { x: 0, y: 0 },
-    { x: 480, y: 0 },
-    { x: 480, y: 360 },
-    { x: 0, y: 360 },
+    { x: initialRoom?.width ?? 480, y: 0 },
+    { x: initialRoom?.width ?? 480, y: initialRoom?.length ?? 360 },
+    { x: 0, y: initialRoom?.length ?? 360 },
   ]);
-  const [wallColors, setWallColors] = useState<Record<string, string>>(() => ({
+  const [wallColors, setWallColors] = useState<Record<string, string>>(() => initialRoom?.wallColors ?? {
     top: "#f1f5f9",
     right: "#f1f5f9",
     bottom: "#f1f5f9",
     left: "#f1f5f9",
-  }));
+  });
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
   // Cozy living-room + work-nook default. Door is on the bottom wall near the
   // bottom-left corner with its swing arc landing on clear floor space.
-  const [items, setItems] = useState<Item[]>(() => [
+  const [items, setItems] = useState<Item[]>(() => initialRoom?.items ?? [
     {
       id: "default-desk",
       name: "Desk",
@@ -114,7 +129,7 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
       icon: "plant",
     },
   ]);
-  const [openings, setOpenings] = useState<Opening[]>(() => [
+  const [openings, setOpenings] = useState<Opening[]>(() => initialRoom?.openings ?? [
     {
       id: "default-door-1",
       wall: "bottom",
@@ -127,6 +142,33 @@ export function useRoomPlanner(): UseRoomPlannerReturn {
     { id: "default-window-1", wall: "top", position: 60, width: 120, kind: "window" },
     { id: "default-window-2", wall: "right", position: 30, width: 80, kind: "window" },
   ]);
+
+  // Sync changes back to localStorage under planner-multi-rooms
+  useEffect(() => {
+    if (typeof window === "undefined" || !roomId) return;
+    try {
+      const saved = window.localStorage.getItem("planner-multi-rooms");
+      if (!saved) return;
+      const rooms = JSON.parse(saved);
+      const updatedRooms = rooms.map((r: any) => {
+        if (r.id === roomId) {
+          return {
+            ...r,
+            width: roomW,
+            length: roomL,
+            items,
+            openings,
+            corners,
+            wallColors,
+          };
+        }
+        return r;
+      });
+      window.localStorage.setItem("planner-multi-rooms", JSON.stringify(updatedRooms));
+    } catch (e) {
+      console.error("Failed to sync room data to localStorage", e);
+    }
+  }, [roomId, roomW, roomL, items, openings, corners, wallColors]);
 
   // -------- History (undo / redo) --------
   const stateRef = useRef<Snapshot>({ items, openings, roomW, roomL, corners, wallColors });

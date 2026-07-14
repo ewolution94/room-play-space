@@ -52,6 +52,22 @@ export interface Snapshot {
   wallColors?: Record<string, string>;
 }
 
+export interface RoomLayout {
+  id: string;
+  name: string;
+  width: number; // cm
+  length: number; // cm
+  x: number; // overview grid x (cm)
+  y: number; // overview grid y (cm)
+  rotation: number; // degrees
+  color: string; // color of the room
+  items: Item[];
+  openings: Opening[];
+  corners?: Point[];
+  wallColors?: Record<string, string>;
+  hideDoors?: boolean;
+}
+
 export interface Point {
   x: number;
   y: number;
@@ -105,6 +121,8 @@ export interface HeaderProps {
   setTourStep: (step: React.SetStateAction<number>) => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
+  backUrl?: string;
+  roomsUrl?: string;
 }
 
 export interface SidebarProps {

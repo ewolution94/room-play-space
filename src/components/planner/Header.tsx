@@ -19,8 +19,11 @@ import {
   MoreHorizontal,
   Sun,
   Moon,
+  ArrowLeft,
+  LayoutGrid,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
+import { Link } from "@tanstack/react-router";
 
 export function Header({
   t,
@@ -40,24 +43,49 @@ export function Header({
   setTourStep,
   theme,
   toggleTheme,
+  backUrl,
+  roomsUrl,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
         <div id="tour-header" className="flex min-w-0 items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="Büro Planner Logo"
-            className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
-          />
+          {backUrl ? (
+            <Button variant="ghost" size="sm" asChild className="h-9 w-9 p-0 shrink-0">
+              <Link to={backUrl} title={lang === "de" ? "Zurück zum Grundriss" : "Back to Floor Plan"}>
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+            </Button>
+          ) : (
+            <img
+              src="/logo.png"
+              alt="Büro Planner Logo"
+              className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
+            />
+          )}
           <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-sky-400">
               {t.title}
             </h1>
             <p className="hidden sm:block truncate text-xs text-muted-foreground">{t.subtitle}</p>
           </div>
+          {roomsUrl && (
+            <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 hidden md:flex">
+              <Link to={roomsUrl}>
+                <LayoutGrid className="h-4 w-4" />
+                <span>{lang === "de" ? "Grundrisse" : "Floor Plans"}</span>
+              </Link>
+            </Button>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {roomsUrl && (
+            <Button variant="outline" size="sm" asChild className="md:hidden h-9 w-9 p-0">
+              <Link to={roomsUrl} title={lang === "de" ? "Grundrisse" : "Floor Plans"}>
+                <LayoutGrid className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Ctrl+Z" className="px-2 sm:px-3">
             <Undo2 className="h-4 w-4 sm:mr-1" />
             <span className="hidden sm:inline">{t.undo}</span>

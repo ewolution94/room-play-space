@@ -16,13 +16,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export const Route = createFileRoute("/")({
-  component: RoomPlanner,
+export const Route = createFileRoute("/rooms/$roomId")({
+  component: RoomPlannerWrapper,
 });
 
-function RoomPlanner() {
+function RoomPlannerWrapper() {
+  const { roomId } = Route.useParams();
   const { theme, toggleTheme, isDark } = useTheme();
-  const planner = useRoomPlanner();
+  const planner = useRoomPlanner(roomId);
   const { t, resetMode, setResetMode, confirmReset } = planner;
 
   return (
@@ -45,7 +46,7 @@ function RoomPlanner() {
         setTourStep={planner.setTourStep}
         theme={theme}
         toggleTheme={toggleTheme}
-        roomsUrl="/rooms"
+        backUrl="/rooms"
       />
 
       <AlertDialog open={resetMode !== null} onOpenChange={(o) => !o && setResetMode(null)}>
