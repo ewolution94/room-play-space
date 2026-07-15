@@ -233,7 +233,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     setRoomL(s.roomL);
     setDraftW(String(s.roomW));
     setDraftL(String(s.roomL));
-    if (s.corners && s.corners.length === 4) {
+    // >= 3 (not === 4) so undo/redo doesn't flatten a hallway's L/T-shaped
+    // polygon corners (5+ points) back into a plain rectangle.
+    if (s.corners && s.corners.length >= 3) {
       setCorners(s.corners);
     } else {
       setCorners([
@@ -278,6 +280,13 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
 
   // -------- Room dims --------
   const applyRoom = (customW?: number, customL?: number) => {
+    // A polygon (L/T-shaped hallway) room's width/length are a derived
+    // bounding box -- there's no single well-defined way to resize an
+    // L-shape from one number, so this quick W/L editor doesn't apply to
+    // one (same reasoning as the multi-room Inspector's guard). Bail out
+    // rather than rebuilding `corners` into a plain rectangle and
+    // destroying the shape.
+    if (corners.length !== 4) return;
     const w = customW !== undefined ? customW : Math.max(50, parseInt(draftW, 10) || 0);
     const l = customL !== undefined ? customL : Math.max(50, parseInt(draftL, 10) || 0);
     if (w === roomW && l === roomL) return;
@@ -1006,7 +1015,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       setDraftW(String(nextW));
       setDraftL(String(nextL));
 
-      if (data.corners && data.corners.length === 4) {
+      // >= 3 (not === 4) so importing a hallway's exported JSON keeps its
+      // L/T-shaped polygon corners instead of getting flattened to a rect.
+      if (data.corners && data.corners.length >= 3) {
         setCorners(data.corners);
       } else {
         setCorners([

@@ -1,0 +1,311 @@
+# Engineering learnings
+
+Working notes on the trickiest parts of this codebase: the collision/geometry math,
+how 2D and 3D placement relate to each other, the canvas rendering hacks that
+weren't obvious the first time, and the one performance fix that mattered most.
+Written so a future session (human or Claude) doesn't have to re-derive any of
+this from scratch.
+
+For "what exists and where," read the code — it's commented in-place and the
+file/component names are descriptive. This doc is for the *why*, especially the
+parts where the obvious approach doesn't work.
+
+## Coordinate systems
+
+Everything in `types/planner.ts`, `planner-math.ts`, and the 2D canvas works in
+plain **room-centimeters**: `x`/`y` with the origin at the room's top-left
+corner, `y` growing downward, matching screen coordinates. Room polygons are
+just an ordered `Point[]` of corners. A rectangular room is `corners = [top-left,
+top-right, bottom-right, bottom-left]`, always wound clockwise on screen — every
+later generalization to non-rectangular rooms (see "Polygon rooms" below)
+depends on that winding direction staying consistent.
+
+The 2D canvas (`CanvasArea.tsx`) converts room-cm to screen pixels with a single
+`cm(value) => value * scale` function threaded through as a prop, so zooming is
+just changing `scale` — none of the geometry math ever needs to know about
+pixels.
+
+The 3D view (`ThreeDView.tsx`) uses a **different, Three.js-native coordinate
+system**: X/Z is the ground plane (Y is up), and the room is centered on the
+origin rather than starting at (0,0). Every conversion from a room-cm point
+looks like `x - roomW / 2`, `z = y - roomL / 2` (note: room-cm `y` becomes
+Three.js `z`). This center-based coordinate choice is what makes `OrbitControls`
+orbit around the room's actual middle instead of one corner.
+
+## Item layers and elevation
+
+Items have a `layer: "under" | "main" | "on-top"` and an `elevation` (cm above
+the floor). This is a purely additive system layered on top of ordinary
+`x`/`y`/`width`/`length`/`rotation` — nothing about placement changes, only how
+an item interacts with collision and z-order:
+
+- **Collision** (`collidesWithOthers` in `planner-math.ts`) only ever considers
+  `main`-layer items, on both sides of the comparison. `under` items (rugs) and
+  `on-top` items (lamps, TVs) never block anything and are never blocked.
+- **2D stacking order** (`CanvasItems.tsx`) is `under` (opacity 0.55) → `main`
+  (opacity 1) → `on-top` (opacity 0.92), with the selected item always boosted
+  above all three tiers so it's never hidden mid-drag.
+- **3D placement** uses `elevation` directly as the mesh's base Y position
+  (`itemMesh.position.y = itElev + itHeight / 2`), so an on-top item just floats
+  at the right height — no special-casing needed once elevation is correct.
+- **Auto-elevation on drop** (`findOnTopHost` / `computeOnTopElevation`): when
+  an on-top item is dropped, its footprint is tested against every `main` item
+  it now overlaps, and it snaps to the *highest* top surface among them (`host.
+  elevation + host.height`), so it visually rests on whatever it was dropped
+  onto instead of keeping a stale/arbitrary elevation.
+
+`shape: "rect" | "circle"` follows the identical pattern — it's a rendering
+choice only (inscribed ellipse in 2D, `CylinderGeometry` in 3D). Collision
+always uses the rectangular OBB footprint regardless of visual shape; adding
+true circle-vs-circle or circle-vs-rect collision was never worth the
+complexity for a floor planner.
+
+## Collision detection (SAT/OBB)
+
+`obbCorners` rotates an item's four corners by its `rotation` about its own
+center. `obbOverlap`/`obbOverlapDepth` then run the **Separating Axis Theorem**
+against both shapes' edge normals (only 4 axes total, since both shapes are
+rectangles — this does *not* generalize to arbitrary polygons, see below): if
+there's a gap along any axis, the shapes don't overlap; if there's no gap along
+any of the 4 axes, they do. `obbOverlapDepth` additionally tracks the smallest
+overlap across all axes, which is the minimum-translation-vector depth (used
+nowhere yet, but there for anything that wants to push-apart rather than
+block-and-report).
+
+This is the standard 2D SAT algorithm, but the one thing worth remembering:
+**it only needs 4 axes because both shapes are rectangles.** If this ever needs
+to collide against a true N-gon (e.g. the exact concave outline of an L-shaped
+hallway, not its bounding box), the axis loop has to run over *all* of both
+polygons' edges, not just 4.
+
+### Why polygon rooms use a bounding-box approximation, on purpose
+
+Hallway rooms (see "Polygon rooms" below) have a genuinely concave outline, but
+`clampPos` and `findFreeSpot` in `planner-math.ts` both clamp furniture to the
+room polygon's **bounding box**, not its exact shape. For a plain rectangle this
+is exact (a rectangle's bounding box *is* the rectangle). For an L or T shape,
+it means it's technically possible to drag an item into the notch — the empty
+corner that isn't actually part of the hallway's floor. This was a deliberate
+scope decision, not an oversight: real point-in-polygon clamping (projecting a
+clamped position back onto the nearest point *inside* a concave polygon) is
+meaningfully harder, and hallways are narrow enough in practice that the notch
+case rarely comes up. If it ever needs fixing, `insetRectilinearPolygon` (see
+below) already contains the per-corner inward/outward normal math that a real
+fix would build on.
+
+### Swept collision resolution (no tunneling)
+
+Room dragging in the multi-room overview doesn't just clamp+collide the final
+pointer position — it uses `resolveSweptMove` in `planner-math.ts`, which
+**binary-searches along the straight-line path** from the drag's last known-good
+position to the new target. This exists because a single `pointermove` event can
+carry a large delta (fast mouse movement, or a low zoom level where a few
+screen pixels are many room-cm) — testing only the endpoint would let a room
+"tunnel" straight through a thin obstacle between the two points. If the direct
+target is blocked, it falls back to sliding along a single axis (still swept the
+same way), so a diagonal drag toward a neighboring room slides flush along its
+face instead of stopping dead the instant either axis touches something.
+
+### The stale-closure trap in drag handlers
+
+The multi-room drag handler (`onRoomPointerMove` in `MultiRoomCanvas.tsx`) does
+all of its collision reads *and* writes inside a single `setRooms(prev => ...)`
+functional updater, never against the `rooms` value captured in the component's
+closure. This mattered because React 18 batches pointer events: several
+`pointermove` handler invocations can fire before a re-render happens, and if
+each one reads the same stale `rooms` closure, they all resolve their collision
+independently against the same starting snapshot instead of each one building
+on the last — visually this showed up as room drags "skipping" or ignoring
+newly-moved obstacles mid-drag. Reading and writing through the updater
+function fixes it because each call in the batch sees the previous call's
+result. The single-item drag path in `use-room-planner.ts` follows the exact
+same rule for the same reason. Anywhere a drag handler needs to read
+possibly-just-mutated state to decide what to do next, prefer the functional
+updater over the closed-over prop/state value.
+
+## Polygon rooms (hallways)
+
+Added to support L/T-shaped hallways (`src/lib/hallway-shapes.ts`). The
+implementation is a **true single polygon** — a hallway room is just a
+`RoomLayout` with `corners.length > 4` instead of a special-cased shape type —
+which is what allows every existing rectangular-room code path (item placement,
+2D rendering, 3D extrusion, multi-room thumbnails) to be *generalized* into a
+shared loop instead of forked into a parallel implementation. The rectangular
+(4-corner) path is left completely untouched everywhere; polygon rooms are
+purely additive branches.
+
+**Wall indexing.** Wall `i` is the segment from `corners[i]` to
+`corners[(i+1) % corners.length]`, always walked forward (the same clockwise
+winding the corners themselves are authored in). This is deliberately
+*different* from the legacy named-wall convention, where `"bottom"` and
+`"left"` happen to be measured in the *reverse* of forward-winding order (an
+old quirk, preserved as-is in `resolveWallSegment`'s string branch rather than
+"fixed," since fixing it would require migrating every already-saved
+rectangular room's data). Numbered walls never have this problem because
+they're a new convention introduced alongside the hallway feature, so they
+could be defined cleanly from the start.
+
+**Rotation.** `rotatePolygonCorners` rotates every corner 90° about the
+polygon's own bounding-box center. This is provably identical, for a rectangle,
+to the legacy "swap width and length" rotation — both produce a new bounding
+box with width/height swapped, still centered at the same point, which is true
+of *any* point set under an exact 90° rotation about its own bounding-box
+center, not just rectangles. That's what makes it safe to generalize: rotating
+any polygon this way keeps wall index `i` referring to the same logical wall
+(just moved), so openings never need their `wall`/`position` remapped when a
+room rotates — only the corner coordinates change.
+
+**Miter joints reduce to a constant.** The precise wall-corner miter formula is
+`halfThickness / sin(interior angle)` (still used as-is for rectangular rooms
+in `ThreeDView.tsx`, since a rectangle's corners can, in principle, be dragged
+to non-right angles via corner-dragging). Hallway shapes are built exclusively
+from 90°/270° corners by construction, and `sin(90°) = 1`, `|sin(270°)| = 1` —
+so the general formula always reduces to exactly `halfThickness` for every
+corner in a hallway, convex or reflex. That means a flat "extend every wall by
+`halfThickness` at both ends" is *exact* for these shapes, not an
+approximation, and sidesteps needing a convex/concave sign convention for an
+arbitrary N-gon.
+
+**Insetting a concave outline.** `insetRectilinearPolygon` draws the "thick
+wall" outline for a hallway's thumbnail by, at each corner, summing the two
+adjacent walls' inward unit normals. For a convex corner this pushes the point
+diagonally into the solid; for a reflex (notch) corner the same formula pushes
+it diagonally *outward*, correctly "opening up" the notch instead of collapsing
+it. It only works because every corner is 90°/270° — general polygon insetting
+(mitered offsetting) needs to know the corner angle to get the right magnitude,
+which this deliberately avoids by only ever supporting rectilinear shapes.
+
+**Camera fade for polygon walls.** The 3D view fades out walls between the
+camera and the room interior so the camera doesn't feel boxed in. For
+rectangular rooms this is 4 hardcoded axis-aligned checks (`side === "top" &&
+camZ < -roomL * 0.1`, etc.). Polygon rooms instead use a generic per-wall test:
+each wall's outward normal (`{x: dz/length, z: -dx/length}`, derived from the
+forward-winding convention) dotted against the vector from the wall's midpoint
+to the camera. A positive dot product means the camera is on the outward side
+of that wall, i.e. it's between the camera and the room — fade it. This
+generalizes to any number of walls without hardcoding names.
+
+## The toughest canvas/rendering hacks
+
+**Door swing SVG paths.** A door's swing arc in the 2D canvas
+(`CanvasOpenings.tsx`) depends on two independent booleans — `hinge: "start" |
+"end"` and `swing: "in" | "out"` — giving 4 combinations, each needing a
+different SVG `M`/`L` (door leaf) and `A` (arc) path in the opening's own
+*local, rotated* coordinate frame (the whole opening `<div>` is rotated to the
+wall's angle via CSS `transform`, so the SVG paths themselves only ever need to
+handle "wall running left-to-right locally"). Getting the arc's sweep-flag
+(`0` vs `1` in the `A` command) right for all 4 hinge×swing combinations was
+the fiddliest part — it's not derivable by pattern, it had to be worked out
+case by case and is now hardcoded as an explicit 4-way branch rather than
+computed, because computing it generically was more error-prone than just
+enumerating the 4 cases.
+
+**Three.js material face-index mapping (box vs. cylinder).** Item meshes in 3D
+carry a name/dimensions label texture on their *top* face only, via a material
+array. `BoxGeometry`'s default material groups are `[+x, -x, +y(top), -y
+(bottom), +z, -z]` — the top face is **index 2**. `CylinderGeometry`'s groups
+are `[side, top, bottom]` — the top face is **index 1**. These two orderings
+don't line up, so the code branches on `isCircle` to build the material array
+in the right order for whichever geometry the item is using
+(`[sideMat, topMat, sideMat]` vs. `[sideMat, sideMat, topMat, sideMat, sideMat,
+sideMat]`). Get this wrong and the label silently ends up on a side face or the
+bottom instead of erroring — worth remembering next time a new geometry type is
+added here.
+
+**Procedural canvas textures.** Materials for wood/fabric/plant/rug surfaces
+are generated at runtime by drawing directly onto an off-screen `<canvas>` with
+2D canvas APIs (wavy `lineTo` strokes for wood grain, a cross-hatch grid for
+fabric weave, randomized speckles for plant/rug), then wrapped as a
+`THREE.CanvasTexture`. No texture image assets exist anywhere in the project —
+every material's visual detail is code. This keeps the app dependency- and
+asset-free, at the cost of the texture logic itself being the "asset" that has
+to be tuned by eye (line spacing, wave amplitude, speckle density) rather than
+swapped out.
+
+**Named vs. numbered wall lookups, centralized.** Before hallways existed, four
+separate places (`CanvasArea.tsx`, `CanvasOpenings.tsx`, `MultiRoomCanvas.tsx`,
+and `ThreeDView.tsx`) each had their own hand-copied 4-branch if/else chain
+mapping a wall name to its two corner points. Adding numbered walls meant
+either copying a 5th branch into all four places or centralizing — chose the
+latter (`resolveWallSegment` in `hallway-shapes.ts`), which is also what made
+it easy to preserve the "bottom/left are reversed" quirk in exactly one place
+instead of four.
+
+## Performance: the floating Inspector panel drag
+
+The Inspector (`CanvasArea.tsx`, `onInspectorHeaderPointerDown`) is a
+draggable, floating panel positioned via React state (`inspectorPos`). The
+naive approach — call `setInspectorPos({x, y})` on every `pointermove` — was
+visibly laggy: every state update triggers a full React re-render of the
+component (and everything under it, since `inspectorPos` was read in the JSX
+`style` prop), and pointer events can fire faster than the browser's paint
+cycle, so renders piled up behind the mouse.
+
+The fix moves the *visual* update off React's render cycle entirely during the
+drag:
+
+- On `pointermove`, the raw DOM element's `style.transform =
+  translate3d(x, y, 0)` is mutated **directly** — no `setState`, no re-render.
+- `translate3d` (not `left`/`top`) is used specifically because it's
+  GPU-composited and doesn't trigger layout/reflow.
+- Writes are batched to at most one per animation frame via a `rafId` guard: a
+  new `requestAnimationFrame` is only scheduled if one isn't already pending,
+  so a burst of `pointermove` events collapses to one DOM write per frame
+  instead of one per event.
+- `panel.style.transition = "none"` is set for the duration of the drag so the
+  panel's normal CSS transition doesn't fight the per-frame transform writes
+  (animating toward a target that's still moving looks like stutter).
+- `document.body.style.cursor = "grabbing"` / `userSelect = "none"` are set
+  globally for the drag's duration, restored on release, for standard
+  drag-affordance UX (prevents text selection while dragging, keeps the cursor
+  consistent even if the pointer momentarily leaves the panel).
+- React state (`setInspectorPos`) is only written **once**, on `pointerup` —
+  so React's render tree stays in sync with the final position without ever
+  being asked to keep up with the drag in real time.
+
+This pattern — direct DOM mutation + rAF batching during a drag, single state
+commit on release — generalizes to any UI element that needs to visually track
+the pointer at 60fps but doesn't need React to know about every intermediate
+position. It's *not* used for item/room dragging on the canvas, because those
+already read/write position through refs and only commit through history on
+release in a similar way, and their visual update is a `style.left`/`top` on a
+much simpler absolutely-positioned `<div>` without the panel's transition/
+cursor/userSelect side effects to manage.
+
+## UI pattern: draft-string number inputs
+
+`components/ui/number-field.tsx`'s `NumberField` exists because a plain
+`<input type="number">` bound directly to a clamped numeric value (`value={w}
+onChange={e => setW(Math.max(50, parseInt(e.target.value) || 0))}`) fights the
+user on every keystroke: clearing the field to retype re-parses the empty
+string as `0`/`NaN` and immediately snaps back to the minimum, so the field can
+never actually be emptied. `NumberField` keeps the in-progress text as local
+`draft` state (a string, so it can be empty or `"12."` mid-type) and only
+parses/clamps/commits on blur or Enter. Used everywhere a numeric field needs
+free typing — room width/length, item dimensions, opening position/width.
+
+## Testing and verification, in this environment
+
+This sandbox has no working dev server (native binaries in `node_modules` are
+built for a different platform than the sandbox runs), so there is **no visual
+verification available** — no screenshots, no browser. Every change is verified
+three ways instead:
+
+1. `npm test` — a dependency-free Node test harness (`node
+   --experimental-strip-types`, `tests/support/register.mjs` as a custom ESM
+   loader) covering the math/geometry modules directly (`planner-math.ts`,
+   `hallway-shapes.ts`, `multi-room-actions.ts`, etc.) with plain `node:test` +
+   `node:assert/strict` — no test framework dependency.
+2. `npx tsc --noEmit -p tsconfig.json` for type-checking.
+3. `npx eslint <changed files> | grep -v "prettier/prettier"` — the repo has
+   several hundred pre-existing prettier-only formatting violations that are
+   out of scope to fix opportunistically, so every lint pass filters those out
+   and, when in doubt, diffs the remaining (non-prettier) error count/locations
+   against a `git stash`'d baseline to prove a change introduced zero new
+   issues.
+
+Given no visual verification is possible, be conservative about touching
+rendering code that "should" be equivalent — prefer additive branches (`if
+(isPolygonRoom) { ...new path... } else { ...untouched original... }`) over
+rewriting an existing, working rendering path, so a mistake in new code can't
+silently break the common case.

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/ui/number-field";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,10 @@ interface OpeningsDialogProps {
   oWidth: number;
   setOWidth: (width: number) => void;
   addOpening: () => void;
+  /** Wall count of the room currently being edited -- 4 for a plain
+   * rectangular room (named wall picker, unchanged), anything else for a
+   * polygon (L/T-shaped hallway) room (numeric "Wall N" picker). */
+  cornersCount: number;
 }
 
 export function OpeningsDialog({
@@ -46,7 +50,23 @@ export function OpeningsDialog({
   oWidth,
   setOWidth,
   addOpening,
+  cornersCount,
 }: OpeningsDialogProps) {
+  const isPolygon = cornersCount !== 4;
+
+  // Keep the selected wall valid for whichever room is currently open --
+  // switching from a rectangular room to a hallway (or back) while this
+  // dialog's state is still around shouldn't leave a stale/invalid value
+  // selected in the dropdown.
+  useEffect(() => {
+    if (isPolygon && typeof oWall === "string") {
+      setOWall(0);
+    } else if (!isPolygon && typeof oWall === "number") {
+      setOWall("top");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPolygon]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -100,12 +120,28 @@ export function OpeningsDialog({
                 <select
                   className="w-full bg-transparent pl-1.5 pr-2 h-8 text-xs focus:outline-none focus:ring-0 focus:border-0 border-0 cursor-pointer"
                   value={oWall}
-                  onChange={(e) => setOWall(e.target.value as Opening["wall"])}
+                  onChange={(e) =>
+                    setOWall(
+                      (isPolygon
+                        ? Number(e.target.value)
+                        : e.target.value) as Opening["wall"],
+                    )
+                  }
                 >
-                  <option value="top" className="bg-background">{t.top}</option>
-                  <option value="bottom" className="bg-background">{t.bottom}</option>
-                  <option value="left" className="bg-background">{t.left}</option>
-                  <option value="right" className="bg-background">{t.right}</option>
+                  {isPolygon ? (
+                    Array.from({ length: cornersCount }, (_, i) => (
+                      <option key={i} value={i} className="bg-background">
+                        {lang === "de" ? `Wand ${i + 1}` : `Wall ${i + 1}`}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="top" className="bg-background">{t.top}</option>
+                      <option value="bottom" className="bg-background">{t.bottom}</option>
+                      <option value="left" className="bg-background">{t.left}</option>
+                      <option value="right" className="bg-background">{t.right}</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>

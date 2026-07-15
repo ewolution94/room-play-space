@@ -1,5 +1,13 @@
-import type { Lang, RoomLayout } from "@/types/planner";
+import type { Lang, Opening, Point, RoomLayout } from "@/types/planner";
 import { obbOverlap } from "@/lib/planner-math";
+import {
+  rotatePolygonCorners,
+  polygonBoundingBox,
+  buildStraightHallwayCorners,
+  buildLHallwayCorners,
+  buildTHallwayCorners,
+  type HallwayShape,
+} from "@/lib/hallway-shapes";
 
 // Shared helpers for the multi-room master floor plan.
 // Previously this logic (rotate / duplicate / delete a room, plus the
@@ -17,7 +25,18 @@ function toOBB(r: Pick<RoomLayout, "x" | "y" | "width" | "length" | "rotation">)
   return { x: r.x, y: r.y, width: r.width, length: r.length, rotation: r.rotation };
 }
 
-/** Rotates a single room 90° clockwise, rotating its openings and items with it. */
+/**
+ * Rotates a single room 90° clockwise, rotating its openings and items with
+ * it. Plain rectangular rooms (corners.length === 4, the overwhelming
+ * common case) keep the exact original swap-based implementation --
+ * unchanged, zero regression risk. Polygon rooms (L/T-shaped hallways, 5+
+ * corners) use a genuinely different algorithm: rotate every corner point
+ * (and every item) about the shape's own bounding-box center. That's
+ * provably equivalent to the swap-based approach for a rectangle (see the
+ * rotatePolygonCorners tests in hallway-shapes.test.ts), and it generalizes
+ * correctly to any polygon -- wall indices and opening `position` values
+ * don't need remapping at all under rotation, only the corner points move.
+ */
 export function rotateRoomLayout(
   rooms: RoomLayout[],
   roomId: string,
@@ -27,27 +46,53 @@ export function rotateRoomLayout(
     if (r.id !== roomId) return r;
 
     const nextRotation = (r.rotation + 90) % 360;
-    const nextW = r.length;
-    const nextL = r.width;
+    const isPolygon = !!r.corners && r.corners.length !== 4;
 
-    const rotatedOpenings = r.openings.map((op) => {
-      let newWall = op.wall;
-      let newPosition = op.position;
-      if (op.wall === "top") {
-        newWall = "right";
-        newPosition = op.position;
-      } else if (op.wall === "right") {
-        newWall = "bottom";
-        newPosition = r.length - op.position - op.width;
-      } else if (op.wall === "bottom") {
-        newWall = "left";
-        newPosition = op.position;
-      } else if (op.wall === "left") {
-        newWall = "top";
-        newPosition = r.length - op.position - op.width;
-      }
-      return { ...op, wall: newWall, position: Math.max(0, newPosition) };
-    });
+    let nextW: number;
+    let nextL: number;
+    let rotatedOpenings = r.openings;
+    let nextCorners: Point[];
+
+    if (isPolygon) {
+      nextCorners = rotatePolygonCorners(r.corners!);
+      const bb = polygonBoundingBox(nextCorners);
+      nextW = bb.width;
+      nextL = bb.height;
+      // Openings are untouched: numeric wall index + position stay valid
+      // across rotation (see hallway-shapes.ts).
+    } else {
+      nextW = r.length;
+      nextL = r.width;
+      rotatedOpenings = r.openings.map((op) => {
+        let newWall = op.wall;
+        let newPosition = op.position;
+        if (op.wall === "top") {
+          newWall = "right";
+          newPosition = op.position;
+        } else if (op.wall === "right") {
+          newWall = "bottom";
+          newPosition = r.length - op.position - op.width;
+        } else if (op.wall === "bottom") {
+          newWall = "left";
+          newPosition = op.position;
+        } else if (op.wall === "left") {
+          newWall = "top";
+          newPosition = r.length - op.position - op.width;
+        }
+        return { ...op, wall: newWall, position: Math.max(0, newPosition) };
+      });
+      // Rebuilt fresh from the new width/length rather than carried over
+      // stale from before rotation -- corners aren't read anywhere in the
+      // multi-room overview, but the single-room detail view uses them
+      // directly, and they need to match the room's new orientation the
+      // moment you enter it, not just after the next width/length edit.
+      nextCorners = [
+        { x: 0, y: 0 },
+        { x: nextW, y: 0 },
+        { x: nextW, y: nextL },
+        { x: 0, y: nextL },
+      ];
+    }
 
     const rotatedItems = r.items.map((item) => {
       const newX = r.length - (item.y + item.length);
@@ -69,6 +114,7 @@ export function rotateRoomLayout(
       length: nextL,
       openings: rotatedOpenings,
       items: rotatedItems,
+      corners: nextCorners,
     };
 
     const hasCollision =
@@ -176,6 +222,92 @@ export function createRoomLayout(
 
 export function removeRoomLayout(rooms: RoomLayout[], roomId: string): RoomLayout[] {
   return rooms.filter((r) => r.id !== roomId);
+}
+
+/**
+ * Builds a new hallway room. "straight" is just a plain rectangle (stays on
+ * the existing 4-corner/named-wall path entirely); "l"/"l-mirrored"/"t" are
+ * true polygon rooms built from the hallway-shapes.ts corner templates.
+ * Every shape gets a door pre-placed on each open "end" instead of the
+ * single door + no windows a plain room starts with, since a hallway's
+ * whole purpose is connecting to other rooms at each end. Every end wall is
+ * exactly `armWidth` long by construction (see hallway-shapes.test.ts), so
+ * a single door width/position centers correctly on any of them.
+ */
+export function createHallwayLayout(
+  rooms: RoomLayout[],
+  opts: {
+    name: string;
+    shape: HallwayShape;
+    armWidth: number;
+    // "straight": legX = total length (legY unused).
+    // "l"/"l-mirrored": legX/legY = each arm's full extent.
+    // "t": legX = bar length, legY = stem length.
+    legX: number;
+    legY: number;
+    color: string;
+    x?: number;
+    y?: number;
+  },
+): RoomLayout {
+  let corners: Point[];
+  let doorWalls: Opening["wall"][];
+
+  if (opts.shape === "straight") {
+    corners = buildStraightHallwayCorners(opts.armWidth, opts.legX);
+    doorWalls = ["left", "right"];
+  } else if (opts.shape === "t") {
+    const tpl = buildTHallwayCorners(opts.armWidth, opts.legX, opts.legY);
+    corners = tpl.corners;
+    doorWalls = tpl.endWalls;
+  } else {
+    const tpl = buildLHallwayCorners(
+      opts.armWidth,
+      opts.legX,
+      opts.legY,
+      opts.shape === "l-mirrored",
+    );
+    corners = tpl.corners;
+    doorWalls = tpl.endWalls;
+  }
+
+  const bb = polygonBoundingBox(corners);
+  const width = bb.width;
+  const length = bb.height;
+
+  const doorWidth = Math.min(90, Math.max(40, opts.armWidth - 20));
+  const doorPos = Math.max(0, Math.round((opts.armWidth - doorWidth) / 2));
+
+  const openings: Opening[] = doorWalls.map((wall) => ({
+    id: crypto.randomUUID(),
+    wall,
+    position: doorPos,
+    width: doorWidth,
+    kind: "door",
+    hinge: "start",
+    swing: "in",
+  }));
+
+  const spot =
+    opts.x !== undefined && opts.y !== undefined
+      ? { x: opts.x, y: opts.y }
+      : findFreeRoomSpot(rooms, width, length);
+
+  return {
+    id: crypto.randomUUID(),
+    name: opts.name,
+    width,
+    length,
+    x: spot.x,
+    y: spot.y,
+    rotation: 0,
+    color: opts.color,
+    items: [],
+    openings,
+    corners,
+    wallColors: {},
+    roomKind: "hallway",
+  };
 }
 
 const RANDOM_ROOM_TEMPLATES: { nameEn: string; nameDe: string; color: string; minW: number; maxW: number; minL: number; maxL: number }[] = [

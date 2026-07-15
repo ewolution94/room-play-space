@@ -52,9 +52,15 @@ export interface Preset {
   shape?: ItemShape; // defaults to "rect"
 }
 
+// Rectangular rooms (exactly 4 corners) address a wall by name, as they
+// always have. Polygon rooms (hallways with an L/T floor shape, 5+ corners)
+// address a wall by its numeric index into `corners` -- see
+// src/lib/hallway-shapes.ts for the winding convention and
+// resolveWallSegment(), which is the single place both conventions are
+// resolved to physical points.
 export interface Opening {
   id: string;
-  wall: "top" | "bottom" | "left" | "right";
+  wall: "top" | "bottom" | "left" | "right" | number;
   position: number;
   width: number;
   kind: "door" | "window";
@@ -75,8 +81,8 @@ export interface Snapshot {
 export interface RoomLayout {
   id: string;
   name: string;
-  width: number; // cm
-  length: number; // cm
+  width: number; // cm -- for polygon rooms, the shape's bounding-box width
+  length: number; // cm -- for polygon rooms, the shape's bounding-box length
   x: number; // overview grid x (cm)
   y: number; // overview grid y (cm)
   rotation: number; // degrees
@@ -85,7 +91,11 @@ export interface RoomLayout {
   openings: Opening[];
   corners?: Point[];
   wallColors?: Record<string, string>;
-  hideDoors?: boolean;
+  // "hallway" rooms are otherwise ordinary rooms (same data, same
+  // furniture/collision/3D handling) -- this only affects labeling/icons in
+  // the UI. A hallway may still be a plain rectangle (corners.length === 4,
+  // a "straight" hallway) or a polygon (L/T shape, corners.length > 4).
+  roomKind?: "room" | "hallway";
 }
 
 export interface Point {

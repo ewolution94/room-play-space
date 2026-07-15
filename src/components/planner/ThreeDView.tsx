@@ -5,6 +5,7 @@ import type { Item, Opening, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
 import { getDefaultHeight } from "@/lib/planner-presets";
+import { wallSegments } from "@/lib/hallway-shapes";
 
 // Re-exported for existing consumers (e.g. InspectorSection.tsx imports
 // this from "../ThreeDView") -- the implementation now lives in
@@ -228,7 +229,7 @@ export function ThreeDView({
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (!container || !canvas || !corners || corners.length < 4) return;
+    if (!container || !canvas || !corners || corners.length < 3) return;
 
     // --- Scene Setup ---
     const scene = new THREE.Scene();
@@ -336,53 +337,57 @@ export function ThreeDView({
       return { x: dx / len, y: dy / len };
     };
 
-    const w0 = getUnitVector(corners[0], corners[1]); // top
-    const w1 = getUnitVector(corners[1], corners[2]); // right
-    const w2 = getUnitVector(corners[2], corners[3]); // bottom
-    const w3 = getUnitVector(corners[3], corners[0]); // left
-
-    const getSinTheta = (v1: { x: number; y: number }, v2: { x: number; y: number }) => {
-      return Math.max(0.1, Math.abs(v1.x * v2.y - v1.y * v2.x));
-    };
-
-    const sin0 = getSinTheta(w3, w0); // corner 0 (left-top)
-    const sin1 = getSinTheta(w0, w1); // corner 1 (top-right)
-    const sin2 = getSinTheta(w1, w2); // corner 2 (right-bottom)
-    const sin3 = getSinTheta(w2, w3); // corner 3 (bottom-left)
-
+    const isPolygonRoom = corners.length !== 4;
     const halfThick = wallThickness / 2;
 
-    const wallOffsets = {
-      top: {
-        start: -halfThick / sin0,
-        end: halfThick / sin1,
-      },
-      right: {
-        start: halfThick / sin1,
-        end: -halfThick / sin2,
-      },
-      bottom: {
-        start: -halfThick / sin2,
-        end: halfThick / sin3,
-      },
-      left: {
-        start: halfThick / sin3,
-        end: -halfThick / sin0,
-      },
-    };
+    // Rectangular rooms (the overwhelming common case) keep the exact
+    // original precise-miter math: each corner's offset is
+    // halfThick/sin(interior angle), which produces a clean mitered joint
+    // at any angle. Polygon rooms (L/T-shaped hallways) are, by
+    // construction (see hallway-shapes.ts), built entirely from 90/270
+    // degree corners -- sin(90)=1 and |sin(270)|=1, so the precise formula
+    // reduces to exactly halfThick at every corner regardless of convex vs.
+    // concave. That means a flat "extend every wall by halfThick at both
+    // ends" is not an approximation here, it's the same math simplified for
+    // the one corner-angle family these shapes ever use, and it sidesteps
+    // needing a general convex/concave sign convention for an N-gon.
+    let wallOffsets: Record<string, { start: number; end: number }> = {};
+    if (!isPolygonRoom) {
+      const w0 = getUnitVector(corners[0], corners[1]); // top
+      const w1 = getUnitVector(corners[1], corners[2]); // right
+      const w2 = getUnitVector(corners[2], corners[3]); // bottom
+      const w3 = getUnitVector(corners[3], corners[0]); // left
+
+      const getSinTheta = (v1: { x: number; y: number }, v2: { x: number; y: number }) => {
+        return Math.max(0.1, Math.abs(v1.x * v2.y - v1.y * v2.x));
+      };
+
+      const sin0 = getSinTheta(w3, w0); // corner 0 (left-top)
+      const sin1 = getSinTheta(w0, w1); // corner 1 (top-right)
+      const sin2 = getSinTheta(w1, w2); // corner 2 (right-bottom)
+      const sin3 = getSinTheta(w2, w3); // corner 3 (bottom-left)
+
+      wallOffsets = {
+        top: { start: -halfThick / sin0, end: halfThick / sin1 },
+        right: { start: halfThick / sin1, end: -halfThick / sin2 },
+        bottom: { start: -halfThick / sin2, end: halfThick / sin3 },
+        left: { start: halfThick / sin3, end: -halfThick / sin0 },
+      };
+    }
 
     const walls: {
-      side: "top" | "bottom" | "left" | "right";
+      side: string | number;
       group: THREE.Group;
       currentOpacity: number;
+      // Only set for polygon-room walls -- used by the generic camera-fade
+      // test below instead of the axis-aligned top/bottom/left/right
+      // heuristic, which assumes a rectangular room.
+      normal?: { x: number; z: number };
+      mid?: { x: number; z: number };
     }[] = [];
 
     // Helper function to build segments for a single wall
-    const buildWallSegments = (
-      wallSide: "top" | "bottom" | "left" | "right",
-      ptA: Point,
-      ptB: Point,
-    ) => {
+    const buildWallSegments = (wallSide: string | number, ptA: Point, ptB: Point) => {
       const ax = ptA.x - roomW / 2;
       const az = ptA.y - roomL / 2;
       const bx = ptB.x - roomW / 2;
@@ -402,16 +407,24 @@ export function ThreeDView({
       wallGroup.rotation.y = rotationY;
 
       // Clone base materials to fade each wall group independently
+      const colorKey = typeof wallSide === "string" ? wallSide : String(wallSide);
       const localWallMat = wallMat.clone();
-      localWallMat.color.set(wallColors[wallSide] || "#f1f5f9");
+      localWallMat.color.set(wallColors[colorKey] || "#f1f5f9");
 
       const localGlassMat = glassMat.clone();
       const localWoodMat = woodMat.clone();
 
+      // "bottom"/"left" are walked in reverse of forward-winding order in
+      // the legacy named convention (see hallway-shapes.ts), so their
+      // opening positions need flipping to a start-from-ptA measurement.
+      // Numeric (polygon-room) walls are always forward-winding already.
+      const isReversedNamedWall =
+        typeof wallSide === "string" && (wallSide === "bottom" || wallSide === "left");
+
       const wallOpenings = openings
         .filter((o) => o.wall === wallSide)
         .map((o) => {
-          if (wallSide === "bottom" || wallSide === "left") {
+          if (isReversedNamedWall) {
             return {
               ...o,
               position: length - o.position - o.width,
@@ -421,8 +434,12 @@ export function ThreeDView({
         })
         .sort((a, b) => a.position - b.position);
 
-      const startOffset = wallOffsets[wallSide].start;
-      const endOffset = wallOffsets[wallSide].end;
+      const offsets =
+        typeof wallSide === "string"
+          ? wallOffsets[wallSide]
+          : { start: -halfThick, end: halfThick };
+      const startOffset = offsets.start;
+      const endOffset = offsets.end;
 
       const segments: { start: number; end: number }[] = [];
       let lastPos = startOffset;
@@ -539,9 +556,8 @@ export function ThreeDView({
           }
           const leafMesh = new THREE.Mesh(leafGeo, localDoorLeafMat);
 
-          const isReversed = wallSide === "bottom" || wallSide === "left";
           const isStart = (o.hinge || "start") === "start";
-          const isStart3D = isReversed ? !isStart : isStart;
+          const isStart3D = isReversedNamedWall ? !isStart : isStart;
 
           if (isStart3D) {
             leafMesh.geometry.translate(doorWidth / 2, 0, 0);
@@ -587,17 +603,32 @@ export function ThreeDView({
       }
 
       scene.add(wallGroup);
+      // Outward-facing normal of this wall segment, for the generic
+      // camera-fade test polygon rooms use below (rectangular rooms keep
+      // the original axis-aligned top/bottom/left/right heuristic and
+      // don't need this). corners are wound clockwise on screen -- (dz,-dx)
+      // is that winding's outward normal in the room's centered (x,z)
+      // plane, verified against known wall directions in hallway-shapes.ts.
+      const normal = { x: dz / length, z: -dx / length };
       walls.push({
         side: wallSide,
         group: wallGroup,
         currentOpacity: 1.0,
+        normal,
+        mid: { x: centerX, z: centerZ },
       });
     };
 
-    buildWallSegments("top", corners[0], corners[1]);
-    buildWallSegments("right", corners[1], corners[2]);
-    buildWallSegments("bottom", corners[2], corners[3]);
-    buildWallSegments("left", corners[3], corners[0]);
+    if (!isPolygonRoom) {
+      buildWallSegments("top", corners[0], corners[1]);
+      buildWallSegments("right", corners[1], corners[2]);
+      buildWallSegments("bottom", corners[2], corners[3]);
+      buildWallSegments("left", corners[3], corners[0]);
+    } else {
+      for (const seg of wallSegments(corners)) {
+        buildWallSegments(seg.index, seg.a, seg.b);
+      }
+    }
 
     // --- Render Placed Items ---
     const activeItemMeshes = new Map<string, THREE.Mesh>();
@@ -898,6 +929,14 @@ export function ThreeDView({
           isBlocking = true;
         } else if (w.side === "right" && camX > roomW * 0.1) {
           isBlocking = true;
+        } else if (typeof w.side === "number" && w.normal && w.mid) {
+          // Generic version of the same test for a polygon (hallway) room's
+          // walls, which aren't axis-aligned so "top/bottom/left/right"
+          // doesn't apply: blocking if the camera sits on the outward side
+          // of this wall's own plane, past a margin scaled to the room.
+          const threshold = Math.max(roomW, roomL) * 0.1;
+          const dot = (camX - w.mid.x) * w.normal.x + (camZ - w.mid.z) * w.normal.z;
+          if (dot > threshold) isBlocking = true;
         }
 
         if (isBlocking) {

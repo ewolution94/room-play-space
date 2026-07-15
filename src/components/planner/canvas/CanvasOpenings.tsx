@@ -1,5 +1,6 @@
 import React from "react";
 import type { Opening, Point } from "@/types/planner";
+import { resolveWallSegment } from "@/lib/hallway-shapes";
 
 interface CanvasOpeningsProps {
   openings: Opening[];
@@ -28,18 +29,10 @@ export function CanvasOpenings({
     <>
       {openings.map((o) => {
         // Find start and end corners for the wall
-        let ptA = corners[0];
-        let ptB = corners[1];
-        if (o.wall === "right") {
-          ptA = corners[1];
-          ptB = corners[2];
-        } else if (o.wall === "bottom") {
-          ptA = corners[3];
-          ptB = corners[2]; // left-to-right
-        } else if (o.wall === "left") {
-          ptA = corners[0];
-          ptB = corners[3]; // top-to-bottom
-        }
+        const seg = resolveWallSegment(corners, o.wall);
+        if (!seg) return null;
+        const ptA = seg.a;
+        const ptB = seg.b;
 
         // Calculate wall vector, length, and unit vector
         const dx = ptB.x - ptA.x;

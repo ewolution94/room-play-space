@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import type { RoomLayout, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { obbOverlap, resolveSweptMove } from "@/lib/planner-math";
+import { resolveWallSegment, insetRectilinearPolygon } from "@/lib/hallway-shapes";
 import {
   FLOOR_W,
   FLOOR_L,
@@ -489,6 +490,20 @@ export function MultiRoomCanvas({
       prev.map((r) => {
         if (r.id !== selectedRoomId) return r;
 
+        // A polygon (L/T-shaped hallway) room's width/length are a derived
+        // bounding box, not an independent editable pair -- there's no
+        // single well-defined way to "resize" an L-shape from one number,
+        // so the width/length quick-edit fields don't apply to it (the
+        // Inspector hides them for a hallway; this guard is defense in
+        // depth against rebuilding its corners into a plain rectangle if
+        // a width/length patch reaches here some other way).
+        const isPolygon = !!r.corners && r.corners.length !== 4;
+        if (isPolygon && (patch.width !== undefined || patch.length !== undefined)) {
+          const { width: _w, length: _l, ...rest } = patch;
+          patch = rest;
+          if (Object.keys(patch).length === 0) return r;
+        }
+
         let nextPatch = patch;
 
         // Width/length changes used to be applied directly with no collision
@@ -508,7 +523,8 @@ export function MultiRoomCanvas({
 
         const updated = { ...r, ...nextPatch };
 
-        // Re-scale corners if width/length changed
+        // Re-scale corners if width/length changed (rectangular rooms only
+        // -- see the polygon guard above).
         if (nextPatch.width !== undefined || nextPatch.length !== undefined) {
           const w = updated.width;
           const l = updated.length;
@@ -794,18 +810,23 @@ export function MultiRoomCanvas({
               const isDragging = activeDragIds.has(room.id);
               const isBlocked = blockedRoomIds.has(room.id);
 
-              // The miniature preview's viewBox is normally an exact
-              // room.width x room.length box, so a door leaf swinging
-              // outward (drawn past the wall line, i.e. at negative/beyond
-              // bounds coordinates) falls entirely outside it and never
-              // renders. Pad the viewBox on every side by just enough to
-              // fit the widest outward-swinging door's leaf -- rooms with
-              // no outward doors get zero padding, so their preview is
-              // pixel-identical to before.
-              const outSwingPad = room.openings.reduce((max, op) => {
-                if (op.kind !== "door" || (op.swing || "in") !== "out") return max;
-                return Math.max(max, op.width * 0.6 + 6);
-              }, 0);
+              // The room's own polygon, defaulting to a plain rectangle for
+              // any room saved before `corners` existed. The thumbnail
+              // below renders this shape directly (a true L/T outline for
+              // a hallway instead of a plain rect) -- the outer card itself
+              // stays a simple rounded-rectangle selection frame either way
+              // (matches every other room card; the thumbnail is what
+              // actually communicates the floor shape).
+              const roomCorners =
+                room.corners && room.corners.length >= 4
+                  ? room.corners
+                  : [
+                      { x: 0, y: 0 },
+                      { x: room.width, y: 0 },
+                      { x: room.width, y: room.length },
+                      { x: 0, y: room.length },
+                    ];
+              const isPolygonRoom = roomCorners.length !== 4;
 
               return (
                 <div
@@ -841,23 +862,38 @@ export function MultiRoomCanvas({
                     <svg
                       width="100%"
                       height="100%"
-                      viewBox={`${-outSwingPad} ${-outSwingPad} ${room.width + 2 * outSwingPad} ${room.length + 2 * outSwingPad}`}
+                      viewBox={`0 0 ${room.width} ${room.length}`}
                       preserveAspectRatio="none"
                       className="w-full h-full bg-card"
                     >
                       {/* Floor background block grid (subtle CAD grid) */}
                       <rect width={room.width} height={room.length} className="fill-card" />
 
-                      {/* Thick CAD outer walls (8cm thickness) */}
-                      <rect
-                        x={4}
-                        y={4}
-                        width={room.width - 8}
-                        height={room.length - 8}
-                        fill="none"
-                        className="stroke-zinc-800 dark:stroke-zinc-300"
-                        strokeWidth={8}
-                      />
+                      {/* Thick CAD outer walls (8cm thickness) -- a plain
+                          inset rect for a rectangular room (unchanged), or
+                          the room's true (inset) polygon outline for an
+                          L/T-shaped hallway. */}
+                      {isPolygonRoom ? (
+                        <polygon
+                          points={insetRectilinearPolygon(roomCorners, 4)
+                            .map((c) => `${c.x},${c.y}`)
+                            .join(" ")}
+                          fill="none"
+                          className="stroke-zinc-800 dark:stroke-zinc-300"
+                          strokeWidth={8}
+                          strokeLinejoin="round"
+                        />
+                      ) : (
+                        <rect
+                          x={4}
+                          y={4}
+                          width={room.width - 8}
+                          height={room.length - 8}
+                          fill="none"
+                          className="stroke-zinc-800 dark:stroke-zinc-300"
+                          strokeWidth={8}
+                        />
+                      )}
 
                       {/* CAD Dimension lines inside the room */}
                       {/* Width Dimension */}
@@ -965,7 +1001,40 @@ export function MultiRoomCanvas({
                           oy = 0,
                           ow = op.width,
                           ol = 8;
-                        if (op.wall === "top") {
+                        let isHorizontal = op.wall === "top" || op.wall === "bottom";
+
+                        if (typeof op.wall === "number") {
+                          // Polygon (hallway) room -- numeric walls are
+                          // always forward-winding (see hallway-shapes.ts),
+                          // so the gap rect is the bounding box of the
+                          // opening's span along the wall plus an inward
+                          // extension by the same 8-unit thickness the
+                          // named-wall path below uses.
+                          const seg = resolveWallSegment(roomCorners, op.wall);
+                          if (!seg) return null;
+                          const dx = seg.b.x - seg.a.x;
+                          const dy = seg.b.y - seg.a.y;
+                          const segLen = Math.hypot(dx, dy) || 1;
+                          const ux = dx / segLen;
+                          const uy = dy / segLen;
+                          const inX = -uy;
+                          const inY = ux;
+                          const gapThick = 8;
+                          const p1 = { x: seg.a.x + ux * op.position, y: seg.a.y + uy * op.position };
+                          const p2 = {
+                            x: seg.a.x + ux * (op.position + op.width),
+                            y: seg.a.y + uy * (op.position + op.width),
+                          };
+                          const p3 = { x: p1.x + inX * gapThick, y: p1.y + inY * gapThick };
+                          const p4 = { x: p2.x + inX * gapThick, y: p2.y + inY * gapThick };
+                          const xsAll = [p1.x, p2.x, p3.x, p4.x];
+                          const ysAll = [p1.y, p2.y, p3.y, p4.y];
+                          ox = Math.min(...xsAll);
+                          oy = Math.min(...ysAll);
+                          ow = Math.max(...xsAll) - ox;
+                          ol = Math.max(...ysAll) - oy;
+                          isHorizontal = Math.abs(ux) > Math.abs(uy);
+                        } else if (op.wall === "top") {
                           ox = op.position;
                           oy = 0;
                           ow = op.width;
@@ -986,8 +1055,6 @@ export function MultiRoomCanvas({
                           ow = 8;
                           ol = op.width;
                         }
-
-                        const isHorizontal = op.wall === "top" || op.wall === "bottom";
 
                         if (op.kind === "window") {
                           return (
@@ -1031,18 +1098,12 @@ export function MultiRoomCanvas({
                             </g>
                           );
                         } else {
-                          // Door representation (Always draws the wall gap, hides frames and leaf line if hideDoors is enabled)
-                          // The leaf's pivot side and swing direction mirror the
-                          // room's own hinge/swing settings (editable in the
-                          // single-room view's inspector) instead of a fixed
-                          // "hinge at start, swing in" assumption -- purely
-                          // visual, this has no bearing on room-vs-room
-                          // collision, which only ever considers each room's
-                          // rectangular wall footprint (see planner-math.ts).
-                          const hinge = op.hinge || "start";
-                          const swing = op.swing || "in";
-                          const doorW = op.width;
-
+                          // Door representation -- deliberately just the gap
+                          // in the wall line, with no leaf, swing arc, or
+                          // hinge marker drawn. Keeps the overview reading
+                          // as a clean floor plan rather than a detailed
+                          // door schedule; hinge/swing are still fully
+                          // editable and rendered in the single-room view.
                           return (
                             <g key={op.id}>
                               {/* Gap in wall */}
@@ -1053,78 +1114,6 @@ export function MultiRoomCanvas({
                                 height={ol}
                                 className="fill-card stroke-none"
                               />
-
-                              {/* Frame ticks and simple door leaf line */}
-                              {!room.hideDoors &&
-                                (isHorizontal
-                                  ? (() => {
-                                      const interiorSign = op.wall === "top" ? 1 : -1;
-                                      const perpSign = interiorSign * (swing === "in" ? 1 : -1);
-                                      const pivotX = hinge === "start" ? ox : ox + ow;
-                                      const tipDirX = hinge === "start" ? 1 : -1;
-                                      return (
-                                        <>
-                                          <line
-                                            x1={ox}
-                                            y1={oy}
-                                            x2={ox}
-                                            y2={oy + ol}
-                                            className="stroke-zinc-800 dark:stroke-zinc-300"
-                                            strokeWidth={1.5}
-                                          />
-                                          <line
-                                            x1={ox + ow}
-                                            y1={oy}
-                                            x2={ox + ow}
-                                            y2={oy + ol}
-                                            className="stroke-zinc-800 dark:stroke-zinc-300"
-                                            strokeWidth={1.5}
-                                          />
-                                          <line
-                                            x1={pivotX}
-                                            y1={oy + ol / 2}
-                                            x2={pivotX + tipDirX * doorW * 0.8}
-                                            y2={oy + ol / 2 + perpSign * doorW * 0.6}
-                                            className="stroke-zinc-800 dark:stroke-zinc-300"
-                                            strokeWidth={1.5}
-                                          />
-                                        </>
-                                      );
-                                    })()
-                                  : (() => {
-                                      const interiorSign = op.wall === "left" ? 1 : -1;
-                                      const perpSign = interiorSign * (swing === "in" ? 1 : -1);
-                                      const pivotY = hinge === "start" ? oy : oy + ol;
-                                      const tipDirY = hinge === "start" ? 1 : -1;
-                                      return (
-                                        <>
-                                          <line
-                                            x1={ox}
-                                            y1={oy}
-                                            x2={ox + ow}
-                                            y2={oy}
-                                            className="stroke-zinc-800 dark:stroke-zinc-300"
-                                            strokeWidth={1.5}
-                                          />
-                                          <line
-                                            x1={ox}
-                                            y1={oy + ol}
-                                            x2={ox + ow}
-                                            y2={oy + ol}
-                                            className="stroke-zinc-800 dark:stroke-zinc-300"
-                                            strokeWidth={1.5}
-                                          />
-                                          <line
-                                            x1={ox + ow / 2}
-                                            y1={pivotY}
-                                            x2={ox + ow / 2 + perpSign * doorW * 0.6}
-                                            y2={pivotY + tipDirY * doorW * 0.8}
-                                            className="stroke-zinc-800 dark:stroke-zinc-300"
-                                            strokeWidth={1.5}
-                                          />
-                                        </>
-                                      );
-                                    })())}
                             </g>
                           );
                         }

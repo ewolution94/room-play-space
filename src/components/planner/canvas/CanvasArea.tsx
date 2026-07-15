@@ -1,5 +1,11 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { CanvasAreaProps } from "@/types/planner";
+import {
+  wallSegments,
+  resolveWallSegment,
+  wallColorKey,
+  wallOutwardNormal,
+} from "@/lib/hallway-shapes";
 import { ThreeDView } from "../ThreeDView";
 import { HintBanner } from "./HintBanner";
 import { RoomDimensionBadge } from "./RoomDimensionBadge";
@@ -71,6 +77,7 @@ export function CanvasArea({
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
   const [enableCornerDrag, setEnableCornerDrag] = useState(false);
+  const [showWallIds, setShowWallIds] = useState(false);
 
   // Floating Inspector state
   const [inspectorPos, setInspectorPos] = useState({ x: 16, y: 80 });
@@ -247,21 +254,9 @@ export function CanvasArea({
   const clampOpeningsToWalls = () => {
     setOpenings((prev) =>
       prev.map((o) => {
-        let ptA = corners[0];
-        let ptB = corners[1];
-        if (o.wall === "right") {
-          ptA = corners[1];
-          ptB = corners[2];
-        } else if (o.wall === "bottom") {
-          ptA = corners[3];
-          ptB = corners[2];
-        } else if (o.wall === "left") {
-          ptA = corners[0];
-          ptB = corners[3];
-        }
-        const wallLength = Math.sqrt(
-          Math.pow(ptB.x - ptA.x, 2) + Math.pow(ptB.y - ptA.y, 2)
-        );
+        const seg = resolveWallSegment(corners, o.wall);
+        if (!seg) return o;
+        const wallLength = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
         const maxPos = Math.max(0, wallLength - o.width);
         const clampedPos = Math.min(maxPos, Math.max(0, o.position));
         if (clampedPos === o.position) return o;
@@ -391,86 +386,98 @@ export function CanvasArea({
                   />
                 )}
 
-                {/* --- Wall segments in 2D with inner color highlighting --- */}
-                {/* Top Wall (c0 -> c1) */}
-                <line
-                  x1={cm(corners[0].x)}
-                  y1={cm(corners[0].y)}
-                  x2={cm(corners[1].x)}
-                  y2={cm(corners[1].y)}
-                  className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(6)}
-                  strokeLinecap="round"
-                />
-                <line
-                  x1={cm(corners[0].x)}
-                  y1={cm(corners[0].y)}
-                  x2={cm(corners[1].x)}
-                  y2={cm(corners[1].y)}
-                  stroke={wallColors.top || "#f1f5f9"}
-                  strokeWidth={cm(4)}
-                  strokeLinecap="round"
-                />
+                {/* --- Wall segments in 2D with inner color highlighting ---
+                    Looped over every edge of the room's polygon (4 for a
+                    plain rectangle, 6-8 for an L/T-shaped hallway) instead
+                    of 4 hardcoded named segments. A <line>'s visual result
+                    doesn't depend on which endpoint is "a" vs "b", so this
+                    is pixel-identical to the old hardcoded top/right/
+                    bottom/left blocks for every existing rectangular room. */}
+                {wallSegments(corners).map((seg) => {
+                  const colorKey = wallColorKey(seg.index, corners.length);
+                  return (
+                    <React.Fragment key={seg.index}>
+                      <line
+                        x1={cm(seg.a.x)}
+                        y1={cm(seg.a.y)}
+                        x2={cm(seg.b.x)}
+                        y2={cm(seg.b.y)}
+                        className="stroke-slate-700 dark:stroke-slate-400"
+                        strokeWidth={cm(6)}
+                        strokeLinecap="round"
+                      />
+                      <line
+                        x1={cm(seg.a.x)}
+                        y1={cm(seg.a.y)}
+                        x2={cm(seg.b.x)}
+                        y2={cm(seg.b.y)}
+                        stroke={wallColors[colorKey] || "#f1f5f9"}
+                        strokeWidth={cm(4)}
+                        strokeLinecap="round"
+                      />
+                    </React.Fragment>
+                  );
+                })}
 
-                {/* Right Wall (c1 -> c2) */}
-                <line
-                  x1={cm(corners[1].x)}
-                  y1={cm(corners[1].y)}
-                  x2={cm(corners[2].x)}
-                  y2={cm(corners[2].y)}
-                  className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(6)}
-                  strokeLinecap="round"
-                />
-                <line
-                  x1={cm(corners[1].x)}
-                  y1={cm(corners[1].y)}
-                  x2={cm(corners[2].x)}
-                  y2={cm(corners[2].y)}
-                  stroke={wallColors.right || "#f1f5f9"}
-                  strokeWidth={cm(4)}
-                  strokeLinecap="round"
-                />
-
-                {/* Bottom Wall (c3 -> c2, left-to-right) */}
-                <line
-                  x1={cm(corners[3].x)}
-                  y1={cm(corners[3].y)}
-                  x2={cm(corners[2].x)}
-                  y2={cm(corners[2].y)}
-                  className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(6)}
-                  strokeLinecap="round"
-                />
-                <line
-                  x1={cm(corners[3].x)}
-                  y1={cm(corners[3].y)}
-                  x2={cm(corners[2].x)}
-                  y2={cm(corners[2].y)}
-                  stroke={wallColors.bottom || "#f1f5f9"}
-                  strokeWidth={cm(4)}
-                  strokeLinecap="round"
-                />
-
-                {/* Left Wall (c0 -> c3, top-to-bottom) */}
-                <line
-                  x1={cm(corners[0].x)}
-                  y1={cm(corners[0].y)}
-                  x2={cm(corners[3].x)}
-                  y2={cm(corners[3].y)}
-                  className="stroke-slate-700 dark:stroke-slate-400"
-                  strokeWidth={cm(6)}
-                  strokeLinecap="round"
-                />
-                <line
-                  x1={cm(corners[0].x)}
-                  y1={cm(corners[0].y)}
-                  x2={cm(corners[3].x)}
-                  y2={cm(corners[3].y)}
-                  stroke={wallColors.left || "#f1f5f9"}
-                  strokeWidth={cm(4)}
-                  strokeLinecap="round"
-                />
+                {/* Wall id/number labels -- opt-in debug overlay so users can
+                    tell which wall is which when picking one in the
+                    Add Door/Window dialog (which uses this exact same
+                    named-for-rectangles / 1-based-index-for-polygons
+                    convention, see OpeningsDialog.tsx). Offset outward from
+                    the wall's midpoint by a constant number of screen pixels
+                    (not room-cm) so the label stays a fixed, readable size no
+                    matter the zoom level. The offset itself accounts for the
+                    badge's own half-width/half-height along the normal
+                    direction -- a wide "Bottom" badge sitting beside a
+                    vertical wall needs to be pushed out further than a
+                    narrow "3" badge would, otherwise a wide badge's near
+                    edge ends up hugging the wall even though its center is
+                    the same distance away. */}
+                {showWallIds &&
+                  wallSegments(corners).map((seg) => {
+                    const midX = cm((seg.a.x + seg.b.x) / 2);
+                    const midY = cm((seg.a.y + seg.b.y) / 2);
+                    const n = wallOutwardNormal(seg.a, seg.b);
+                    const label =
+                      corners.length === 4
+                        ? t[wallColorKey(seg.index, 4) as "top" | "right" | "bottom" | "left"]
+                        : String(seg.index + 1);
+                    // Badge width scales with label length (named walls like
+                    // "Bottom" need noticeably more room than a 1-2 digit
+                    // wall number) with generous horizontal padding so the
+                    // text never crowds the badge edges.
+                    const padX = 10;
+                    const charW = 6.5;
+                    const boxW = Math.max(22, Math.round(label.length * charW + padX * 2));
+                    const boxH = 20;
+                    const wallGap = 12; // visible gap between the wall and the badge's near edge
+                    const halfExtent = Math.abs(n.x) * (boxW / 2) + Math.abs(n.y) * (boxH / 2);
+                    const labelOffset = wallGap + halfExtent;
+                    const lx = midX + n.x * labelOffset;
+                    const ly = midY + n.y * labelOffset;
+                    return (
+                      <g key={`wall-id-${seg.index}`}>
+                        <rect
+                          x={lx - boxW / 2}
+                          y={ly - boxH / 2}
+                          width={boxW}
+                          height={boxH}
+                          rx={5}
+                          className="fill-primary stroke-none"
+                        />
+                        <text
+                          x={lx}
+                          y={ly}
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          className="fill-primary-foreground"
+                          style={{ fontSize: 11, fontWeight: 600 }}
+                        >
+                          {label}
+                        </text>
+                      </g>
+                    );
+                  })}
               </svg>
 
               {/* openings */}
@@ -570,6 +577,24 @@ export function CanvasArea({
                         <HelpCircle 
                           className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" 
                         />
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={showWallIds}
+                      onChange={(e) => setShowWallIds(e.target.checked)}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                    />
+                    <span className="flex items-center gap-1">
+                      {lang === "de" ? "Wandnummern anzeigen" : "Show Wall Numbers"}
+                      <span
+                        title={lang === "de" ? "Zeigt die Wand-ID neben jeder Wand an -- praktisch, um die richtige Wand im Tür-/Fenster-Dialog auszuwählen." : "Shows each wall's id next to it on the canvas -- handy for picking the right wall in the Add Door/Window dialog."}
+                        className="cursor-help inline-flex items-center"
+                      >
+                        <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
                       </span>
                     </span>
                   </label>

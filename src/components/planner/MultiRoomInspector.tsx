@@ -144,48 +144,40 @@ export function MultiRoomInspector({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">{lang === "de" ? "Breite (cm)" : "Width (cm)"}</Label>
-                  <NumberField
-                    min={50}
-                    max={1500}
-                    value={selectedRoom.width}
-                    onCommit={(w) => updateSelectedRoom({ width: w })}
-                    className="h-8 text-xs mt-1"
-                  />
+              {selectedRoom.corners && selectedRoom.corners.length !== 4 ? (
+                <div className="rounded-lg border bg-muted/20 p-2.5 text-[10.5px] text-muted-foreground leading-relaxed">
+                  {lang === "de"
+                    ? `Grundriss: ${Math.round(selectedRoom.width)} × ${Math.round(selectedRoom.length)} cm (Begrenzungsrahmen). Ein L/T-Flur wird über seine Form angelegt, nicht über Breite/Länge -- lösche und erstelle ihn neu, um die Form zu ändern.`
+                    : `Footprint: ${Math.round(selectedRoom.width)} × ${Math.round(selectedRoom.length)} cm (bounding box). An L/T hallway's shape is set at creation, not by width/length -- delete and re-create it to change the shape.`}
                 </div>
-                <div>
-                  <Label className="text-xs">{lang === "de" ? "Länge (cm)" : "Length (cm)"}</Label>
-                  <NumberField
-                    min={50}
-                    max={1500}
-                    value={selectedRoom.length}
-                    onCommit={(l) => updateSelectedRoom({ length: l })}
-                    className="h-8 text-xs mt-1"
-                  />
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">
+                      {lang === "de" ? "Breite (cm)" : "Width (cm)"}
+                    </Label>
+                    <NumberField
+                      min={50}
+                      max={1500}
+                      value={selectedRoom.width}
+                      onCommit={(w) => updateSelectedRoom({ width: w })}
+                      className="h-8 text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">
+                      {lang === "de" ? "Länge (cm)" : "Length (cm)"}
+                    </Label>
+                    <NumberField
+                      min={50}
+                      max={1500}
+                      value={selectedRoom.length}
+                      onCommit={(l) => updateSelectedRoom({ length: l })}
+                      className="h-8 text-xs mt-1"
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-2.5 shadow-sm transition-colors hover:bg-muted/30 mt-1 select-none">
-                <div className="flex flex-col gap-0.5 pointer-events-none">
-                  <span className="text-[11px] font-bold text-foreground">
-                    {lang === "de" ? "Türen ausblenden" : "Hide Door Swings"}
-                  </span>
-                  <span className="text-[9.5px] text-muted-foreground leading-normal">
-                    {lang === "de" ? "Zeigt nur Wandöffnungen" : "Shows wall openings only"}
-                  </span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!!selectedRoom.hideDoors}
-                    onChange={(e) => updateSelectedRoom({ hideDoors: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-8 h-4.5 bg-zinc-300 dark:bg-zinc-700 rounded-full peer peer-checked:after:translate-x-[14px] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-sky-600 dark:peer-checked:bg-sky-500"></div>
-                </label>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2 pt-1.5">
                 <Button

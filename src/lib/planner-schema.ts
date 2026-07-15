@@ -10,7 +10,10 @@ export const importSchema = z.object({
     .array(
       z.object({
         id: z.string().optional(),
-        wall: z.enum(["top", "bottom", "left", "right"]),
+        // Plain rectangular rooms address a wall by name (unchanged).
+        // Polygon rooms (L/T-shaped hallways) address a wall by its numeric
+        // index into `corners` -- see src/lib/hallway-shapes.ts.
+        wall: z.union([z.enum(["top", "bottom", "left", "right"]), z.number().int().min(0)]),
         position: z.number().min(0).max(10000),
         width: z.number().min(0).max(5000),
         kind: z.enum(["door", "window"]),

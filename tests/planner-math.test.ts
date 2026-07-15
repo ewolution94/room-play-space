@@ -212,6 +212,55 @@ describe("collidesWithOthers", () => {
   });
 });
 
+describe("clampPos", () => {
+  test("keeps an item fully inside a rectangular room, inset by half the wall thickness", () => {
+    const item = makeItem({ width: 50, length: 40 });
+    const c = clampPos(item, roomCorners(300, 200), -100, -100);
+    assert.equal(c.x, 3); // halfThick inset
+    assert.equal(c.y, 3);
+  });
+
+  test("clamps against the far edge the same way", () => {
+    const item = makeItem({ width: 50, length: 40 });
+    const c = clampPos(item, roomCorners(300, 200), 10000, 10000);
+    assert.equal(c.x, 300 - 3 - 50);
+    assert.equal(c.y, 200 - 3 - 40);
+  });
+
+  test("an in-bounds position passes through unchanged", () => {
+    const item = makeItem({ width: 50, length: 40 });
+    const c = clampPos(item, roomCorners(300, 200), 100, 80);
+    assert.equal(c.x, 100);
+    assert.equal(c.y, 80);
+  });
+
+  test("for a polygon (L-shaped) room, clamps to the shape's bounding box (not the exact concave outline)", () => {
+    // A 6-corner L occupying x:[0,300], y:[0,300] with a notch cut out of
+    // the top-right region -- clampPos is documented to use the bounding
+    // box as an approximation, so a position inside the notch is still
+    // accepted rather than pushed out.
+    const lCorners = [
+      { x: 0, y: 0 },
+      { x: 120, y: 0 },
+      { x: 120, y: 180 },
+      { x: 300, y: 180 },
+      { x: 300, y: 300 },
+      { x: 0, y: 300 },
+    ];
+    const item = makeItem({ width: 20, length: 20 });
+    // Inside the notch (x:150-170, y:20-40) -- outside the physical L, but
+    // within its bounding box.
+    const c = clampPos(item, lCorners, 150, 20);
+    assert.equal(c.x, 150);
+    assert.equal(c.y, 20);
+
+    // Still clamps against the bounding box's outer edges.
+    const clampedFar = clampPos(item, lCorners, 10000, 10000);
+    assert.equal(clampedFar.x, 300 - 3 - 20);
+    assert.equal(clampedFar.y, 300 - 3 - 20);
+  });
+});
+
 describe("findFreeSpot", () => {
   test("returns the item's own area when the room is empty", () => {
     const item = makeItem({ width: 50, length: 50 });

@@ -12,11 +12,23 @@ export function clampPos(item: Item, corners: Point[], x: number, y: number) {
   const cx = x + item.width / 2;
   const cy = y + item.length / 2;
 
+  // Interior usable area is the polygon's own bounding box, inset by half
+  // the wall thickness on every side. For a plain axis-aligned rectangle
+  // this is identical to the old corners[0]/[1]/[2]/[3]-indexed formula (the
+  // min/max of all 4 corners equals those specific pairs for a rectangle);
+  // for a polygon room (an L/T-shaped hallway) it's a deliberate
+  // simplification -- furniture is clamped to the shape's bounding box
+  // rather than hugging the exact concave outline, so it's possible to
+  // (rarely) place something in the "notch" that's technically outside the
+  // floor. Full point-in-polygon clamping was scoped out in favor of this
+  // approximation.
   const halfThick = 3; // 3cm offset to account for half of the 6cm wall thickness
-  const leftBound = Math.max(corners[0].x, corners[3].x) + halfThick;
-  const rightBound = Math.min(corners[1].x, corners[2].x) - halfThick;
-  const topBound = Math.max(corners[0].y, corners[1].y) + halfThick;
-  const bottomBound = Math.min(corners[2].y, corners[3].y) - halfThick;
+  const xs = corners.map((c) => c.x);
+  const ys = corners.map((c) => c.y);
+  const leftBound = Math.min(...xs) + halfThick;
+  const rightBound = Math.max(...xs) - halfThick;
+  const topBound = Math.min(...ys) + halfThick;
+  const bottomBound = Math.max(...ys) - halfThick;
 
   const w = Math.max(10, rightBound - leftBound);
   const l = Math.max(10, bottomBound - topBound);
@@ -163,10 +175,16 @@ export function findFreeSpot(
   collisionEnabled = true,
 ): { x: number; y: number } | null {
   const step = 10;
-  const leftBound = Math.max(corners[0].x, corners[3].x);
-  const rightBound = Math.min(corners[1].x, corners[2].x);
-  const topBound = Math.max(corners[0].y, corners[1].y);
-  const bottomBound = Math.min(corners[2].y, corners[3].y);
+  // Bounding box of the room's own polygon -- see clampPos above for why
+  // this is behavior-identical to the old 4-indexed-corner formula for a
+  // plain rectangle, and an intentional bounding-box approximation for a
+  // polygon (hallway) room.
+  const xs = corners.map((c) => c.x);
+  const ys = corners.map((c) => c.y);
+  const leftBound = Math.min(...xs);
+  const rightBound = Math.max(...xs);
+  const topBound = Math.min(...ys);
+  const bottomBound = Math.max(...ys);
 
   // Try to find a non-overlapping spot first (always nice to avoid stacking)
   for (let y = topBound; y <= bottomBound; y += step) {

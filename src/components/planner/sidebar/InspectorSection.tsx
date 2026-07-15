@@ -22,6 +22,15 @@ import {
 } from "lucide-react";
 import type { Item, Opening, Point } from "@/types/planner";
 import { getDefaultHeight } from "../ThreeDView";
+import { wallColorKey } from "@/lib/hallway-shapes";
+
+// Friendly display label for a wall identity -- named ("top"/"right"/...)
+// for a plain rectangular room, "Wall N" for a polygon (hallway) room where
+// there's no natural top/bottom/left/right concept once it has 6-8 walls.
+function wallLabel(wall: Opening["wall"], t: any, lang: string): string {
+  if (typeof wall === "number") return lang === "de" ? `Wand ${wall + 1}` : `Wall ${wall + 1}`;
+  return t[wall] || wall;
+}
 
 const SWATCHES = [
   { name: "Charcoal", value: "#343a40" },
@@ -259,7 +268,7 @@ export function InspectorSection({
         <div className="flex items-center gap-1 shrink-0">
           {selectedOpening ? (
             <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold capitalize">
-              {t[selectedOpening.wall] || selectedOpening.wall}
+              {wallLabel(selectedOpening.wall, t, lang)}
             </span>
           ) : selectedIds.size > 0 ? (
             <span className="bg-primary/20 text-primary rounded-full px-1.5 py-0.5 text-[9px] font-bold">
@@ -286,7 +295,7 @@ export function InspectorSection({
             <div className="flex items-center gap-2">
               <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all flex-1 h-8 px-2 text-xs font-semibold select-none capitalize">
                 <Sliders className="h-3.5 w-3.5 mr-1.5 text-muted-foreground/75 shrink-0" />
-                {selectedOpening.kind === "door" ? t.door : t.window} · {t[selectedOpening.wall] || selectedOpening.wall}
+                {selectedOpening.kind === "door" ? t.door : t.window} · {wallLabel(selectedOpening.wall, t, lang)}
               </div>
               <div className="flex gap-1 shrink-0">
                 <Button
@@ -758,11 +767,13 @@ export function InspectorSection({
                 {lang === "de" ? "Wandfarben (2D/3D)" : "Wall Colors (2D/3D)"}
               </Label>
               <div className="grid grid-cols-2 gap-2">
-                {(["top", "right", "bottom", "left"] as const).map((side) => {
-                  const currentColor = wallColors?.[side] || "#f1f5f9";
+                {Array.from({ length: corners.length }, (_, i) => i).map((i) => {
+                  const key = wallColorKey(i, corners.length);
+                  const currentColor = wallColors?.[key] || "#f1f5f9";
+                  const label = corners.length === 4 ? t[key] || key : wallLabel(i, t, lang);
                   return (
                     <div
-                      key={side}
+                      key={key}
                       className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200"
                     >
                       {/* Color Preview & Native Picker */}
@@ -778,17 +789,17 @@ export function InspectorSection({
                             const newCol = e.target.value;
                             setWallColors((prev) => ({
                               ...prev,
-                              [side]: newCol,
+                              [key]: newCol,
                             }));
                           }}
                           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                          title={`${t[side] || side} color`}
+                          title={`${label} color`}
                           disabled={threeDActive}
                         />
                       </div>
                       <div className="flex flex-col min-w-0">
                         <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
-                          {t[side] || side}
+                          {label}
                         </span>
                         <span className="text-[8.5px] text-muted-foreground font-mono truncate uppercase leading-none">
                           {currentColor}

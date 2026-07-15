@@ -6,11 +6,13 @@ import {
   rotateRoomLayout,
   duplicateRoomLayout,
   createRoomLayout,
+  createHallwayLayout,
   removeRoomLayout,
   clampRoomResize,
   generateRandomRoomLayout,
 } from "@/lib/multi-room-actions";
 import { obbOverlap } from "@/lib/planner-math";
+import { wallSegments, buildLHallwayCorners } from "@/lib/hallway-shapes";
 import type { RoomLayout } from "@/types/planner";
 
 function makeRoom(overrides: Partial<RoomLayout> = {}): RoomLayout {
@@ -118,6 +120,165 @@ describe("rotateRoomLayout", () => {
     const result = rotateRoomLayout([room, other], "r1", true);
     const untouched = result.find((r) => r.id === "r2")!;
     assert.deepEqual(untouched, other);
+  });
+
+  test("rebuilds corners fresh from the new width/length for a rectangular room (no stale pre-rotation shape)", () => {
+    const room = makeRoom({ id: "r1", width: 300, length: 200 });
+    const result = rotateRoomLayout([room], "r1", true);
+    const rotated = result.find((r) => r.id === "r1")!;
+    assert.deepEqual(rotated.corners, [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 200, y: 300 },
+      { x: 0, y: 300 },
+    ]);
+  });
+
+  test("a polygon (L-shaped) room rotates its corners instead of swapping width/length by name", () => {
+    const { corners } = buildLHallwayCorners(120, 300, 260, false);
+    const room = makeRoom({
+      id: "r1",
+      width: 300,
+      length: 260,
+      corners,
+      openings: [{ id: "op-1", wall: 3, position: 10, width: 90, kind: "door" }],
+    });
+    const result = rotateRoomLayout([room], "r1", true);
+    const rotated = result.find((r) => r.id === "r1")!;
+
+    // Bounding box swaps (rotating an L that's 300 wide / 260 tall by 90
+    // degrees yields a shape that's 260 wide / 300 tall).
+    assert.equal(rotated.width, 260);
+    assert.equal(rotated.length, 300);
+    assert.equal(rotated.corners!.length, 6);
+
+    // The polygon path leaves openings completely untouched -- wall index
+    // and position stay valid across rotation by construction.
+    assert.deepEqual(rotated.openings, room.openings);
+
+    // Every wall's own length is preserved under rotation (rigid transform).
+    const beforeLens = wallSegments(corners).map((s) => Math.round(s.length));
+    const afterLens = wallSegments(rotated.corners!).map((s) => Math.round(s.length));
+    assert.deepEqual(afterLens, beforeLens);
+  });
+
+  test("a colliding rotation is blocked the same way for polygon rooms as for rectangles", () => {
+    // Bounding box is 300 wide x 260 tall before rotating, 260 wide x 300
+    // tall after. A neighbor placed just below the pre-rotation bbox (with
+    // a 10cm gap) doesn't collide before rotating, but the taller
+    // post-rotation bbox reaches down into it.
+    const { corners } = buildLHallwayCorners(120, 300, 260, false);
+    const room = makeRoom({ id: "r1", x: 0, y: 0, width: 300, length: 260, corners });
+    const neighbor = makeRoom({ id: "r2", x: 0, y: 270, width: 300, length: 100 });
+    const result = rotateRoomLayout([room, neighbor], "r1", true);
+    const unchanged = result.find((r) => r.id === "r1")!;
+    assert.equal(unchanged.rotation, 0);
+    assert.equal(unchanged.width, 300);
+    assert.equal(unchanged.length, 260);
+  });
+});
+
+describe("createHallwayLayout", () => {
+  test("a straight hallway is a plain rectangle with doors on both short ends", () => {
+    const hallway = createHallwayLayout([], {
+      name: "Hallway",
+      shape: "straight",
+      armWidth: 120,
+      legX: 400,
+      legY: 0,
+      color: "#a8a29e",
+    });
+    assert.equal(hallway.width, 400);
+    assert.equal(hallway.length, 120);
+    assert.equal(hallway.corners!.length, 4);
+    assert.equal(hallway.roomKind, "hallway");
+    assert.equal(hallway.openings.length, 2);
+    assert.ok(hallway.openings.every((o) => o.kind === "door"));
+    assert.deepEqual(
+      hallway.openings.map((o) => o.wall).sort(),
+      ["left", "right"],
+    );
+  });
+
+  test("an L-shaped hallway has 6 corners and a door on each of the two end walls", () => {
+    const hallway = createHallwayLayout([], {
+      name: "Hallway",
+      shape: "l",
+      armWidth: 120,
+      legX: 300,
+      legY: 300,
+      color: "#a8a29e",
+    });
+    assert.equal(hallway.corners!.length, 6);
+    assert.equal(hallway.openings.length, 2);
+    assert.deepEqual(
+      hallway.openings.map((o) => o.wall).sort(),
+      [0, 3],
+    );
+    // Each door should actually fit within its (armWidth-long) wall.
+    for (const o of hallway.openings) {
+      assert.ok(o.width <= 120);
+      assert.ok(o.position >= 0);
+      assert.ok(o.position + o.width <= 120);
+    }
+  });
+
+  test("a T-shaped hallway has 8 corners and a door on each of the three end walls", () => {
+    const hallway = createHallwayLayout([], {
+      name: "Hallway",
+      shape: "t",
+      armWidth: 120,
+      legX: 360,
+      legY: 200,
+      color: "#a8a29e",
+    });
+    assert.equal(hallway.corners!.length, 8);
+    assert.equal(hallway.openings.length, 3);
+    assert.deepEqual(
+      hallway.openings.map((o) => o.wall).sort(),
+      [1, 4, 7],
+    );
+  });
+
+  test("l-mirrored produces a different (but same-size) shape than l", () => {
+    const a = createHallwayLayout([], {
+      name: "A",
+      shape: "l",
+      armWidth: 120,
+      legX: 300,
+      legY: 300,
+      color: "#000",
+    });
+    const b = createHallwayLayout([], {
+      name: "B",
+      shape: "l-mirrored",
+      armWidth: 120,
+      legX: 300,
+      legY: 300,
+      color: "#000",
+    });
+    assert.equal(a.width, b.width);
+    assert.equal(a.length, b.length);
+    assert.notDeepEqual(a.corners, b.corners);
+  });
+
+  test("auto-placed hallway does not collide with an existing room", () => {
+    const existing = createRoomLayout([], { name: "A", width: 500, length: 500, color: "#000" });
+    const hallway = createHallwayLayout([existing], {
+      name: "Hallway",
+      shape: "straight",
+      armWidth: 120,
+      legX: 400,
+      legY: 0,
+      color: "#a8a29e",
+    });
+    assert.equal(
+      obbOverlap(
+        { x: existing.x, y: existing.y, width: existing.width, length: existing.length, rotation: 0 },
+        { x: hallway.x, y: hallway.y, width: hallway.width, length: hallway.length, rotation: 0 },
+      ),
+      false,
+    );
   });
 });
 
