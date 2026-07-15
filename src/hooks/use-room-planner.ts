@@ -14,6 +14,7 @@ import type {
   MarqueeState,
   DragState,
   UseRoomPlannerReturn,
+  RoomLayout,
 } from "@/types/planner";
 import { STRINGS } from "@/lib/planner-translations";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/lib/planner-math";
 import { importSchema } from "@/lib/planner-schema";
 import { getDefaultHeight } from "@/lib/planner-presets";
+import { computeAutoOpenWalls, resolveEffectiveOpenWalls } from "@/lib/room-adjacency";
 
 // Typical desk/table/counter height (cm) -- the default elevation a
 // newly-placed "on-top" item (lamp, laptop, vase, ...) gets so the 3D view
@@ -52,20 +54,35 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     if (typeof window !== "undefined") window.localStorage.setItem("planner-lang", lang);
   }, [lang]);
 
-  // Load data for a specific room if requested
-  const getInitialRoomData = () => {
-    if (typeof window === "undefined" || !roomId) return null;
+  // Load data for a specific room if requested. Also hangs onto the full
+  // sibling list (read once, at mount) purely so `openWalls` below can
+  // auto-detect which of *this* room's walls touch a neighbor's -- siblings
+  // are never referenced again after this, and are not kept reactive: the
+  // single-room and multi-room views are different routes, so there's no
+  // way to be looking at a sibling's live position while editing this room.
+  const getInitialRoomData = (): { room: any; siblings: RoomLayout[] } => {
+    if (typeof window === "undefined" || !roomId) return { room: null, siblings: [] };
     try {
       const saved = window.localStorage.getItem("planner-multi-rooms");
-      if (!saved) return null;
-      const rooms = JSON.parse(saved);
-      return rooms.find((r: any) => r.id === roomId) || null;
+      if (!saved) return { room: null, siblings: [] };
+      const siblings: RoomLayout[] = JSON.parse(saved);
+      return { room: siblings.find((r) => r.id === roomId) || null, siblings };
     } catch (e) {
       console.error("Failed to load room data from localStorage", e);
-      return null;
+      return { room: null, siblings: [] };
     }
   };
-  const initialRoom = getInitialRoomData();
+  const { room: initialRoom, siblings: initialSiblings } = getInitialRoomData();
+
+  // Which of this room's walls are effectively open (auto-detected touching
+  // a sibling, or an explicit override on the room itself). Computed once
+  // from the same snapshot the rest of this room's initial state comes from
+  // -- see RoomLayout.wallOverrides and room-adjacency.ts.
+  const [openWalls] = useState<Set<string>>(() => {
+    if (!initialRoom) return new Set<string>();
+    const autoOpen = computeAutoOpenWalls(initialSiblings).get(initialRoom.id) ?? new Set();
+    return resolveEffectiveOpenWalls(initialRoom, autoOpen);
+  });
 
   const [roomW, setRoomW] = useState(() => initialRoom?.width ?? 480);
   const [roomL, setRoomL] = useState(() => initialRoom?.length ?? 360);
@@ -1192,5 +1209,6 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     setWallColors,
     selectedOpeningId,
     setSelectedOpeningId,
+    openWalls,
   };
 }

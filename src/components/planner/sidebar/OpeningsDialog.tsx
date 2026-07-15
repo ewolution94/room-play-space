@@ -33,6 +33,11 @@ interface OpeningsDialogProps {
    * rectangular room (named wall picker, unchanged), anything else for a
    * polygon (L/T-shaped hallway) room (numeric "Wall N" picker). */
   cornersCount: number;
+  /** Wall keys (wallColorKey() format) that are currently open (the
+   * "0-4 walls" feature -- see room-adjacency.ts). There's nothing to cut
+   * a door/window into on an open wall, so it's excluded from the picker
+   * entirely. */
+  openWalls: Set<string>;
 }
 
 export function OpeningsDialog({
@@ -51,21 +56,38 @@ export function OpeningsDialog({
   setOWidth,
   addOpening,
   cornersCount,
+  openWalls,
 }: OpeningsDialogProps) {
   const isPolygon = cornersCount !== 4;
+  const NAMED_WALLS = ["top", "right", "bottom", "left"] as const;
+  const availableNamedWalls = NAMED_WALLS.filter((w) => !openWalls.has(w));
+  const availableWallIndices = Array.from({ length: cornersCount }, (_, i) => i).filter(
+    (i) => !openWalls.has(String(i)),
+  );
 
   // Keep the selected wall valid for whichever room is currently open --
   // switching from a rectangular room to a hallway (or back) while this
   // dialog's state is still around shouldn't leave a stale/invalid value
-  // selected in the dropdown.
+  // selected in the dropdown. Also re-picks a wall if the currently
+  // selected one just became open (nothing to hang a door/window on
+  // anymore).
   useEffect(() => {
     if (isPolygon && typeof oWall === "string") {
-      setOWall(0);
+      setOWall(availableWallIndices[0] ?? 0);
     } else if (!isPolygon && typeof oWall === "number") {
-      setOWall("top");
+      setOWall(availableNamedWalls[0] ?? "top");
+    } else if (isPolygon && openWalls.has(String(oWall)) && availableWallIndices.length > 0) {
+      setOWall(availableWallIndices[0]);
+    } else if (
+      !isPolygon &&
+      typeof oWall === "string" &&
+      openWalls.has(oWall) &&
+      availableNamedWalls.length > 0
+    ) {
+      setOWall(availableNamedWalls[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPolygon]);
+  }, [isPolygon, openWalls]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,17 +151,25 @@ export function OpeningsDialog({
                   }
                 >
                   {isPolygon ? (
-                    Array.from({ length: cornersCount }, (_, i) => (
+                    availableWallIndices.map((i) => (
                       <option key={i} value={i} className="bg-background">
                         {lang === "de" ? `Wand ${i + 1}` : `Wall ${i + 1}`}
                       </option>
                     ))
                   ) : (
                     <>
-                      <option value="top" className="bg-background">{t.top}</option>
-                      <option value="bottom" className="bg-background">{t.bottom}</option>
-                      <option value="left" className="bg-background">{t.left}</option>
-                      <option value="right" className="bg-background">{t.right}</option>
+                      {!openWalls.has("top") && (
+                        <option value="top" className="bg-background">{t.top}</option>
+                      )}
+                      {!openWalls.has("bottom") && (
+                        <option value="bottom" className="bg-background">{t.bottom}</option>
+                      )}
+                      {!openWalls.has("left") && (
+                        <option value="left" className="bg-background">{t.left}</option>
+                      )}
+                      {!openWalls.has("right") && (
+                        <option value="right" className="bg-background">{t.right}</option>
+                      )}
                     </>
                   )}
                 </select>

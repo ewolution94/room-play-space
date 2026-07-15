@@ -117,6 +117,7 @@ function RoomPlannerWrapper() {
           setWallColors={planner.setWallColors}
           selectedOpeningId={planner.selectedOpeningId}
           setSelectedOpeningId={planner.setSelectedOpeningId}
+          openWalls={planner.openWalls}
         />
 
         {/* Right column: Drawing Stage */}
@@ -177,6 +178,7 @@ function RoomPlannerWrapper() {
           removeSelected={planner.removeSelected}
           updateOpening={planner.updateOpening}
           removeOpening={planner.removeOpening}
+          openWalls={planner.openWalls}
         />
       </div>
     </div>

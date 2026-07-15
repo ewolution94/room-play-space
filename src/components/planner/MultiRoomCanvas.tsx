@@ -1,8 +1,14 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import type { RoomLayout, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { obbOverlap, resolveSweptMove } from "@/lib/planner-math";
-import { resolveWallSegment, insetRectilinearPolygon } from "@/lib/hallway-shapes";
+import {
+  resolveWallSegment,
+  insetRectilinearPolygon,
+  wallSegments,
+  wallColorKey,
+} from "@/lib/hallway-shapes";
+import { computeAutoOpenWalls, resolveEffectiveOpenWalls } from "@/lib/room-adjacency";
 import {
   FLOOR_W,
   FLOOR_L,
@@ -61,6 +67,12 @@ export function MultiRoomCanvas({
   const [activeDragIds, setActiveDragIds] = useState<Set<string>>(new Set());
   const [blockedRoomIds, setBlockedRoomIds] = useState<Set<string>>(new Set());
   const blockedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Which of each room's walls touch a neighbor's wall right now -- the
+  // "0-4 walls" feature's auto-suggestion half (see room-adjacency.ts).
+  // Recomputed whenever the room list changes (drag, resize, add/remove);
+  // O(rooms^2) but floor plans here run to tens of rooms, not thousands.
+  const autoOpenWalls = useMemo(() => computeAutoOpenWalls(rooms), [rooms]);
 
   // Floating draggable inspector state -- mirrors the single-room planner's
   // floating Inspector panel in CanvasArea.tsx exactly, so editing a room's
@@ -827,6 +839,14 @@ export function MultiRoomCanvas({
                       { x: 0, y: room.length },
                     ];
               const isPolygonRoom = roomCorners.length !== 4;
+              // Merges this room's manual wallOverrides on top of the
+              // auto-detected touching-neighbor set above -- see
+              // room-adjacency.ts. A wall in here gets no outline drawn at
+              // all below, an actual gap rather than a doorway-sized one.
+              const effectiveOpenWalls = resolveEffectiveOpenWalls(
+                room,
+                autoOpenWalls.get(room.id) ?? new Set(),
+              );
 
               return (
                 <div
@@ -869,31 +889,32 @@ export function MultiRoomCanvas({
                       {/* Floor background block grid (subtle CAD grid) */}
                       <rect width={room.width} height={room.length} className="fill-card" />
 
-                      {/* Thick CAD outer walls (8cm thickness) -- a plain
-                          inset rect for a rectangular room (unchanged), or
-                          the room's true (inset) polygon outline for an
-                          L/T-shaped hallway. */}
-                      {isPolygonRoom ? (
-                        <polygon
-                          points={insetRectilinearPolygon(roomCorners, 4)
-                            .map((c) => `${c.x},${c.y}`)
-                            .join(" ")}
-                          fill="none"
-                          className="stroke-zinc-800 dark:stroke-zinc-300"
-                          strokeWidth={8}
-                          strokeLinejoin="round"
-                        />
-                      ) : (
-                        <rect
-                          x={4}
-                          y={4}
-                          width={room.width - 8}
-                          height={room.length - 8}
-                          fill="none"
-                          className="stroke-zinc-800 dark:stroke-zinc-300"
-                          strokeWidth={8}
-                        />
-                      )}
+                      {/* Thick CAD outer walls (8cm thickness), drawn as
+                          independent per-wall segments (rather than one
+                          closed outline) so any wall that's effectively
+                          open -- see room-adjacency.ts -- can be skipped
+                          entirely, leaving a real gap in the thumbnail
+                          instead of a closed box. Uses the same inset
+                          corner points for a rectangular room as the old
+                          hardcoded x=4/y=4/width-8/height-8 rect (verified
+                          in hallway-shapes.test.ts), so closed rooms render
+                          pixel-identical to before. */}
+                      {wallSegments(insetRectilinearPolygon(roomCorners, 4)).map((seg) => {
+                        const key = wallColorKey(seg.index, roomCorners.length);
+                        if (effectiveOpenWalls.has(key)) return null;
+                        return (
+                          <line
+                            key={seg.index}
+                            x1={seg.a.x}
+                            y1={seg.a.y}
+                            x2={seg.b.x}
+                            y2={seg.b.y}
+                            className="stroke-zinc-800 dark:stroke-zinc-300"
+                            strokeWidth={8}
+                            strokeLinecap="round"
+                          />
+                        );
+                      })}
 
                       {/* CAD Dimension lines inside the room */}
                       {/* Width Dimension */}
@@ -995,8 +1016,14 @@ export function MultiRoomCanvas({
                         {room.name}
                       </text>
 
-                      {/* Openings (Doors/Windows) simplified representation */}
+                      {/* Openings (Doors/Windows) simplified representation.
+                          An opening whose wall is now effectively open is
+                          skipped (not deleted -- see MultiRoomInspector.tsx)
+                          since there's no wall left to draw it on. */}
                       {room.openings.map((op) => {
+                        const wallKey = typeof op.wall === "string" ? op.wall : String(op.wall);
+                        if (effectiveOpenWalls.has(wallKey)) return null;
+
                         let ox = 0,
                           oy = 0,
                           ow = op.width,
@@ -1218,6 +1245,9 @@ export function MultiRoomCanvas({
               lang={lang}
               selectedRoom={rooms.find((r) => r.id === selectedRoomId) || null}
               selectedRoomIds={selectedRoomIds}
+              autoOpenWalls={
+                selectedRoomId ? (autoOpenWalls.get(selectedRoomId) ?? new Set()) : new Set()
+              }
               updateSelectedRoom={updateSelectedRoom}
               rotateRoom={rotateRoom}
               duplicateRoom={duplicateRoom}

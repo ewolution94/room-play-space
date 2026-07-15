@@ -5,7 +5,7 @@ import type { Item, Opening, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
 import { getDefaultHeight } from "@/lib/planner-presets";
-import { wallSegments } from "@/lib/hallway-shapes";
+import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
 
 // Re-exported for existing consumers (e.g. InspectorSection.tsx imports
 // this from "../ThreeDView") -- the implementation now lives in
@@ -23,6 +23,11 @@ interface ThreeDViewProps {
   corners: Point[];
   wallColors: Record<string, string>;
   isDark?: boolean;
+  // Wall keys (wallColorKey() format) that are effectively open -- see
+  // room-adjacency.ts. A wall in this set gets no geometry at all (not even
+  // a wide doorway), a true archway through to whatever is on the other
+  // side.
+  openWalls: Set<string>;
 }
 
 function parseColor(hex: string): { r: number; g: number; b: number } {
@@ -134,6 +139,7 @@ export function ThreeDView({
   corners,
   wallColors,
   isDark = false,
+  openWalls,
 }: ThreeDViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -619,13 +625,19 @@ export function ThreeDView({
       });
     };
 
+    // A wall in `openWalls` (the "0-4 walls" feature -- see
+    // room-adjacency.ts) gets buildWallSegments skipped entirely rather
+    // than built-then-hidden: no geometry means a true archway through to
+    // whatever room is on the other side, not just an unusually wide
+    // doorway.
     if (!isPolygonRoom) {
-      buildWallSegments("top", corners[0], corners[1]);
-      buildWallSegments("right", corners[1], corners[2]);
-      buildWallSegments("bottom", corners[2], corners[3]);
-      buildWallSegments("left", corners[3], corners[0]);
+      if (!openWalls.has("top")) buildWallSegments("top", corners[0], corners[1]);
+      if (!openWalls.has("right")) buildWallSegments("right", corners[1], corners[2]);
+      if (!openWalls.has("bottom")) buildWallSegments("bottom", corners[2], corners[3]);
+      if (!openWalls.has("left")) buildWallSegments("left", corners[3], corners[0]);
     } else {
       for (const seg of wallSegments(corners)) {
+        if (openWalls.has(wallColorKey(seg.index, corners.length))) continue;
         buildWallSegments(seg.index, seg.a, seg.b);
       }
     }
@@ -1006,7 +1018,7 @@ export function ThreeDView({
       controlsRef.current = null;
       cameraRef.current = null;
     };
-  }, [roomW, roomL, items, openings, selectedIds, showNames, corners, wallColors, isDark]);
+  }, [roomW, roomL, items, openings, selectedIds, showNames, corners, wallColors, isDark, openWalls]);
 
   // Is German language active?
   const isDe = t.title === "Raumplaner";

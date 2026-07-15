@@ -96,6 +96,18 @@ export interface RoomLayout {
   // the UI. A hallway may still be a plain rectangle (corners.length === 4,
   // a "straight" hallway) or a polygon (L/T shape, corners.length > 4).
   roomKind?: "room" | "hallway";
+  // Explicit per-wall overrides for the "0-4 walls" feature (rooms can have
+  // any subset of their walls removed to merge with a touching neighbor into
+  // one continuous space). Keyed exactly like `wallColors` (see
+  // wallColorKey() in hallway-shapes.ts: named for a 4-corner room, numeric
+  // index for a polygon room). `true` forces a wall open regardless of
+  // adjacency, `false` forces it closed even if it's touching a neighbor,
+  // and an absent key means "let auto-detected adjacency decide" -- see
+  // computeAutoOpenWalls() in room-adjacency.ts. Collision, furniture
+  // clamping, and each room's own footprint are entirely unaffected by this
+  // -- it is purely which wall segments get drawn/extruded and which walls
+  // can host a door/window.
+  wallOverrides?: Record<string, boolean>;
 }
 
 export interface Point {
@@ -196,6 +208,7 @@ export interface SidebarProps {
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
+  openWalls: Set<string>;
 }
 
 export interface CanvasAreaProps {
@@ -255,6 +268,10 @@ export interface CanvasAreaProps {
   removeSelected: () => void;
   updateOpening: (id: string, patch: Partial<Opening>) => void;
   removeOpening: (id: string) => void;
+  // Wall keys (wallColorKey() format) that are effectively open -- merges
+  // this room's own wallOverrides with adjacency auto-detected against its
+  // siblings in the multi-room overview. See room-adjacency.ts.
+  openWalls: Set<string>;
 }
 
 export interface TourOverlayProps {
@@ -374,4 +391,5 @@ export interface UseRoomPlannerReturn {
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
+  openWalls: Set<string>;
 }

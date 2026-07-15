@@ -74,6 +74,7 @@ export function CanvasArea({
   removeSelected,
   updateOpening,
   removeOpening,
+  openWalls,
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
   const [enableCornerDrag, setEnableCornerDrag] = useState(false);
@@ -311,6 +312,7 @@ export function CanvasArea({
             corners={corners}
             wallColors={wallColors}
             isDark={isDark}
+            openWalls={openWalls}
           />
         ) : (
           scale > 0 && (
@@ -392,9 +394,15 @@ export function CanvasArea({
                     of 4 hardcoded named segments. A <line>'s visual result
                     doesn't depend on which endpoint is "a" vs "b", so this
                     is pixel-identical to the old hardcoded top/right/
-                    bottom/left blocks for every existing rectangular room. */}
+                    bottom/left blocks for every existing rectangular room.
+                    A wall whose key is in `openWalls` (the "0-4 walls"
+                    feature -- either auto-detected as touching a neighbor
+                    in the multi-room overview, or manually forced open) is
+                    skipped entirely: no line, no color, an actual gap in
+                    the floor plan rather than just a wide doorway. */}
                 {wallSegments(corners).map((seg) => {
                   const colorKey = wallColorKey(seg.index, corners.length);
+                  if (openWalls.has(colorKey)) return null;
                   return (
                     <React.Fragment key={seg.index}>
                       <line
@@ -435,6 +443,8 @@ export function CanvasArea({
                     the same distance away. */}
                 {showWallIds &&
                   wallSegments(corners).map((seg) => {
+                    const colorKey = wallColorKey(seg.index, corners.length);
+                    if (openWalls.has(colorKey)) return null;
                     const midX = cm((seg.a.x + seg.b.x) / 2);
                     const midY = cm((seg.a.y + seg.b.y) / 2);
                     const n = wallOutwardNormal(seg.a, seg.b);
@@ -491,6 +501,7 @@ export function CanvasArea({
                 lang={lang}
                 selectedOpeningId={selectedOpeningId}
                 setSelectedOpeningId={setSelectedOpeningId}
+                openWalls={openWalls}
               />
 
               {/* items */}

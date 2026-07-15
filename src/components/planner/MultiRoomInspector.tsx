@@ -15,14 +15,18 @@ import {
   GripVertical,
   LayoutGrid,
 } from "lucide-react";
-import type { RoomLayout } from "@/types/planner";
+import type { RoomLayout, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
+import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
 
 interface MultiRoomInspectorProps {
   t: TranslationStrings;
   lang: "en" | "de";
   selectedRoom: RoomLayout | null;
   selectedRoomIds: Set<string>;
+  // Wall keys (wallColorKey() format) auto-detected as touching a neighbor
+  // right now, for selectedRoom specifically -- see room-adjacency.ts.
+  autoOpenWalls: Set<string>;
   updateSelectedRoom: (patch: Partial<RoomLayout>) => void;
   rotateRoom: (id: string) => void;
   duplicateRoom: (id: string) => void;
@@ -46,6 +50,7 @@ export function MultiRoomInspector({
   lang,
   selectedRoom,
   selectedRoomIds,
+  autoOpenWalls,
   updateSelectedRoom,
   rotateRoom,
   duplicateRoom,
@@ -57,6 +62,43 @@ export function MultiRoomInspector({
   onHeaderPointerDown,
 }: MultiRoomInspectorProps) {
   const isBulk = selectedRoomIds.size > 1;
+
+  // Local (bounding-box-fallback) corners for whichever room is selected --
+  // same pattern used everywhere else a room's corners might not exist yet
+  // (rooms saved before `corners` did).
+  const roomCorners: Point[] = selectedRoom
+    ? selectedRoom.corners && selectedRoom.corners.length >= 3
+      ? selectedRoom.corners
+      : [
+          { x: 0, y: 0 },
+          { x: selectedRoom.width, y: 0 },
+          { x: selectedRoom.width, y: selectedRoom.length },
+          { x: 0, y: selectedRoom.length },
+        ]
+    : [];
+
+  // Sets (or clears, via `undefined`) a manual override for one wall of the
+  // selected room -- the "0-4 walls" feature (see room-adjacency.ts).
+  // Forcing a wall open is a deliberate action, so it clears any door/
+  // window already on it (there's nothing left to cut one into); clearing
+  // back to "Auto" or forcing closed never touches opening data.
+  const setWallOverride = (key: string, value: boolean | undefined) => {
+    if (!selectedRoom) return;
+    const nextOverrides = { ...(selectedRoom.wallOverrides ?? {}) };
+    if (value === undefined) {
+      delete nextOverrides[key];
+    } else {
+      nextOverrides[key] = value;
+    }
+    const patch: Partial<RoomLayout> = { wallOverrides: nextOverrides };
+    if (value === true) {
+      patch.openings = selectedRoom.openings.filter((o) => {
+        const wallKey = typeof o.wall === "string" ? o.wall : String(o.wall);
+        return wallKey !== key;
+      });
+    }
+    updateSelectedRoom(patch);
+  };
 
   return (
     <Card
@@ -178,6 +220,86 @@ export function MultiRoomInspector({
                   </div>
                 </div>
               )}
+
+              {/* "0-4 walls" feature: each wall can be Auto (follows
+                  whether it's touching a neighbor -- see room-adjacency.ts),
+                  forced Open, or forced Closed. Lets you compose complex
+                  layouts by placing simple rooms flush against each other
+                  and opening the shared walls, rather than needing one big
+                  custom polygon room. */}
+              <div className="rounded-lg border bg-muted/10 p-2.5 flex flex-col gap-2">
+                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {lang === "de" ? "Wände" : "Walls"}
+                </Label>
+                <div className="flex flex-col gap-1.5">
+                  {wallSegments(roomCorners).map((seg) => {
+                    const key = wallColorKey(seg.index, roomCorners.length);
+                    const override = selectedRoom.wallOverrides?.[key];
+                    const isTouching = autoOpenWalls.has(key);
+                    const label =
+                      roomCorners.length === 4
+                        ? t[key as "top" | "right" | "bottom" | "left"]
+                        : lang === "de"
+                          ? `Wand ${seg.index + 1}`
+                          : `Wall ${seg.index + 1}`;
+                    return (
+                      <div
+                        key={seg.index}
+                        className="flex items-center justify-between gap-2 text-[11px]"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="truncate">{label}</span>
+                          {isTouching && override === undefined && (
+                            <span className="shrink-0 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 px-1.5 py-0.5 text-[9px] font-semibold">
+                              {lang === "de" ? "berührt" : "touching"}
+                            </span>
+                          )}
+                        </span>
+                        <div className="flex items-center rounded-md border border-border overflow-hidden shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setWallOverride(key, undefined)}
+                            className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                              override === undefined
+                                ? "bg-primary text-primary-foreground"
+                                : "hover:bg-accent"
+                            }`}
+                            title={
+                              lang === "de"
+                                ? "Automatisch (basierend auf berührenden Nachbarräumen)"
+                                : "Auto (based on touching neighbors)"
+                            }
+                          >
+                            {lang === "de" ? "Auto" : "Auto"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWallOverride(key, true)}
+                            className={`px-1.5 py-1 text-[10px] font-medium transition-colors border-l border-border ${
+                              override === true
+                                ? "bg-primary text-primary-foreground"
+                                : "hover:bg-accent"
+                            }`}
+                          >
+                            {lang === "de" ? "Offen" : "Open"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWallOverride(key, false)}
+                            className={`px-1.5 py-1 text-[10px] font-medium transition-colors border-l border-border ${
+                              override === false
+                                ? "bg-primary text-primary-foreground"
+                                : "hover:bg-accent"
+                            }`}
+                          >
+                            {lang === "de" ? "Zu" : "Closed"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-2 pt-1.5">
                 <Button

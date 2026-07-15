@@ -12,6 +12,12 @@ interface CanvasOpeningsProps {
   lang: string;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
+  // Wall keys (wallColorKey() format) that are effectively open -- see
+  // room-adjacency.ts. An opening whose wall is now open is skipped
+  // (not deleted -- see MultiRoomInspector.tsx for why auto-detected opens
+  // deliberately don't touch saved opening data), so it reappears exactly
+  // where it was if the wall is later closed again.
+  openWalls: Set<string>;
 }
 
 export function CanvasOpenings({
@@ -24,10 +30,17 @@ export function CanvasOpenings({
   lang,
   selectedOpeningId,
   setSelectedOpeningId,
+  openWalls,
 }: CanvasOpeningsProps) {
   return (
     <>
       {openings.map((o) => {
+        // A wall that's currently open has nothing to hang a door/window on
+        // -- mirrors the same string-vs-numeric wall key convention used
+        // throughout (see ThreeDView.tsx's identical colorKey derivation).
+        const wallKey = typeof o.wall === "string" ? o.wall : String(o.wall);
+        if (openWalls.has(wallKey)) return null;
+
         // Find start and end corners for the wall
         const seg = resolveWallSegment(corners, o.wall);
         if (!seg) return null;

@@ -60,6 +60,7 @@ export function Sidebar({
   setWallColors,
   selectedOpeningId,
   setSelectedOpeningId,
+  openWalls,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"add" | "layers">("add");
   const [customBoxOpen, setCustomBoxOpen] = useState(false);
@@ -177,6 +178,7 @@ export function Sidebar({
                 setOWidth={setOWidth}
                 addOpening={addOpening}
                 cornersCount={corners.length}
+                openWalls={openWalls}
               />
             </div>
           </>
