@@ -5,6 +5,22 @@ export type Lang = "en" | "de";
 
 export type ItemKind = "furniture" | "chair";
 
+// Which "level" an item sits at in the room. "main" items are the
+// freestanding furniture that make up most of the catalog and collide with
+// each other normally. "under" items (rugs, mats) sit beneath everything
+// else and never collide with anything. "on-top" items (lamps, laptops,
+// vases) sit on top of a main item (a desk, a table) and also never
+// collide -- placement on a valid surface is a visual convention, not an
+// enforced constraint. Missing/undefined always means "main", so rooms
+// saved before this field existed keep behaving exactly as before.
+export type ItemLayer = "under" | "main" | "on-top";
+
+// Visual shape of the item's rendered swatch. The collision footprint is
+// always the item's width x length rectangle regardless of shape -- this
+// only affects how it's drawn (e.g. a round table renders as an inscribed
+// ellipse instead of a rectangle). Missing/undefined means "rect".
+export type ItemShape = "rect" | "circle";
+
 export interface Item {
   id: string;
   name: string;
@@ -18,6 +34,8 @@ export interface Item {
   icon?: string; // preset key, optional
   height?: number; // cm
   elevation?: number; // cm
+  layer?: ItemLayer; // defaults to "main"
+  shape?: ItemShape; // defaults to "rect"
 }
 
 export interface Preset {
@@ -30,6 +48,8 @@ export interface Preset {
   color: string;
   iconUrl?: string;
   h?: number; // default height in cm
+  layer?: ItemLayer; // defaults to "main"
+  shape?: ItemShape; // defaults to "rect"
 }
 
 export interface Opening {
@@ -140,6 +160,10 @@ export interface SidebarProps {
   setNL: (length: number) => void;
   nColor: string;
   setNColor: (color: string) => void;
+  nLayer: ItemLayer;
+  setNLayer: (layer: ItemLayer) => void;
+  nShape: ItemShape;
+  setNShape: (shape: ItemShape) => void;
   oKind: "door" | "window";
   setOKind: (kind: "door" | "window") => void;
   oWall: Opening["wall"];
@@ -292,6 +316,10 @@ export interface UseRoomPlannerReturn {
   setNL: React.Dispatch<React.SetStateAction<number>>;
   nColor: string;
   setNColor: React.Dispatch<React.SetStateAction<string>>;
+  nLayer: ItemLayer;
+  setNLayer: React.Dispatch<React.SetStateAction<ItemLayer>>;
+  nShape: ItemShape;
+  setNShape: React.Dispatch<React.SetStateAction<ItemShape>>;
   oKind: "door" | "window";
   setOKind: React.Dispatch<React.SetStateAction<"door" | "window">>;
   oWall: Opening["wall"];

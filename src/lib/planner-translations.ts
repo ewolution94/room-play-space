@@ -40,7 +40,10 @@ export const STRINGS = {
     tourNext: "Next",
     tourDone: "Done",
     tour: {
-      welcome: { title: "Welcome to Room Planner", body: "Let's take a quick 45-second tour of the features to design your dream layout!" },
+      welcome: {
+        title: "Welcome to Room Planner",
+        body: "Let's take a quick 45-second tour of the features to design your dream layout!",
+      },
       catalog: {
         title: "Catalog & Openings",
         body: "Click any furniture preset to drop it onto the grid, build custom boxes, or add doors and windows to the walls.",
@@ -95,13 +98,26 @@ export const STRINGS = {
     roomHeight: "Wall Height (cm)",
     categories: {
       seating: "Seating",
-      sleeping: "Sleeping",
+      sleeping: "Bedroom",
       tables: "Tables",
       storage: "Storage",
       kitchen: "Kitchen",
       bathroom: "Bathroom",
       decor: "Decor",
+      living: "Living Room",
+      dining: "Dining",
+      office: "Home Office",
+      entryway: "Entryway",
+      kids: "Kids Room",
+      outdoor: "Outdoor",
     } as Record<string, string>,
+    catalogLayers: {
+      main: "Main",
+      under: "Under",
+      "on-top": "On Top",
+    } as Record<string, string>,
+    catalogSearchPlaceholder: "Search items…",
+    catalogNoMatches: "No items match your search.",
     multiRoomTitle: "Floor Plan Planner",
     addRoom: "Add Room",
     deleteRoom: "Delete Room",
@@ -110,7 +126,8 @@ export const STRINGS = {
     backToRooms: "Back to Floor Plan",
     roomName: "Room Name",
     overviewGrid: "Floor Plan Grid",
-    dragRoomHint: "Drag rooms to arrange them. Collisions prevent overlaps. Click edit or double-click to design interior.",
+    dragRoomHint:
+      "Drag rooms to arrange them. Collisions prevent overlaps. Click edit or double-click to design interior.",
     roomColor: "Room Color",
   },
   de: {
@@ -212,13 +229,26 @@ export const STRINGS = {
     roomHeight: "Wandhöhe (cm)",
     categories: {
       seating: "Sitzmöbel",
-      sleeping: "Schlafen",
+      sleeping: "Schlafzimmer",
       tables: "Tische",
       storage: "Aufbewahrung",
       kitchen: "Küche",
       bathroom: "Bad",
       decor: "Deko",
+      living: "Wohnzimmer",
+      dining: "Esszimmer",
+      office: "Homeoffice",
+      entryway: "Flur",
+      kids: "Kinderzimmer",
+      outdoor: "Aussenbereich",
     } as Record<string, string>,
+    catalogLayers: {
+      main: "Hauptmöbel",
+      under: "Unterlagen",
+      "on-top": "Aufsätze",
+    } as Record<string, string>,
+    catalogSearchPlaceholder: "Elemente suchen…",
+    catalogNoMatches: "Keine Elemente gefunden.",
     multiRoomTitle: "Grundriss-Planer",
     addRoom: "Raum hinzufügen",
     deleteRoom: "Raum löschen",
@@ -227,7 +257,8 @@ export const STRINGS = {
     backToRooms: "Zurück zum Grundriss",
     roomName: "Raumname",
     overviewGrid: "Grundriss-Raster",
-    dragRoomHint: "Ziehe Räume, um sie anzuordnen. Kollisionserkennung verhindert Überlappungen. Klicke Bearbeiten oder Doppelklick zum Einrichten.",
+    dragRoomHint:
+      "Ziehe Räume, um sie anzuordnen. Kollisionserkennung verhindert Überlappungen. Klicke Bearbeiten oder Doppelklick zum Einrichten.",
     roomColor: "Raumfarbe",
   },
 } as const;
@@ -236,8 +267,8 @@ export type DeepWritable<T> = {
   -readonly [P in keyof T]: T[P] extends Function
     ? T[P]
     : T[P] extends object
-    ? DeepWritable<T[P]>
-    : string;
+      ? DeepWritable<T[P]>
+      : string;
 };
 
 export type TranslationStrings = DeepWritable<typeof STRINGS.en>;

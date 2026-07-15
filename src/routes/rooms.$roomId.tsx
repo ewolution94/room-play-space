@@ -91,6 +91,10 @@ function RoomPlannerWrapper() {
           setNL={planner.setNL}
           nColor={planner.nColor}
           setNColor={planner.setNColor}
+          nLayer={planner.nLayer}
+          setNLayer={planner.setNLayer}
+          nShape={planner.nShape}
+          setNShape={planner.setNShape}
           oKind={planner.oKind}
           setOKind={planner.setOKind}
           oWall={planner.oWall}

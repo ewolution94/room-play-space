@@ -4,6 +4,8 @@ import { z } from "zod";
 import type {
   Lang,
   Item,
+  ItemLayer,
+  ItemShape,
   Opening,
   Preset,
   Snapshot,
@@ -14,8 +16,29 @@ import type {
   UseRoomPlannerReturn,
 } from "@/types/planner";
 import { STRINGS } from "@/lib/planner-translations";
-import { clampPos, collidesWithOthers, findFreeSpot } from "@/lib/planner-math";
+import {
+  clampPos,
+  collidesWithOthers,
+  findFreeSpot,
+  computeOnTopElevation,
+} from "@/lib/planner-math";
 import { importSchema } from "@/lib/planner-schema";
+import { getDefaultHeight } from "@/lib/planner-presets";
+
+// Typical desk/table/counter height (cm) -- the default elevation a
+// newly-placed "on-top" item (lamp, laptop, vase, ...) gets so the 3D view
+// shows it sitting above the floor like it's resting on a surface, instead
+// of floating at floor level as a small box. Purely a starting point: the
+// Inspector's existing elevation field lets you fine-tune it per item to
+// match whatever it's actually meant to sit on.
+const ON_TOP_DEFAULT_ELEVATION = 75;
+
+// Real-world height of an item, used to figure out where an "on-top" item's
+// surface lands when something is auto-elevated onto it (see
+// computeOnTopElevation in planner-math.ts). Falls back through the same
+// catalog/legacy logic the 3D view already uses for items that don't carry
+// an explicit `height`.
+const itemHeight = (it: Item) => it.height ?? getDefaultHeight(it.icon, it.kind);
 
 export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   const [lang, setLang] = useState<Lang>("en");
@@ -51,97 +74,109 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   const dirty = draftW !== String(roomW) || draftL !== String(roomL);
   const [threeDActive, setThreeDActive] = useState(false);
   const [zoomFactor, setZoomFactor] = useState(1);
-  const [corners, setCorners] = useState<Point[]>(() => initialRoom?.corners ?? [
-    { x: 0, y: 0 },
-    { x: initialRoom?.width ?? 480, y: 0 },
-    { x: initialRoom?.width ?? 480, y: initialRoom?.length ?? 360 },
-    { x: 0, y: initialRoom?.length ?? 360 },
-  ]);
-  const [wallColors, setWallColors] = useState<Record<string, string>>(() => initialRoom?.wallColors ?? {
-    top: "#f1f5f9",
-    right: "#f1f5f9",
-    bottom: "#f1f5f9",
-    left: "#f1f5f9",
-  });
+  const [corners, setCorners] = useState<Point[]>(
+    () =>
+      initialRoom?.corners ?? [
+        { x: 0, y: 0 },
+        { x: initialRoom?.width ?? 480, y: 0 },
+        { x: initialRoom?.width ?? 480, y: initialRoom?.length ?? 360 },
+        { x: 0, y: initialRoom?.length ?? 360 },
+      ],
+  );
+  const [wallColors, setWallColors] = useState<Record<string, string>>(
+    () =>
+      initialRoom?.wallColors ?? {
+        top: "#f1f5f9",
+        right: "#f1f5f9",
+        bottom: "#f1f5f9",
+        left: "#f1f5f9",
+      },
+  );
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
   // Cozy living-room + work-nook default. Door is on the bottom wall near the
   // bottom-left corner with its swing arc landing on clear floor space.
-  const [items, setItems] = useState<Item[]>(() => initialRoom?.items ?? [
-    {
-      id: "default-desk",
-      name: "Desk",
-      width: 160,
-      length: 75,
-      color: "#c28a5e",
-      x: 160,
-      y: 15,
-      rotation: 0,
-      kind: "furniture",
-      icon: "desk",
-    },
-    {
-      id: "default-chair",
-      name: "Office chair",
-      width: 60,
-      length: 60,
-      color: "#556270",
-      x: 210,
-      y: 100,
-      rotation: 0,
-      kind: "chair",
-      icon: "chair-office",
-    },
-    {
-      id: "default-bookshelf",
-      name: "Bookshelf",
-      width: 30,
-      length: 200,
-      color: "#a07855",
-      x: 440,
-      y: 130,
-      rotation: 0,
-      kind: "furniture",
-      icon: "bookshelf",
-    },
-    {
-      id: "default-cabinet",
-      name: "Filing cabinet",
-      width: 60,
-      length: 45,
-      color: "#cfd8dc",
-      x: 340,
-      y: 15,
-      rotation: 0,
-      kind: "furniture",
-      icon: "filing-cabinet",
-    },
-    {
-      id: "default-plant",
-      name: "Plant",
-      width: 50,
-      length: 50,
-      color: "#4ade80",
-      x: 20,
-      y: 20,
-      rotation: 0,
-      kind: "furniture",
-      icon: "plant",
-    },
-  ]);
-  const [openings, setOpenings] = useState<Opening[]>(() => initialRoom?.openings ?? [
-    {
-      id: "default-door-1",
-      wall: "bottom",
-      position: 65,
-      width: 90,
-      kind: "door",
-      hinge: "start",
-      swing: "in",
-    },
-    { id: "default-window-1", wall: "top", position: 60, width: 120, kind: "window" },
-    { id: "default-window-2", wall: "right", position: 30, width: 80, kind: "window" },
-  ]);
+  const [items, setItems] = useState<Item[]>(
+    () =>
+      initialRoom?.items ?? [
+        {
+          id: "default-desk",
+          name: "Desk",
+          width: 160,
+          length: 75,
+          color: "#c28a5e",
+          x: 160,
+          y: 15,
+          rotation: 0,
+          kind: "furniture",
+          icon: "desk",
+        },
+        {
+          id: "default-chair",
+          name: "Office chair",
+          width: 60,
+          length: 60,
+          color: "#556270",
+          x: 210,
+          y: 100,
+          rotation: 0,
+          kind: "chair",
+          icon: "chair-office",
+        },
+        {
+          id: "default-bookshelf",
+          name: "Bookshelf",
+          width: 30,
+          length: 200,
+          color: "#a07855",
+          x: 440,
+          y: 130,
+          rotation: 0,
+          kind: "furniture",
+          icon: "bookshelf",
+        },
+        {
+          id: "default-cabinet",
+          name: "Filing cabinet",
+          width: 60,
+          length: 45,
+          color: "#cfd8dc",
+          x: 340,
+          y: 15,
+          rotation: 0,
+          kind: "furniture",
+          icon: "filing-cabinet",
+        },
+        {
+          id: "default-plant",
+          name: "Plant",
+          width: 50,
+          length: 50,
+          color: "#4ade80",
+          x: 20,
+          y: 20,
+          rotation: 0,
+          kind: "furniture",
+          icon: "plant",
+        },
+      ],
+  );
+  const [openings, setOpenings] = useState<Opening[]>(
+    () =>
+      initialRoom?.openings ?? [
+        {
+          id: "default-door-1",
+          wall: "bottom",
+          position: 65,
+          width: 90,
+          kind: "door",
+          hinge: "start",
+          swing: "in",
+        },
+        { id: "default-window-1", wall: "top", position: 60, width: 120, kind: "window" },
+        { id: "default-window-2", wall: "right", position: 30, width: 80, kind: "window" },
+      ],
+  );
 
   // Sync changes back to localStorage under planner-multi-rooms
   useEffect(() => {
@@ -277,6 +312,8 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   const [nW, setNW] = useState(80);
   const [nL, setNL] = useState(40);
   const [nColor, setNColor] = useState("#5cbdb9");
+  const [nLayer, setNLayer] = useState<ItemLayer>("main");
+  const [nShape, setNShape] = useState<ItemShape>("rect");
 
   // -------- New opening form --------
   const [oKind, setOKind] = useState<"door" | "window">("door");
@@ -361,6 +398,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
 
   // -------- Add items --------
   const addPreset = (preset: Preset) => {
+    const layer = preset.layer ?? "main";
     const draft: Item = {
       id: crypto.randomUUID(),
       name: lang === "de" ? preset.nameDe : preset.nameEn,
@@ -372,6 +410,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       rotation: 0,
       kind: preset.iconUrl && preset.key === "chair-office" ? "chair" : "furniture",
       icon: preset.key,
+      layer,
+      shape: preset.shape ?? "rect",
+      elevation: layer === "on-top" ? ON_TOP_DEFAULT_ELEVATION : 0,
     };
     const spot = findFreeSpot(draft, items, corners, collisionEnabled);
     if (!spot) {
@@ -396,6 +437,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       y: 10,
       rotation: 0,
       kind: "furniture",
+      layer: nLayer,
+      shape: nShape,
+      elevation: nLayer === "on-top" ? ON_TOP_DEFAULT_ELEVATION : 0,
     };
     const spot = findFreeSpot(draft, items, corners, collisionEnabled);
     if (!spot) {
@@ -767,12 +811,26 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
               break;
             }
           }
-          if (!anyCollision) return prev;
-          return prev.map((i) => {
-            if (!idsSet.has(i.id)) return i;
-            const start = d.startPos.get(i.id);
-            return start ? { ...i, x: start.x, y: start.y } : i;
+          const resolved = !anyCollision
+            ? prev
+            : prev.map((i) => {
+                if (!idsSet.has(i.id)) return i;
+                const start = d.startPos.get(i.id);
+                return start ? { ...i, x: start.x, y: start.y } : i;
+              });
+
+          // Any dragged "on-top" item (lamp, TV, console, ...) auto-settles
+          // onto whichever main item its footprint now lands on -- or the
+          // floor (elevation 0) if it isn't over anything.
+          let changed = false;
+          const next = resolved.map((i) => {
+            if (!idsSet.has(i.id) || (i.layer ?? "main") !== "on-top") return i;
+            const elevation = computeOnTopElevation(i, resolved, itemHeight);
+            if (elevation === (i.elevation ?? 0)) return i;
+            changed = true;
+            return { ...i, elevation };
           });
+          return changed ? next : resolved;
         });
       }
       dragRef.current = null;
@@ -994,6 +1052,10 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
           rotation: i.rotation,
           kind: i.kind,
           icon: i.icon,
+          height: i.height,
+          elevation: i.elevation,
+          layer: i.layer,
+          shape: i.shape,
         })),
       );
       setSelectedIds(new Set());
@@ -1071,6 +1133,10 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     setNL,
     nColor,
     setNColor,
+    nLayer,
+    setNLayer,
+    nShape,
+    setNShape,
     oKind,
     setOKind,
     oWall,

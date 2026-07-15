@@ -10,6 +10,8 @@ import {
   findFreeSpot,
   readableText,
   resolveSweptMove,
+  findOnTopHost,
+  computeOnTopElevation,
 } from "@/lib/planner-math";
 import type { Item } from "@/types/planner";
 
@@ -165,6 +167,49 @@ describe("collidesWithOthers", () => {
     const others = [makeItem({ id: "b", x: 1000, y: 1000 })];
     assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
   });
+
+  test("a candidate missing the layer field defaults to main and collides normally (pre-existing saved rooms)", () => {
+    const candidate = makeItem({ id: "a", x: 0, y: 0 });
+    const others = [makeItem({ id: "b", x: 0, y: 0 })];
+    assert.equal(candidate.layer, undefined);
+    assert.equal(collidesWithOthers(candidate, others, undefined, true), true);
+  });
+
+  test("an 'under' layer candidate never collides, even when fully overlapping a main item", () => {
+    const candidate = makeItem({ id: "rug", x: 0, y: 0, layer: "under" });
+    const others = [makeItem({ id: "sofa", x: 0, y: 0, layer: "main" })];
+    assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
+  });
+
+  test("an 'on-top' layer candidate never collides, even when fully overlapping a main item", () => {
+    const candidate = makeItem({ id: "lamp", x: 0, y: 0, layer: "on-top" });
+    const others = [makeItem({ id: "desk", x: 0, y: 0, layer: "main" })];
+    assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
+  });
+
+  test("a 'main' layer candidate ignores 'under' and 'on-top' obstacles but still collides with other main items", () => {
+    const candidate = makeItem({ id: "chair", x: 0, y: 0, layer: "main" });
+    const others = [
+      makeItem({ id: "rug", x: 0, y: 0, layer: "under" }),
+      makeItem({ id: "lamp", x: 0, y: 0, layer: "on-top" }),
+    ];
+    assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
+
+    const withMainObstacle = [...others, makeItem({ id: "table", x: 0, y: 0, layer: "main" })];
+    assert.equal(collidesWithOthers(candidate, withMainObstacle, undefined, true), true);
+  });
+
+  test("two 'under' items are allowed to fully overlap each other (e.g. a small rug on a large rug)", () => {
+    const candidate = makeItem({ id: "rug-small", x: 0, y: 0, layer: "under" });
+    const others = [makeItem({ id: "rug-large", x: 0, y: 0, layer: "under" })];
+    assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
+  });
+
+  test("two 'on-top' items are allowed to fully overlap each other (e.g. a lamp and a vase on the same desk)", () => {
+    const candidate = makeItem({ id: "lamp", x: 0, y: 0, layer: "on-top" });
+    const others = [makeItem({ id: "vase", x: 0, y: 0, layer: "on-top" })];
+    assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
+  });
 });
 
 describe("findFreeSpot", () => {
@@ -197,6 +242,61 @@ describe("findFreeSpot", () => {
     const item = makeItem({ id: "new", width: 100, length: 100 });
     const spot = findFreeSpot(item, [existing], roomCorners(100, 100), false);
     assert.ok(spot);
+  });
+});
+
+describe("findOnTopHost / computeOnTopElevation", () => {
+  const flatHeight = (it: Item) => it.height ?? 75; // simple stand-in getHeight for tests
+
+  test("finds no host and elevation 0 when the on-top item isn't over anything", () => {
+    const onTop = makeItem({ id: "lamp", x: 500, y: 500, layer: "on-top" });
+    const others = [makeItem({ id: "desk", x: 0, y: 0, layer: "main", height: 75 })];
+    assert.equal(findOnTopHost(onTop, others, flatHeight), null);
+    assert.equal(computeOnTopElevation(onTop, others, flatHeight), 0);
+  });
+
+  test("resolves to the overlapping main item's top surface (elevation + height)", () => {
+    const onTop = makeItem({ id: "lamp", x: 0, y: 0, layer: "on-top" });
+    const desk = makeItem({ id: "desk", x: 0, y: 0, layer: "main", height: 75, elevation: 0 });
+    assert.equal(findOnTopHost(onTop, [desk], flatHeight)?.id, "desk");
+    assert.equal(computeOnTopElevation(onTop, [desk], flatHeight), 75);
+  });
+
+  test("adds the host's own elevation on top of its height (stacked surfaces)", () => {
+    const onTop = makeItem({ id: "vase", x: 0, y: 0, layer: "on-top" });
+    const shelf = makeItem({ id: "shelf", x: 0, y: 0, layer: "main", height: 20, elevation: 100 });
+    assert.equal(computeOnTopElevation(onTop, [shelf], flatHeight), 120);
+  });
+
+  test("ignores 'under' and other 'on-top' items -- only 'main' layer items can be a host", () => {
+    const onTop = makeItem({ id: "lamp", x: 0, y: 0, layer: "on-top" });
+    const others = [
+      makeItem({ id: "rug", x: 0, y: 0, layer: "under", height: 0.5 }),
+      makeItem({ id: "vase", x: 0, y: 0, layer: "on-top", height: 25 }),
+    ];
+    assert.equal(findOnTopHost(onTop, others, flatHeight), null);
+    assert.equal(computeOnTopElevation(onTop, others, flatHeight), 0);
+  });
+
+  test("when multiple main items overlap, picks the one with the highest top surface", () => {
+    const onTop = makeItem({ id: "lamp", x: 0, y: 0, layer: "on-top" });
+    const lowTable = makeItem({ id: "low", x: 0, y: 0, layer: "main", height: 45, elevation: 0 });
+    const tallCabinet = makeItem({
+      id: "tall",
+      x: 0,
+      y: 0,
+      layer: "main",
+      height: 120,
+      elevation: 0,
+    });
+    const host = findOnTopHost(onTop, [lowTable, tallCabinet], flatHeight);
+    assert.equal(host?.id, "tall");
+    assert.equal(computeOnTopElevation(onTop, [lowTable, tallCabinet], flatHeight), 120);
+  });
+
+  test("never treats itself as its own host, even if present in the others array with a 'main' layer", () => {
+    const self = makeItem({ id: "weird", x: 0, y: 0, layer: "main" });
+    assert.equal(findOnTopHost(self, [self], flatHeight), null);
   });
 });
 

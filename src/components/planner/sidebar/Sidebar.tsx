@@ -34,6 +34,10 @@ export function Sidebar({
   setNL,
   nColor,
   setNColor,
+  nLayer,
+  setNLayer,
+  nShape,
+  setNShape,
   oKind,
   setOKind,
   oWall,
@@ -61,15 +65,21 @@ export function Sidebar({
   const [customBoxOpen, setCustomBoxOpen] = useState(false);
   const [openingOpen, setOpeningOpen] = useState(false);
 
-  // Group presets by category for catalog rendering
-  const categorized = useMemo(() => {
-    const map: Record<string, Preset[]> = {};
+  // Group presets by layer, then by category within each layer, for the
+  // catalog's three-tab (Main / Under / On Top) layout.
+  const categorizedByLayer = useMemo(() => {
+    const layers: Record<"under" | "main" | "on-top", Record<string, Preset[]>> = {
+      main: {},
+      under: {},
+      "on-top": {},
+    };
     for (const p of PRESETS) {
-      (map[p.category] ||= []).push(p);
+      const layer = p.layer ?? "main";
+      const bucket = layers[layer];
+      (bucket[p.category] ||= []).push(p);
     }
-    return map;
+    return layers;
   }, []);
-
 
   return (
     <aside id="tour-sidebar" className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:shrink-0">
@@ -123,7 +133,7 @@ export function Sidebar({
               t={t}
               lang={lang}
               threeDActive={threeDActive}
-              categorized={categorized}
+              categorizedByLayer={categorizedByLayer}
               addPreset={addPreset}
             />
 
@@ -143,6 +153,10 @@ export function Sidebar({
                 setNL={setNL}
                 nColor={nColor}
                 setNColor={setNColor}
+                nLayer={nLayer}
+                setNLayer={setNLayer}
+                nShape={nShape}
+                setNShape={setNShape}
                 addCustomBox={addCustomBox}
                 swatches={SWATCHES}
               />
@@ -182,7 +196,6 @@ export function Sidebar({
           />
         )}
       </div>
-
     </aside>
   );
 }

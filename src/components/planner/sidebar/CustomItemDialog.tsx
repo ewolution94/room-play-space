@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { NumberField } from "@/components/ui/number-field";
 import { Button } from "@/components/ui/button";
-import { Sliders, Ruler, Palette, Plus } from "lucide-react";
+import { Sliders, Ruler, Palette, Plus, Square, Circle } from "lucide-react";
 import {
   Dialog,
   DialogTrigger,
@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import type { ItemLayer, ItemShape } from "@/types/planner";
 
 interface CustomItemDialogProps {
   t: any;
@@ -28,9 +29,19 @@ interface CustomItemDialogProps {
   setNL: (val: number) => void;
   nColor: string;
   setNColor: (val: string) => void;
+  nLayer: ItemLayer;
+  setNLayer: (val: ItemLayer) => void;
+  nShape: ItemShape;
+  setNShape: (val: ItemShape) => void;
   addCustomBox: () => void;
   swatches: Array<{ name: string; value: string }>;
 }
+
+const LAYER_OPTIONS: { value: ItemLayer; labelEn: string; labelDe: string }[] = [
+  { value: "under", labelEn: "Under", labelDe: "Unterlage" },
+  { value: "main", labelEn: "Main", labelDe: "Hauptmöbel" },
+  { value: "on-top", labelEn: "On Top", labelDe: "Aufsatz" },
+];
 
 export function CustomItemDialog({
   t,
@@ -46,6 +57,10 @@ export function CustomItemDialog({
   setNL,
   nColor,
   setNColor,
+  nLayer,
+  setNLayer,
+  nShape,
+  setNShape,
   addCustomBox,
   swatches,
 }: CustomItemDialogProps) {
@@ -70,13 +85,17 @@ export function CustomItemDialog({
             {t.customBox}
           </DialogTitle>
           <DialogDescription>
-            {lang === "de" ? "Erstellen Sie ein maßgeschneidertes Möbelstück für Ihre Raumplanung." : "Create a customized furniture item for your room layout."}
+            {lang === "de"
+              ? "Erstellen Sie ein maßgeschneidertes Möbelstück für Ihre Raumplanung."
+              : "Create a customized furniture item for your room layout."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-1">
-            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.name}</Label>
+            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              {t.name}
+            </Label>
             <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
               <span className="pl-2.5 text-muted-foreground/75">
                 <Sliders className="h-3.5 w-3.5" />
@@ -92,7 +111,9 @@ export function CustomItemDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.width}</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.width}
+              </Label>
               <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Ruler className="h-3.5 w-3.5" />
@@ -103,11 +124,15 @@ export function CustomItemDialog({
                   onCommit={setNW}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                 />
-                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                  cm
+                </span>
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.length}</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.length}
+              </Label>
               <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Ruler className="h-3.5 w-3.5" />
@@ -118,13 +143,81 @@ export function CustomItemDialog({
                   onCommit={setNL}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                 />
-                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                  cm
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {lang === "de" ? "Ebene" : "Layer"}
+              </Label>
+              <div className="grid grid-cols-3 gap-1">
+                {LAYER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setNLayer(opt.value)}
+                    className={`h-8 rounded-md border text-[9.5px] font-semibold transition-all ${
+                      nLayer === opt.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-input bg-background text-muted-foreground hover:bg-accent/50"
+                    }`}
+                    title={
+                      opt.value === "main"
+                        ? lang === "de"
+                          ? "Kollidiert mit anderen Hauptmöbeln"
+                          : "Collides with other main items"
+                        : lang === "de"
+                          ? "Kollidiert nie"
+                          : "Never collides"
+                    }
+                  >
+                    {lang === "de" ? opt.labelDe : opt.labelEn}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {lang === "de" ? "Form" : "Shape"}
+              </Label>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setNShape("rect")}
+                  className={`flex h-8 items-center justify-center gap-1 rounded-md border text-[9.5px] font-semibold transition-all ${
+                    nShape === "rect"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-input bg-background text-muted-foreground hover:bg-accent/50"
+                  }`}
+                >
+                  <Square className="h-3 w-3" />
+                  {lang === "de" ? "Eckig" : "Rect"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNShape("circle")}
+                  className={`flex h-8 items-center justify-center gap-1 rounded-md border text-[9.5px] font-semibold transition-all ${
+                    nShape === "circle"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-input bg-background text-muted-foreground hover:bg-accent/50"
+                  }`}
+                >
+                  <Circle className="h-3 w-3" />
+                  {lang === "de" ? "Rund" : "Round"}
+                </button>
               </div>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.color}</Label>
+            <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              {t.color}
+            </Label>
             <div className="flex flex-wrap items-center gap-1.5">
               {swatches.map((sw) => {
                 const isSelected = nColor.toLowerCase() === sw.value.toLowerCase();

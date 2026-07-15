@@ -36,6 +36,10 @@ export const importSchema = z.object({
         rotation: z.number().default(0),
         kind: z.enum(["furniture", "chair"]).default("furniture"),
         icon: z.string().optional(),
+        height: z.number().optional(),
+        elevation: z.number().optional(),
+        layer: z.enum(["under", "main", "on-top"]).optional(),
+        shape: z.enum(["rect", "circle"]).optional(),
       }),
     )
     .max(1000), // Capped at 1000 items to prevent tab freezing

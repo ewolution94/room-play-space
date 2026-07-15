@@ -130,7 +130,12 @@ export function MultiRoomCanvas({
   // Marquee multi-select state (only active when multiSelectMode is on --
   // otherwise dragging on empty canvas pans, see onStagePointerDown below).
   const marqueeRef = useRef<{ startCx: number; startCy: number } | null>(null);
-  const [marqueeRect, setMarqueeRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
 
   const stageToCm = (clientX: number, clientY: number) => {
     const r = stageRef.current!.getBoundingClientRect();
@@ -337,7 +342,7 @@ export function MultiRoomCanvas({
 
     const startPos = new Map<string, { x: number; y: number }>();
     for (const id of ids) {
-      const r = rooms.find(rr => rr.id === id);
+      const r = rooms.find((rr) => rr.id === id);
       if (r) startPos.set(id, { x: r.x, y: r.y });
     }
 
@@ -372,7 +377,7 @@ export function MultiRoomCanvas({
     const blockedIds: string[] = [];
     const idsSet = new Set(drag.roomIds);
 
-    setRooms(prev => {
+    setRooms((prev) => {
       let next = prev;
 
       // Each dragged room is resolved independently against everything
@@ -382,7 +387,7 @@ export function MultiRoomCanvas({
       // the group keeps moving, rather than the whole group locking up.
       for (const roomId of drag.roomIds) {
         const start = drag.startPos.get(roomId);
-        const currentRoom = next.find(r => r.id === roomId);
+        const currentRoom = next.find((r) => r.id === roomId);
         if (!start || !currentRoom) continue;
 
         const clampToFloor = (x: number, y: number) => ({
@@ -392,10 +397,23 @@ export function MultiRoomCanvas({
 
         const collides = (x: number, y: number) => {
           if (!collisionEnabled) return false;
-          const candidateObb = { x, y, width: currentRoom.width, length: currentRoom.length, rotation: currentRoom.rotation };
-          return next.some(other =>
-            !idsSet.has(other.id) &&
-            obbOverlap(candidateObb, { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation })
+          const candidateObb = {
+            x,
+            y,
+            width: currentRoom.width,
+            length: currentRoom.length,
+            rotation: currentRoom.rotation,
+          };
+          return next.some(
+            (other) =>
+              !idsSet.has(other.id) &&
+              obbOverlap(candidateObb, {
+                x: other.x,
+                y: other.y,
+                width: other.width,
+                length: other.length,
+                rotation: other.rotation,
+              }),
           );
         };
 
@@ -424,7 +442,7 @@ export function MultiRoomCanvas({
           continue;
         }
 
-        next = next.map(r => (r.id === roomId ? { ...r, x: resolved.x, y: resolved.y } : r));
+        next = next.map((r) => (r.id === roomId ? { ...r, x: resolved.x, y: resolved.y } : r));
       }
 
       return next;
@@ -448,18 +466,18 @@ export function MultiRoomCanvas({
   };
 
   const rotateRoom = (roomId: string) => {
-    setRooms(prev => rotateRoomLayout(prev, roomId, collisionEnabled));
+    setRooms((prev) => rotateRoomLayout(prev, roomId, collisionEnabled));
   };
 
   const duplicateRoom = (roomId: string) => {
     const newRoom = duplicateRoomLayout(rooms, roomId, lang);
     if (!newRoom) return;
-    setRooms(prev => [...prev, newRoom]);
+    setRooms((prev) => [...prev, newRoom]);
     setSelectedRoomId(newRoom.id);
   };
 
   const deleteRoom = (roomId: string) => {
-    setRooms(prev => removeRoomLayout(prev, roomId));
+    setRooms((prev) => removeRoomLayout(prev, roomId));
     if (selectedRoomId === roomId) {
       setSelectedRoomId(null);
     }
@@ -467,46 +485,48 @@ export function MultiRoomCanvas({
 
   const updateSelectedRoom = (patch: Partial<RoomLayout>) => {
     if (!selectedRoomId) return;
-    setRooms(prev => prev.map(r => {
-      if (r.id !== selectedRoomId) return r;
+    setRooms((prev) =>
+      prev.map((r) => {
+        if (r.id !== selectedRoomId) return r;
 
-      let nextPatch = patch;
+        let nextPatch = patch;
 
-      // Width/length changes used to be applied directly with no collision
-      // check at all, so growing a room here could freely overlap a neighbor
-      // even with collision enabled. Clamp the requested size to the largest
-      // one that still fits (room's top-left x/y stays put).
-      if (patch.width !== undefined || patch.length !== undefined) {
-        const clamped = clampRoomResize(
-          r,
-          patch.width ?? r.width,
-          patch.length ?? r.length,
-          prev,
-          collisionEnabled,
-        );
-        nextPatch = { ...patch, width: clamped.width, length: clamped.length };
-      }
+        // Width/length changes used to be applied directly with no collision
+        // check at all, so growing a room here could freely overlap a neighbor
+        // even with collision enabled. Clamp the requested size to the largest
+        // one that still fits (room's top-left x/y stays put).
+        if (patch.width !== undefined || patch.length !== undefined) {
+          const clamped = clampRoomResize(
+            r,
+            patch.width ?? r.width,
+            patch.length ?? r.length,
+            prev,
+            collisionEnabled,
+          );
+          nextPatch = { ...patch, width: clamped.width, length: clamped.length };
+        }
 
-      const updated = { ...r, ...nextPatch };
+        const updated = { ...r, ...nextPatch };
 
-      // Re-scale corners if width/length changed
-      if (nextPatch.width !== undefined || nextPatch.length !== undefined) {
-        const w = updated.width;
-        const l = updated.length;
-        updated.corners = [
-          { x: 0, y: 0 },
-          { x: w, y: 0 },
-          { x: w, y: l },
-          { x: 0, y: l },
-        ];
-      }
-      return updated;
-    }));
+        // Re-scale corners if width/length changed
+        if (nextPatch.width !== undefined || nextPatch.length !== undefined) {
+          const w = updated.width;
+          const l = updated.length;
+          updated.corners = [
+            { x: 0, y: 0 },
+            { x: w, y: 0 },
+            { x: w, y: l },
+            { x: 0, y: l },
+          ];
+        }
+        return updated;
+      }),
+    );
   };
 
   // Bulk actions for a marquee-selected group of rooms.
   const deleteSelectedRooms = () => {
-    setRooms(prev => prev.filter(r => !selectedRoomIds.has(r.id)));
+    setRooms((prev) => prev.filter((r) => !selectedRoomIds.has(r.id)));
     setSelectedRoomIds(new Set());
   };
 
@@ -539,7 +559,12 @@ export function MultiRoomCanvas({
         return;
       }
 
-      const ids = selectedRoomIds.size > 0 ? selectedRoomIds : selectedRoomId ? new Set([selectedRoomId]) : new Set<string>();
+      const ids =
+        selectedRoomIds.size > 0
+          ? selectedRoomIds
+          : selectedRoomId
+            ? new Set([selectedRoomId])
+            : new Set<string>();
       if (ids.size === 0) return;
 
       const step = e.shiftKey ? 10 : 1;
@@ -552,8 +577,8 @@ export function MultiRoomCanvas({
       else return;
 
       e.preventDefault();
-      setRooms(prev => {
-        const next = prev.map(r => {
+      setRooms((prev) => {
+        const next = prev.map((r) => {
           if (!ids.has(r.id)) return r;
           return {
             ...r,
@@ -564,15 +589,21 @@ export function MultiRoomCanvas({
 
         if (collisionEnabled) {
           const collided = next.some(
-            r =>
+            (r) =>
               ids.has(r.id) &&
               next.some(
-                other =>
+                (other) =>
                   other.id !== r.id &&
                   !ids.has(other.id) &&
                   obbOverlap(
                     { x: r.x, y: r.y, width: r.width, length: r.length, rotation: r.rotation },
-                    { x: other.x, y: other.y, width: other.width, length: other.length, rotation: other.rotation },
+                    {
+                      x: other.x,
+                      y: other.y,
+                      width: other.width,
+                      length: other.length,
+                      rotation: other.rotation,
+                    },
                   ),
               ),
           );
@@ -607,8 +638,8 @@ export function MultiRoomCanvas({
         onPointerUp={onStagePointerUp}
       >
         {/* Dimensions label for the floor layout */}
-        <div 
-          onPointerDown={e => e.stopPropagation()}
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
           className="absolute top-3 left-3 z-20 flex flex-col gap-1 select-none font-sans text-xs bg-background/85 backdrop-blur-md px-3 py-2 rounded-xl border border-border/40 shadow-sm"
         >
           <div className="flex items-center gap-1.5 font-semibold text-primary">
@@ -621,8 +652,8 @@ export function MultiRoomCanvas({
         </div>
 
         {/* 2D control options overlay */}
-        <div 
-          onPointerDown={e => e.stopPropagation()}
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
           className="absolute top-3 right-3 z-20 w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md text-[11px]"
         >
           <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
@@ -666,7 +697,9 @@ export function MultiRoomCanvas({
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <button
-                onClick={() => setZoomFactor(Math.max(0.2, Math.round((zoomFactor - 0.1) * 10) / 10))}
+                onClick={() =>
+                  setZoomFactor(Math.max(0.2, Math.round((zoomFactor - 0.1) * 10) / 10))
+                }
                 className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
               >
                 -
@@ -681,7 +714,9 @@ export function MultiRoomCanvas({
                 className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
               />
               <button
-                onClick={() => setZoomFactor(Math.min(2.0, Math.round((zoomFactor + 0.1) * 10) / 10))}
+                onClick={() =>
+                  setZoomFactor(Math.min(2.0, Math.round((zoomFactor + 0.1) * 10) / 10))
+                }
                 className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
               >
                 +
@@ -759,6 +794,19 @@ export function MultiRoomCanvas({
               const isDragging = activeDragIds.has(room.id);
               const isBlocked = blockedRoomIds.has(room.id);
 
+              // The miniature preview's viewBox is normally an exact
+              // room.width x room.length box, so a door leaf swinging
+              // outward (drawn past the wall line, i.e. at negative/beyond
+              // bounds coordinates) falls entirely outside it and never
+              // renders. Pad the viewBox on every side by just enough to
+              // fit the widest outward-swinging door's leaf -- rooms with
+              // no outward doors get zero padding, so their preview is
+              // pixel-identical to before.
+              const outSwingPad = room.openings.reduce((max, op) => {
+                if (op.kind !== "door" || (op.swing || "in") !== "out") return max;
+                return Math.max(max, op.width * 0.6 + 6);
+              }, 0);
+
               return (
                 <div
                   key={room.id}
@@ -771,8 +819,8 @@ export function MultiRoomCanvas({
                       isBlocked
                         ? "border-rose-500 ring-2 ring-rose-500/60"
                         : isSelected
-                        ? "border-primary bg-card shadow-lg ring-1 ring-primary"
-                        : "border-border/80 hover:border-primary/50 bg-card hover:shadow-md"
+                          ? "border-primary bg-card shadow-lg ring-1 ring-primary"
+                          : "border-border/80 hover:border-primary/50 bg-card hover:shadow-md"
                     }`}
                   style={{
                     left: rx,
@@ -793,64 +841,150 @@ export function MultiRoomCanvas({
                     <svg
                       width="100%"
                       height="100%"
-                      viewBox={`0 0 ${room.width} ${room.length}`}
+                      viewBox={`${-outSwingPad} ${-outSwingPad} ${room.width + 2 * outSwingPad} ${room.length + 2 * outSwingPad}`}
                       preserveAspectRatio="none"
                       className="w-full h-full bg-card"
                     >
                       {/* Floor background block grid (subtle CAD grid) */}
                       <rect width={room.width} height={room.length} className="fill-card" />
-                      
+
                       {/* Thick CAD outer walls (8cm thickness) */}
-                      <rect 
-                        x={4} 
-                        y={4} 
-                        width={room.width - 8} 
-                        height={room.length - 8} 
-                        fill="none" 
-                        className="stroke-zinc-800 dark:stroke-zinc-300" 
-                        strokeWidth={8} 
+                      <rect
+                        x={4}
+                        y={4}
+                        width={room.width - 8}
+                        height={room.length - 8}
+                        fill="none"
+                        className="stroke-zinc-800 dark:stroke-zinc-300"
+                        strokeWidth={8}
                       />
 
                       {/* CAD Dimension lines inside the room */}
                       {/* Width Dimension */}
                       <g className="opacity-70">
-                        <line x1={30} y1={30} x2={room.width - 30} y2={30} className="stroke-zinc-500/80 dark:stroke-zinc-400/80" strokeWidth={1} />
-                        <line x1={25} y1={35} x2={35} y2={25} className="stroke-zinc-500 dark:stroke-zinc-400" strokeWidth={1.5} />
-                        <line x1={room.width - 35} y1={35} x2={room.width - 25} y2={25} className="stroke-zinc-500 dark:stroke-zinc-400" strokeWidth={1.5} />
-                        <rect x={room.width/2 - 25} y={19} width={50} height={20} rx={4} className="fill-card stroke-none" />
-                        <text x={room.width/2} y={33} className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300" textAnchor="middle">{Math.round(room.width)} cm</text>
+                        <line
+                          x1={30}
+                          y1={30}
+                          x2={room.width - 30}
+                          y2={30}
+                          className="stroke-zinc-500/80 dark:stroke-zinc-400/80"
+                          strokeWidth={1}
+                        />
+                        <line
+                          x1={25}
+                          y1={35}
+                          x2={35}
+                          y2={25}
+                          className="stroke-zinc-500 dark:stroke-zinc-400"
+                          strokeWidth={1.5}
+                        />
+                        <line
+                          x1={room.width - 35}
+                          y1={35}
+                          x2={room.width - 25}
+                          y2={25}
+                          className="stroke-zinc-500 dark:stroke-zinc-400"
+                          strokeWidth={1.5}
+                        />
+                        <rect
+                          x={room.width / 2 - 25}
+                          y={19}
+                          width={50}
+                          height={20}
+                          rx={4}
+                          className="fill-card stroke-none"
+                        />
+                        <text
+                          x={room.width / 2}
+                          y={33}
+                          className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300"
+                          textAnchor="middle"
+                        >
+                          {Math.round(room.width)} cm
+                        </text>
                       </g>
-                      
+
                       {/* Length Dimension */}
                       <g className="opacity-70">
-                        <line x1={30} y1={30} x2={30} y2={room.length - 30} className="stroke-zinc-500/80 dark:stroke-zinc-400/80" strokeWidth={1} />
-                        <line x1={25} y1={35} x2={35} y2={25} className="stroke-zinc-500 dark:stroke-zinc-400" strokeWidth={1.5} />
-                        <line x1={25} y1={room.length - 25} x2={35} y2={room.length - 35} className="stroke-zinc-500 dark:stroke-zinc-400" strokeWidth={1.5} />
-                        <rect x={19} y={room.length/2 - 10} width={22} height={20} rx={4} className="fill-card stroke-none" />
-                        <text x={29} y={room.length/2 + 4} className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300" textAnchor="middle" transform={`rotate(-90, 29, ${room.length/2})`}>{Math.round(room.length)} cm</text>
+                        <line
+                          x1={30}
+                          y1={30}
+                          x2={30}
+                          y2={room.length - 30}
+                          className="stroke-zinc-500/80 dark:stroke-zinc-400/80"
+                          strokeWidth={1}
+                        />
+                        <line
+                          x1={25}
+                          y1={35}
+                          x2={35}
+                          y2={25}
+                          className="stroke-zinc-500 dark:stroke-zinc-400"
+                          strokeWidth={1.5}
+                        />
+                        <line
+                          x1={25}
+                          y1={room.length - 25}
+                          x2={35}
+                          y2={room.length - 35}
+                          className="stroke-zinc-500 dark:stroke-zinc-400"
+                          strokeWidth={1.5}
+                        />
+                        <rect
+                          x={19}
+                          y={room.length / 2 - 10}
+                          width={22}
+                          height={20}
+                          rx={4}
+                          className="fill-card stroke-none"
+                        />
+                        <text
+                          x={29}
+                          y={room.length / 2 + 4}
+                          className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300"
+                          textAnchor="middle"
+                          transform={`rotate(-90, 29, ${room.length / 2})`}
+                        >
+                          {Math.round(room.length)} cm
+                        </text>
                       </g>
 
                       {/* CAD Room Name centered in floor plan */}
-                      <text 
-                        x={room.width / 2} 
-                        y={room.length / 2 + 25} 
-                        className="text-[14px] uppercase font-bold tracking-wider fill-zinc-400/80 dark:fill-zinc-500/80 font-sans" 
+                      <text
+                        x={room.width / 2}
+                        y={room.length / 2 + 25}
+                        className="text-[14px] uppercase font-bold tracking-wider fill-zinc-400/80 dark:fill-zinc-500/80 font-sans"
                         textAnchor="middle"
                       >
                         {room.name}
                       </text>
-                      
+
                       {/* Openings (Doors/Windows) simplified representation */}
                       {room.openings.map((op) => {
-                        let ox = 0, oy = 0, ow = op.width, ol = 8;
+                        let ox = 0,
+                          oy = 0,
+                          ow = op.width,
+                          ol = 8;
                         if (op.wall === "top") {
-                          ox = op.position; oy = 0; ow = op.width; ol = 8;
+                          ox = op.position;
+                          oy = 0;
+                          ow = op.width;
+                          ol = 8;
                         } else if (op.wall === "bottom") {
-                          ox = op.position; oy = room.length - 8; ow = op.width; ol = 8;
+                          ox = op.position;
+                          oy = room.length - 8;
+                          ow = op.width;
+                          ol = 8;
                         } else if (op.wall === "left") {
-                          ox = 0; oy = op.position; ow = 8; ol = op.width;
+                          ox = 0;
+                          oy = op.position;
+                          ow = 8;
+                          ol = op.width;
                         } else if (op.wall === "right") {
-                          ox = room.width - 8; oy = op.position; ow = 8; ol = op.width;
+                          ox = room.width - 8;
+                          oy = op.position;
+                          ow = 8;
+                          ol = op.width;
                         }
 
                         const isHorizontal = op.wall === "top" || op.wall === "bottom";
@@ -859,74 +993,191 @@ export function MultiRoomCanvas({
                           return (
                             <g key={op.id}>
                               {/* Gap cover */}
-                              <rect x={ox} y={oy} width={ow} height={ol} className="fill-card stroke-none" />
+                              <rect
+                                x={ox}
+                                y={oy}
+                                width={ow}
+                                height={ol}
+                                className="fill-card stroke-none"
+                              />
                               {/* Window double line box */}
-                              <rect x={ox} y={oy} width={ow} height={ol} className="stroke-zinc-800 dark:stroke-zinc-300 fill-none" strokeWidth={1} />
+                              <rect
+                                x={ox}
+                                y={oy}
+                                width={ow}
+                                height={ol}
+                                className="stroke-zinc-800 dark:stroke-zinc-300 fill-none"
+                                strokeWidth={1}
+                              />
                               {isHorizontal ? (
-                                <line x1={ox} y1={oy + ol/2} x2={ox + ow} y2={oy + ol/2} className="stroke-zinc-800 dark:stroke-zinc-300" strokeWidth={1} />
+                                <line
+                                  x1={ox}
+                                  y1={oy + ol / 2}
+                                  x2={ox + ow}
+                                  y2={oy + ol / 2}
+                                  className="stroke-zinc-800 dark:stroke-zinc-300"
+                                  strokeWidth={1}
+                                />
                               ) : (
-                                <line x1={ox + ow/2} y1={oy} x2={ox + ow/2} y2={oy + ol} className="stroke-zinc-800 dark:stroke-zinc-300" strokeWidth={1} />
+                                <line
+                                  x1={ox + ow / 2}
+                                  y1={oy}
+                                  x2={ox + ow / 2}
+                                  y2={oy + ol}
+                                  className="stroke-zinc-800 dark:stroke-zinc-300"
+                                  strokeWidth={1}
+                                />
                               )}
                             </g>
                           );
                         } else {
                           // Door representation (Always draws the wall gap, hides frames and leaf line if hideDoors is enabled)
+                          // The leaf's pivot side and swing direction mirror the
+                          // room's own hinge/swing settings (editable in the
+                          // single-room view's inspector) instead of a fixed
+                          // "hinge at start, swing in" assumption -- purely
+                          // visual, this has no bearing on room-vs-room
+                          // collision, which only ever considers each room's
+                          // rectangular wall footprint (see planner-math.ts).
+                          const hinge = op.hinge || "start";
+                          const swing = op.swing || "in";
+                          const doorW = op.width;
+
                           return (
                             <g key={op.id}>
                               {/* Gap in wall */}
-                              <rect x={ox} y={oy} width={ow} height={ol} className="fill-card stroke-none" />
-                              
+                              <rect
+                                x={ox}
+                                y={oy}
+                                width={ow}
+                                height={ol}
+                                className="fill-card stroke-none"
+                              />
+
                               {/* Frame ticks and simple door leaf line */}
-                              {!room.hideDoors && (
-                                isHorizontal ? (
-                                  <>
-                                    <line x1={ox} y1={oy} x2={ox} y2={oy + ol} className="stroke-zinc-800 dark:stroke-zinc-300" strokeWidth={1.5} />
-                                    <line x1={ox + ow} y1={oy} x2={ox + ow} y2={oy + ol} className="stroke-zinc-800 dark:stroke-zinc-300" strokeWidth={1.5} />
-                                    <line 
-                                      x1={ox} 
-                                      y1={oy + ol/2} 
-                                      x2={ox + ow * 0.8} 
-                                      y2={oy + ol/2 + (op.wall === "top" ? 0.6 : -0.6) * ow} 
-                                      className="stroke-zinc-800 dark:stroke-zinc-300" 
-                                      strokeWidth={1.5} 
-                                    />
-                                  </>
-                                ) : (
-                                  <>
-                                    <line x1={ox} y1={oy} x2={ox + ow} y2={oy} className="stroke-zinc-800 dark:stroke-zinc-300" strokeWidth={1.5} />
-                                    <line x1={ox} y1={oy + ol} x2={ox + ow} y2={oy + ol} className="stroke-zinc-800 dark:stroke-zinc-300" strokeWidth={1.5} />
-                                    <line 
-                                      x1={ox + ow/2} 
-                                      y1={oy} 
-                                      x2={ox + ow/2 + (op.wall === "left" ? 0.6 : -0.6) * ol} 
-                                      y2={oy + ol * 0.8} 
-                                      className="stroke-zinc-800 dark:stroke-zinc-300" 
-                                      strokeWidth={1.5} 
-                                    />
-                                  </>
-                                )
-                              )}
+                              {!room.hideDoors &&
+                                (isHorizontal
+                                  ? (() => {
+                                      const interiorSign = op.wall === "top" ? 1 : -1;
+                                      const perpSign = interiorSign * (swing === "in" ? 1 : -1);
+                                      const pivotX = hinge === "start" ? ox : ox + ow;
+                                      const tipDirX = hinge === "start" ? 1 : -1;
+                                      return (
+                                        <>
+                                          <line
+                                            x1={ox}
+                                            y1={oy}
+                                            x2={ox}
+                                            y2={oy + ol}
+                                            className="stroke-zinc-800 dark:stroke-zinc-300"
+                                            strokeWidth={1.5}
+                                          />
+                                          <line
+                                            x1={ox + ow}
+                                            y1={oy}
+                                            x2={ox + ow}
+                                            y2={oy + ol}
+                                            className="stroke-zinc-800 dark:stroke-zinc-300"
+                                            strokeWidth={1.5}
+                                          />
+                                          <line
+                                            x1={pivotX}
+                                            y1={oy + ol / 2}
+                                            x2={pivotX + tipDirX * doorW * 0.8}
+                                            y2={oy + ol / 2 + perpSign * doorW * 0.6}
+                                            className="stroke-zinc-800 dark:stroke-zinc-300"
+                                            strokeWidth={1.5}
+                                          />
+                                        </>
+                                      );
+                                    })()
+                                  : (() => {
+                                      const interiorSign = op.wall === "left" ? 1 : -1;
+                                      const perpSign = interiorSign * (swing === "in" ? 1 : -1);
+                                      const pivotY = hinge === "start" ? oy : oy + ol;
+                                      const tipDirY = hinge === "start" ? 1 : -1;
+                                      return (
+                                        <>
+                                          <line
+                                            x1={ox}
+                                            y1={oy}
+                                            x2={ox + ow}
+                                            y2={oy}
+                                            className="stroke-zinc-800 dark:stroke-zinc-300"
+                                            strokeWidth={1.5}
+                                          />
+                                          <line
+                                            x1={ox}
+                                            y1={oy + ol}
+                                            x2={ox + ow}
+                                            y2={oy + ol}
+                                            className="stroke-zinc-800 dark:stroke-zinc-300"
+                                            strokeWidth={1.5}
+                                          />
+                                          <line
+                                            x1={ox + ow / 2}
+                                            y1={pivotY}
+                                            x2={ox + ow / 2 + perpSign * doorW * 0.6}
+                                            y2={pivotY + tipDirY * doorW * 0.8}
+                                            className="stroke-zinc-800 dark:stroke-zinc-300"
+                                            strokeWidth={1.5}
+                                          />
+                                        </>
+                                      );
+                                    })())}
                             </g>
                           );
                         }
                       })}
 
-                      {/* Items / Furniture (Visible only when toggle is on) */}
-                      {showFurniture && room.items.map((item) => (
-                        <g key={item.id} transform={`rotate(${item.rotation}, ${item.x + item.width / 2}, ${item.y + item.length / 2})`}>
-                          <rect
-                            x={item.x}
-                            y={item.y}
-                            width={item.width}
-                            height={item.length}
-                            rx={2}
-                            fill={item.color || "#888888"}
-                            className="stroke-zinc-600 dark:stroke-zinc-400"
-                            strokeWidth={1}
-                            opacity={0.6}
-                          />
-                        </g>
-                      ))}
+                      {/* Items / Furniture (Visible only when toggle is on) --
+                          mirrors the single-room canvas's layer opacity tiers
+                          (under < main < on-top) and renders circle-shaped
+                          presets (e.g. a round table) as an ellipse instead
+                          of a rect, purely visual -- collision never
+                          considers item shape or layer. */}
+                      {showFurniture &&
+                        [...room.items]
+                          .sort((a, b) => {
+                            const rank: Record<string, number> = { under: 0, main: 1, "on-top": 2 };
+                            return (rank[a.layer ?? "main"] ?? 1) - (rank[b.layer ?? "main"] ?? 1);
+                          })
+                          .map((item) => {
+                            const layer = item.layer ?? "main";
+                            const shape = item.shape ?? "rect";
+                            const opacity =
+                              layer === "under" ? 0.35 : layer === "on-top" ? 0.8 : 0.6;
+                            const cx = item.x + item.width / 2;
+                            const cy = item.y + item.length / 2;
+                            return (
+                              <g key={item.id} transform={`rotate(${item.rotation}, ${cx}, ${cy})`}>
+                                {shape === "circle" ? (
+                                  <ellipse
+                                    cx={cx}
+                                    cy={cy}
+                                    rx={item.width / 2}
+                                    ry={item.length / 2}
+                                    fill={item.color || "#888888"}
+                                    className="stroke-zinc-600 dark:stroke-zinc-400"
+                                    strokeWidth={1}
+                                    opacity={opacity}
+                                  />
+                                ) : (
+                                  <rect
+                                    x={item.x}
+                                    y={item.y}
+                                    width={item.width}
+                                    height={item.length}
+                                    rx={2}
+                                    fill={item.color || "#888888"}
+                                    className="stroke-zinc-600 dark:stroke-zinc-400"
+                                    strokeWidth={1}
+                                    opacity={opacity}
+                                  />
+                                )}
+                              </g>
+                            );
+                          })}
                     </svg>
                   </div>
 
@@ -976,7 +1227,7 @@ export function MultiRoomCanvas({
             <MultiRoomInspector
               t={t}
               lang={lang}
-              selectedRoom={rooms.find(r => r.id === selectedRoomId) || null}
+              selectedRoom={rooms.find((r) => r.id === selectedRoomId) || null}
               selectedRoomIds={selectedRoomIds}
               updateSelectedRoom={updateSelectedRoom}
               rotateRoom={rotateRoom}
@@ -985,7 +1236,7 @@ export function MultiRoomCanvas({
               duplicateSelectedRooms={duplicateSelectedRooms}
               deleteSelectedRooms={deleteSelectedRooms}
               isCollapsed={inspectorCollapsed}
-              onToggleCollapse={() => setInspectorCollapsed(c => !c)}
+              onToggleCollapse={() => setInspectorCollapsed((c) => !c)}
               onHeaderPointerDown={onInspectorHeaderPointerDown}
             />
           </div>

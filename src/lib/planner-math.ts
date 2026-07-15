@@ -140,8 +140,19 @@ export function collidesWithOthers(
   collisionEnabled = true,
 ): boolean {
   if (!collisionEnabled) return false;
+  // Only "main" layer items participate in collision at all. "under" items
+  // (rugs, mats) sit beneath everything and "on-top" items (lamps, laptops)
+  // sit on top of a main item -- neither should ever block a move or be
+  // treated as an obstacle, regardless of how much their footprints
+  // overlap something else. Missing layer means "main" (pre-existing items
+  // from before this field existed keep colliding exactly as before).
+  if ((candidate.layer ?? "main") !== "main") return false;
   return others.some(
-    (o) => o.id !== candidate.id && !(ignoreIds && ignoreIds.has(o.id)) && obbOverlap(candidate, o),
+    (o) =>
+      o.id !== candidate.id &&
+      (o.layer ?? "main") === "main" &&
+      !(ignoreIds && ignoreIds.has(o.id)) &&
+      obbOverlap(candidate, o),
   );
 }
 
@@ -213,6 +224,49 @@ export function resolveSweptMove(
   };
 
   return resolve(target.x, target.y) ?? resolve(target.x, from.y) ?? resolve(from.x, target.y);
+}
+
+/**
+ * Finds which "main" layer item (if any) a just-dropped "on-top" item (a
+ * lamp, TV, console, ...) now overlaps in the top-down footprint, so it can
+ * be auto-elevated to rest on that item's surface instead of keeping
+ * whatever elevation it happened to have before the drag. When the
+ * footprint overlaps multiple main items, the one with the highest top
+ * surface wins (the most plausible "resting on top of").
+ *
+ * `getHeight` is injected (rather than importing the catalog's
+ * getDefaultHeight here) so this stays pure and independent of
+ * planner-presets.ts, matching the pattern used by resolveSweptMove above.
+ */
+export function findOnTopHost(
+  candidate: Item,
+  others: Item[],
+  getHeight: (it: Item) => number,
+): Item | null {
+  const hosts = others.filter(
+    (o) => o.id !== candidate.id && (o.layer ?? "main") === "main" && obbOverlap(candidate, o),
+  );
+  if (!hosts.length) return null;
+  return hosts.reduce((best, h) => {
+    const bestTop = (best.elevation ?? 0) + getHeight(best);
+    const hTop = (h.elevation ?? 0) + getHeight(h);
+    return hTop > bestTop ? h : best;
+  });
+}
+
+/**
+ * The elevation an "on-top" item should have after being dropped at its
+ * current position: the top surface of whatever main item it now overlaps,
+ * or 0 (floor level) if it isn't over anything.
+ */
+export function computeOnTopElevation(
+  candidate: Item,
+  others: Item[],
+  getHeight: (it: Item) => number,
+): number {
+  const host = findOnTopHost(candidate, others, getHeight);
+  if (!host) return 0;
+  return (host.elevation ?? 0) + getHeight(host);
 }
 
 export function readableText(hex: string): string {
