@@ -172,6 +172,49 @@ export function findFreeSpot(
   return null;
 }
 
+/**
+ * Resolves a drag from `from` toward `target`, binary-searching along the
+ * straight-line path when the direct target collides so a large per-event
+ * pointer delta (e.g. at low zoom) can't "tunnel" the dragged shape straight
+ * through an obstacle -- only testing the endpoint would miss anything the
+ * path crosses on the way there. Falls back to sliding along a single axis
+ * (still swept the same way) so a diagonal drag toward a neighbor slides
+ * flush along its face instead of stopping dead the moment either axis
+ * touches something. Returns null if every attempt is blocked, including
+ * the case where `from` itself already collides (e.g. collision was just
+ * re-enabled while overlapping) -- there's nothing safe to resolve from.
+ *
+ * `collidesAt` and `clamp` are injected so this stays pure and reusable for
+ * both the multi-room master plan (clamped to the floor) and, potentially,
+ * single-room item drags -- neither React state nor room/item shape is
+ * referenced here directly.
+ */
+export function resolveSweptMove(
+  from: Point,
+  target: Point,
+  collidesAt: (x: number, y: number) => boolean,
+  clamp: (x: number, y: number) => Point = (x, y) => ({ x, y }),
+): Point | null {
+  const resolve = (toX: number, toY: number): Point | null => {
+    const to = clamp(toX, toY);
+    if (!collidesAt(to.x, to.y)) return to;
+    if (collidesAt(from.x, from.y)) return null;
+
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 24; i++) {
+      const t = (lo + hi) / 2;
+      const p = clamp(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
+      if (!collidesAt(p.x, p.y)) lo = t;
+      else hi = t;
+    }
+    const resolved = clamp(from.x + (to.x - from.x) * lo, from.y + (to.y - from.y) * lo);
+    return resolved.x === from.x && resolved.y === from.y ? null : resolved;
+  };
+
+  return resolve(target.x, target.y) ?? resolve(target.x, from.y) ?? resolve(from.x, target.y);
+}
+
 export function readableText(hex: string): string {
   const c = hex.replace("#", "");
   if (c.length !== 6) return "#000";

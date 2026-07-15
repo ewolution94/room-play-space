@@ -125,7 +125,9 @@ function MultiRoomOverview() {
     a.download = `multi-room-layout-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(lang === "de" ? "Layout erfolgreich exportiert" : "Floor plan layout exported successfully");
+    toast.success(
+      lang === "de" ? "Layout erfolgreich exportiert" : "Floor plan layout exported successfully",
+    );
   };
 
   // Import rooms layout
@@ -139,19 +141,31 @@ function MultiRoomOverview() {
         const parsed = JSON.parse(ev.target?.result as string);
         if (Array.isArray(parsed)) {
           setRooms(parsed);
-          toast.success(lang === "de" ? "Layout erfolgreich importiert" : "Floor plan layout imported successfully");
+          toast.success(
+            lang === "de"
+              ? "Layout erfolgreich importiert"
+              : "Floor plan layout imported successfully",
+          );
         } else {
           throw new Error("Invalid format");
         }
       } catch (err) {
-        toast.error(lang === "de" ? "Fehler beim Importieren" : "Failed to import file: Invalid format");
+        toast.error(
+          lang === "de" ? "Fehler beim Importieren" : "Failed to import file: Invalid format",
+        );
       }
     };
     r.readAsText(file);
   };
 
   const clearAllRooms = () => {
-    if (window.confirm(lang === "de" ? "Möchtest du wirklich alle Räume löschen?" : "Are you sure you want to delete all rooms?")) {
+    if (
+      window.confirm(
+        lang === "de"
+          ? "Möchtest du wirklich alle Räume löschen?"
+          : "Are you sure you want to delete all rooms?",
+      )
+    ) {
       setRooms([]);
       setSelectedRoomId(null);
       window.localStorage.removeItem("planner-multi-rooms");
@@ -175,7 +189,9 @@ function MultiRoomOverview() {
                 {t.multiRoomTitle}
               </h1>
               <p className="hidden sm:block truncate text-xs text-muted-foreground">
-                {lang === "de" ? "Erstelle und ordne deine Räume an." : "Create and arrange your rooms in a master plan."}
+                {lang === "de"
+                  ? "Erstelle und ordne deine Räume an."
+                  : "Create and arrange your rooms in a master plan."}
               </p>
             </div>
             <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 hidden md:flex">
@@ -211,7 +227,15 @@ function MultiRoomOverview() {
               variant="outline"
               size="sm"
               onClick={toggleTheme}
-              title={theme === "light" ? (lang === "de" ? "Dunkelmodus aktivieren" : "Switch to Dark Mode") : (lang === "de" ? "Hellmodus aktivieren" : "Switch to Light Mode")}
+              title={
+                theme === "light"
+                  ? lang === "de"
+                    ? "Dunkelmodus aktivieren"
+                    : "Switch to Dark Mode"
+                  : lang === "de"
+                    ? "Hellmodus aktivieren"
+                    : "Switch to Light Mode"
+              }
               className="h-9 w-9 p-0 flex items-center justify-center"
             >
               {theme === "light" ? (
@@ -221,9 +245,46 @@ function MultiRoomOverview() {
               )}
             </Button>
 
+            {/* Inline on desktop -- only collapses into the "Options" menu below
+                the lg breakpoint, once there's genuinely not enough header
+                width for these as standalone buttons. */}
+            <div className="hidden lg:flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => changeLanguage(lang === "en" ? "de" : "en")}
+                className="gap-1.5"
+              >
+                <Languages className="h-4 w-4" />
+                <span>{lang === "en" ? "Deutsch" : "English"}</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
+                <Download className="h-4 w-4" />
+                <span>{t.export}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-1.5"
+              >
+                <Upload className="h-4 w-4" />
+                <span>{t.import}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllRooms}
+                className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>{lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}</span>
+              </Button>
+            </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="lg:hidden">
                   <span>{lang === "de" ? "Optionen" : "Options"}</span>
                 </Button>
               </DropdownMenuTrigger>
@@ -240,8 +301,12 @@ function MultiRoomOverview() {
                   <Upload className="mr-2 h-4 w-4" /> {t.import}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={clearAllRooms} className="text-rose-500 hover:text-rose-600 focus:text-rose-600">
-                  <Trash2 className="mr-2 h-4 w-4" /> {lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}
+                <DropdownMenuItem
+                  onClick={clearAllRooms}
+                  className="text-rose-500 hover:text-rose-600 focus:text-rose-600"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />{" "}
+                  {lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

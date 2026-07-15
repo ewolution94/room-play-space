@@ -52,7 +52,10 @@ export function Header({
         <div id="tour-header" className="flex min-w-0 items-center gap-3">
           {backUrl ? (
             <Button variant="ghost" size="sm" asChild className="h-9 w-9 p-0 shrink-0">
-              <Link to={backUrl} title={lang === "de" ? "Zurück zum Grundriss" : "Back to Floor Plan"}>
+              <Link
+                to={backUrl}
+                title={lang === "de" ? "Zurück zum Grundriss" : "Back to Floor Plan"}
+              >
                 <ArrowLeft className="h-5 w-5" />
               </Link>
             </Button>
@@ -86,7 +89,14 @@ export function Header({
               </Link>
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Ctrl+Z" className="px-2 sm:px-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={undo}
+            disabled={!canUndo}
+            title="Ctrl+Z"
+            className="px-2 sm:px-3"
+          >
             <Undo2 className="h-4 w-4 sm:mr-1" />
             <span className="hidden sm:inline">{t.undo}</span>
           </Button>
@@ -112,7 +122,15 @@ export function Header({
             variant="outline"
             size="sm"
             onClick={toggleTheme}
-            title={theme === "light" ? (lang === "de" ? "Dunkelmodus aktivieren" : "Switch to Dark Mode") : (lang === "de" ? "Hellmodus aktivieren" : "Switch to Light Mode")}
+            title={
+              theme === "light"
+                ? lang === "de"
+                  ? "Dunkelmodus aktivieren"
+                  : "Switch to Dark Mode"
+                : lang === "de"
+                  ? "Hellmodus aktivieren"
+                  : "Switch to Light Mode"
+            }
             className="h-9 w-9 p-0 flex items-center justify-center"
           >
             {theme === "light" ? (
@@ -121,9 +139,69 @@ export function Header({
               <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
             )}
           </Button>
+          {/* Inline on desktop -- only collapses into the "More" menu below
+              the lg breakpoint, once there's genuinely not enough header
+              width for these as standalone buttons. */}
+          <div className="hidden lg:flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTourStep(0);
+                setTourOpen(true);
+              }}
+              className="gap-1.5"
+            >
+              <HelpCircle className="h-4 w-4" />
+              <span>{t.takeTheTour}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLang(lang === "en" ? "de" : "en")}
+              className="gap-1.5"
+            >
+              <Languages className="h-4 w-4" />
+              <span>{lang === "en" ? "Deutsch" : "English"}</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
+              <Download className="h-4 w-4" />
+              <span>{t.export}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              className="gap-1.5"
+            >
+              <Upload className="h-4 w-4" />
+              <span>{t.import}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetMode("items")}
+              disabled={items.length === 0}
+              className="gap-1.5"
+            >
+              <Eraser className="h-4 w-4" />
+              <span>{t.resetItems}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetMode("all")}
+              disabled={items.length === 0 && openings.length === 0}
+              className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>{t.resetAll}</span>
+            </Button>
+          </div>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" title="More">
+              <Button variant="outline" size="sm" title="More" className="lg:hidden">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

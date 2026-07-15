@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import type { RoomLayout, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
-import { obbOverlap } from "@/lib/planner-math";
+import { obbOverlap, resolveSweptMove } from "@/lib/planner-math";
 import {
   FLOOR_W,
   FLOOR_L,
@@ -409,31 +409,15 @@ export function MultiRoomCanvas({
         // Binary-searching along the segment from `from` to the target finds
         // the true contact point regardless of how big the jump is.
         const from = { x: currentRoom.x, y: currentRoom.y };
-
-        const resolve = (toX: number, toY: number) => {
-          const to = clampToFloor(toX, toY);
-          if (!collides(to.x, to.y)) return to;
-          if (collides(from.x, from.y)) return null; // already overlapping (e.g. collision was just re-enabled) -- bail safely
-
-          let lo = 0;
-          let hi = 1;
-          for (let i = 0; i < 24; i++) {
-            const t = (lo + hi) / 2;
-            const p = clampToFloor(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
-            if (!collides(p.x, p.y)) lo = t;
-            else hi = t;
-          }
-          const resolved = clampToFloor(from.x + (to.x - from.x) * lo, from.y + (to.y - from.y) * lo);
-          return resolved.x === from.x && resolved.y === from.y ? null : resolved;
-        };
-
         const target = clampToFloor(start.x + dx, start.y + dy);
 
-        // Try the full diagonal move first (swept), then slide along a single
-        // axis (also swept) so a room dragged diagonally toward a neighbor
-        // still slides flush along its face instead of stopping dead the
-        // moment either axis touches something.
-        const resolved = resolve(target.x, target.y) ?? resolve(target.x, currentRoom.y) ?? resolve(currentRoom.x, target.y);
+        // Binary-search-resolved swept move (see resolveSweptMove in
+        // planner-math.ts) -- tries the full diagonal move first, then
+        // slides along a single axis, so a room dragged diagonally toward a
+        // neighbor slides flush along its face instead of stopping dead the
+        // moment either axis touches something, and can't tunnel through an
+        // obstacle when a single pointer-move event carries a large delta.
+        const resolved = resolveSweptMove(from, target, collides, clampToFloor);
 
         if (!resolved) {
           blockedIds.push(roomId);
