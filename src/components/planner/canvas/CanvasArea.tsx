@@ -8,7 +8,6 @@ import {
 } from "@/lib/hallway-shapes";
 import { closedSubIntervals } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
-import { usePinchZoom } from "@/hooks/use-pinch-zoom";
 import { ThreeDView, type RoomInstance3D } from "../ThreeDView";
 import { RotateHint } from "../RotateHint";
 import { HintBanner } from "./HintBanner";
@@ -18,6 +17,7 @@ import { CanvasItems } from "./CanvasItems";
 import { CanvasMarquee } from "./CanvasMarquee";
 import { CanvasRuler } from "./CanvasRuler";
 import { ToolbarOverlay } from "./ToolbarOverlay";
+import { MobileZoomButtons } from "./MobileZoomButtons";
 import { InspectorSection } from "../sidebar/InspectorSection";
 import { HelpCircle, SlidersHorizontal } from "lucide-react";
 import {
@@ -96,6 +96,21 @@ export function CanvasArea({
   // togglable bottom sheet instead of permanently eating screen space.
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+
+  // A drag on mobile should only ever pan the canvas -- never place a
+  // ruler point or start a marquee selection. Both of those are gated
+  // behind toggles that are already hidden from the mobile UI (see the
+  // Drawer content below), but that alone doesn't cover a mid-session
+  // transition into mobile view-only (e.g. shrinking the browser window)
+  // while one of them was already on from desktop use. Forcing both off
+  // here, once, whenever mobile view-only mode is entered guarantees the
+  // stage's own onStagePointerDown (still the exact same pan/select logic
+  // used on desktop) falls straight through to its plain-pan branch.
+  useEffect(() => {
+    if (!isMobileViewOnly) return;
+    setRulerMode(false);
+    setMultiSelectMode(false);
+  }, [isMobileViewOnly, setRulerMode, setMultiSelectMode]);
 
   // Floating Inspector state
   const [inspectorPos, setInspectorPos] = useState({ x: 16, y: 80 });
@@ -315,25 +330,6 @@ export function CanvasArea({
     );
   };
 
-  // Two-finger pinch-to-zoom (mobile view-only only -- see
-  // useMobileViewOnly and use-pinch-zoom.ts for the full reasoning,
-  // including why it's built on window-level listeners rather than the
-  // stage element's own pointer props).
-  const {
-    handlePointerDown: handleStagePointerDown,
-    handlePointerMove: handleStagePointerMove,
-    handlePointerUp: handleStagePointerUp,
-  } = usePinchZoom({
-    enabled: isMobileViewOnly,
-    zoomFactor,
-    setZoomFactor,
-    min: 0.1,
-    max: 2.0,
-    onPointerDown: onStagePointerDown,
-    onPointerMove: onStagePointerMove,
-    onPointerUp: onStagePointerUp,
-  });
-
   // flex-1 min-h-0 apply unconditionally below (not just lg:) so this
   // <main> fills its parent's height in the mobile flex-column wrapper too
   // (see routes/index.tsx's isMobileViewOnly branch) -- without it, <main>
@@ -356,9 +352,9 @@ export function CanvasArea({
         ref={stageRef}
         id="tour-canvas"
         className="relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 overflow-hidden"
-        onPointerDown={threeDActive ? undefined : handleStagePointerDown}
-        onPointerMove={threeDActive ? undefined : handleStagePointerMove}
-        onPointerUp={threeDActive ? undefined : handleStagePointerUp}
+        onPointerDown={threeDActive ? undefined : onStagePointerDown}
+        onPointerMove={threeDActive ? undefined : onStagePointerMove}
+        onPointerUp={threeDActive ? undefined : onStagePointerUp}
         style={{
           touchAction: threeDActive ? "auto" : "none",
           cursor: threeDActive
@@ -566,7 +562,10 @@ export function CanvasArea({
                     })}
                 </svg>
 
-                {/* openings */}
+                {/* openings -- viewOnly makes a tap/drag on a door or
+                    window a no-op in mobile view-only mode, so it doesn't
+                    steal the gesture out from under the stage's own pan
+                    handler (see the viewOnly prop on CanvasOpenings). */}
                 <CanvasOpenings
                   openings={openings}
                   setOpenings={setOpenings}
@@ -578,6 +577,7 @@ export function CanvasArea({
                   selectedOpeningId={selectedOpeningId}
                   setSelectedOpeningId={setSelectedOpeningId}
                   openWalls={openWalls}
+                  viewOnly={isMobileViewOnly}
                 />
 
                 {/* items -- pointer handlers are no-ops in mobile view-only
@@ -627,6 +627,19 @@ export function CanvasArea({
                     </div>
                   ))}
               </div>
+
+              {/* Replaces pinch-to-zoom on mobile (removed -- see
+                  MobileZoomButtons.tsx doc comment). Flush to the right
+                  edge, clear of the top-right View Options trigger and the
+                  bottom-center 2D/3D toolbar pill. */}
+              {isMobileViewOnly && (
+                <MobileZoomButtons
+                  zoomFactor={zoomFactor}
+                  setZoomFactor={setZoomFactor}
+                  min={0.1}
+                  max={2.0}
+                />
+              )}
 
               {/* 2D View Options -- desktop keeps the always-visible floating
                   panel; mobile view-only mode (see useMobileViewOnly) swaps

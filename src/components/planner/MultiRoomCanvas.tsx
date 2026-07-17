@@ -35,8 +35,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { MultiRoomInspector } from "./MultiRoomInspector";
 import { ThreeDView, type RoomInstance3D } from "./ThreeDView";
 import { RotateHint } from "./RotateHint";
+import { MobileZoomButtons } from "./canvas/MobileZoomButtons";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
-import { usePinchZoom } from "@/hooks/use-pinch-zoom";
 import {
   Drawer,
   DrawerContent,
@@ -105,6 +105,18 @@ export function MultiRoomCanvas({
   // visible "Layout Options" panel becomes a togglable bottom sheet.
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+
+  // A drag on mobile should only ever pan the floor plan -- never draw a
+  // marquee selection box. That toggle is already hidden from the mobile
+  // Layout Options sheet, but forcing it off here too covers a mid-session
+  // transition into mobile view-only (e.g. shrinking the browser window)
+  // while it was already on from desktop use, guaranteeing
+  // onStagePointerDown's plain-pan branch below always runs.
+  useEffect(() => {
+    if (!isMobileViewOnly) return;
+    setMultiSelectMode(false);
+  }, [isMobileViewOnly, setMultiSelectMode]);
+
   const [activeDragIds, setActiveDragIds] = useState<Set<string>>(new Set());
   const [blockedRoomIds, setBlockedRoomIds] = useState<Set<string>>(new Set());
   const blockedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -419,25 +431,6 @@ export function MultiRoomCanvas({
     }
     panDragRef.current = null;
   };
-
-  // Two-finger pinch-to-zoom (mobile view-only only -- see
-  // useMobileViewOnly and use-pinch-zoom.ts for the full reasoning,
-  // including why it's built on window-level listeners rather than the
-  // stage element's own pointer props).
-  const {
-    handlePointerDown: handleStagePointerDown,
-    handlePointerMove: handleStagePointerMove,
-    handlePointerUp: handleStagePointerUp,
-  } = usePinchZoom({
-    enabled: isMobileViewOnly,
-    zoomFactor,
-    setZoomFactor,
-    min: 0.2,
-    max: 2.0,
-    onPointerDown: onStagePointerDown,
-    onPointerMove: onStagePointerMove,
-    onPointerUp: onStagePointerUp,
-  });
 
   // Drag states. Note: dx/dy are recomputed against the *live* `scale` on every
   // pointer-move (not a value captured at drag-start), so this stays correct
@@ -792,9 +785,9 @@ export function MultiRoomCanvas({
         className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 overflow-hidden select-none transition-colors duration-150
           ${threeDActive ? "" : multiSelectMode ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         style={{ touchAction: "none" }}
-        onPointerDown={threeDActive ? undefined : handleStagePointerDown}
-        onPointerMove={threeDActive ? undefined : handleStagePointerMove}
-        onPointerUp={threeDActive ? undefined : handleStagePointerUp}
+        onPointerDown={threeDActive ? undefined : onStagePointerDown}
+        onPointerMove={threeDActive ? undefined : onStagePointerMove}
+        onPointerUp={threeDActive ? undefined : onStagePointerUp}
       >
         {/* Dimensions label for the floor layout */}
         <div
@@ -982,6 +975,19 @@ export function MultiRoomCanvas({
               </div>
             </DrawerContent>
           </Drawer>
+        )}
+
+        {/* Replaces pinch-to-zoom on mobile (removed -- see
+            MobileZoomButtons.tsx doc comment). Flush to the right edge,
+            clear of the top-right Layout Options trigger and the
+            bottom-center 2D/3D toolbar pill. */}
+        {!threeDActive && isMobileViewOnly && (
+          <MobileZoomButtons
+            zoomFactor={zoomFactor}
+            setZoomFactor={setZoomFactor}
+            min={0.2}
+            max={2.0}
+          />
         )}
 
         {/* 2D control options overlay (desktop) */}

@@ -21,6 +21,11 @@ interface CanvasOpeningsProps {
   // One sitting in a still-closed sub-run of a partially-open wall keeps
   // rendering normally.
   openWalls: Map<string, WallOpenInterval[]>;
+  /** Mobile view-only mode (see useMobileViewOnly): a tap/drag on a door or
+   * window becomes a no-op instead of selecting/moving it, so the gesture
+   * passes through untouched to the stage's own pan handler -- on mobile,
+   * a drag anywhere on the canvas should only ever pan the view. */
+  viewOnly?: boolean;
 }
 
 export function CanvasOpenings({
@@ -34,6 +39,7 @@ export function CanvasOpenings({
   selectedOpeningId,
   setSelectedOpeningId,
   openWalls,
+  viewOnly,
 }: CanvasOpeningsProps) {
   return (
     <>
@@ -149,6 +155,11 @@ export function CanvasOpenings({
         }
 
         const onOpeningDown = (e: React.PointerEvent) => {
+          // Deliberately does NOT stopPropagation/preventDefault here --
+          // leaving the event completely untouched lets it bubble up to
+          // the stage's own pan handler, same as if this element weren't
+          // here at all.
+          if (viewOnly) return;
           e.stopPropagation();
           e.preventDefault();
 
