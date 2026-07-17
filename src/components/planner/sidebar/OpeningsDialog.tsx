@@ -78,7 +78,10 @@ export function OpeningsDialog({
     .map((seg) => seg.index);
   const isCurrentWallFullyOpen = (() => {
     const key = typeof oWall === "string" ? oWall : String(oWall);
-    const seg = typeof oWall === "number" ? wallSegs[oWall] : wallSegs[NAMED_WALLS.indexOf(oWall as (typeof NAMED_WALLS)[number])];
+    const seg =
+      typeof oWall === "number"
+        ? wallSegs[oWall]
+        : wallSegs[NAMED_WALLS.indexOf(oWall as (typeof NAMED_WALLS)[number])];
     if (!seg) return false;
     return isWallFullyOpen(key, seg.length);
   })();
@@ -124,14 +127,18 @@ export function OpeningsDialog({
             {t.openings}
           </DialogTitle>
           <DialogDescription>
-            {lang === "de" ? "Fügen Sie Türen oder Fenster in die Außenwände Ihres Raums ein." : "Add doors or windows to the outer walls of your room."}
+            {lang === "de"
+              ? "Fügen Sie Türen oder Fenster in die Außenwände Ihres Raums ein."
+              : "Add doors or windows to the outer walls of your room."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.type}</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.type}
+              </Label>
               <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Square className="h-3.5 w-3.5" />
@@ -141,13 +148,19 @@ export function OpeningsDialog({
                   value={oKind}
                   onChange={(e) => setOKind(e.target.value as "door" | "window")}
                 >
-                  <option value="door" className="bg-background">{t.door}</option>
-                  <option value="window" className="bg-background">{t.window}</option>
+                  <option value="door" className="bg-background">
+                    {t.door}
+                  </option>
+                  <option value="window" className="bg-background">
+                    {t.window}
+                  </option>
                 </select>
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.wall}</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.wall}
+              </Label>
               <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Sliders className="h-3.5 w-3.5" />
@@ -157,9 +170,7 @@ export function OpeningsDialog({
                   value={oWall}
                   onChange={(e) =>
                     setOWall(
-                      (isPolygon
-                        ? Number(e.target.value)
-                        : e.target.value) as Opening["wall"],
+                      (isPolygon ? Number(e.target.value) : e.target.value) as Opening["wall"],
                     )
                   }
                 >
@@ -172,16 +183,24 @@ export function OpeningsDialog({
                   ) : (
                     <>
                       {availableNamedWalls.includes("top") && (
-                        <option value="top" className="bg-background">{t.top}</option>
+                        <option value="top" className="bg-background">
+                          {t.top}
+                        </option>
                       )}
                       {availableNamedWalls.includes("bottom") && (
-                        <option value="bottom" className="bg-background">{t.bottom}</option>
+                        <option value="bottom" className="bg-background">
+                          {t.bottom}
+                        </option>
                       )}
                       {availableNamedWalls.includes("left") && (
-                        <option value="left" className="bg-background">{t.left}</option>
+                        <option value="left" className="bg-background">
+                          {t.left}
+                        </option>
                       )}
                       {availableNamedWalls.includes("right") && (
-                        <option value="right" className="bg-background">{t.right}</option>
+                        <option value="right" className="bg-background">
+                          {t.right}
+                        </option>
                       )}
                     </>
                   )}
@@ -192,7 +211,9 @@ export function OpeningsDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.position}</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.position}
+              </Label>
               <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Ruler className="h-3.5 w-3.5" />
@@ -203,11 +224,15 @@ export function OpeningsDialog({
                   onCommit={setOPos}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                 />
-                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                  cm
+                </span>
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t.width}</Label>
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.width}
+              </Label>
               <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
                 <span className="pl-2.5 text-muted-foreground/75">
                   <Ruler className="h-3.5 w-3.5" />
@@ -218,7 +243,9 @@ export function OpeningsDialog({
                   onCommit={setOWidth}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                 />
-                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">cm</span>
+                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                  cm
+                </span>
               </div>
             </div>
           </div>

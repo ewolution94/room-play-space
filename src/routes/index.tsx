@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { Header } from "@/components/planner/Header";
 import { Sidebar } from "@/components/planner/sidebar";
 import { CanvasArea } from "@/components/planner/canvas";
@@ -24,9 +25,16 @@ function RoomPlanner() {
   const { theme, toggleTheme, isDark } = useTheme();
   const planner = useRoomPlanner();
   const { t, resetMode, setResetMode, confirmReset } = planner;
+  const { isMobileViewOnly } = useMobileViewOnly();
 
+  // h-dvh (not just min-h-screen) so the flex column below has a real
+  // bounded height on mobile browsers too -- min-height alone technically
+  // still lets flex-1 children grow correctly in principle, but combined
+  // with mobile browsers' notoriously unreliable 100vh (address bar
+  // show/hide changing the viewport), h-dvh keeps this exact to the
+  // visible viewport instead of occasionally over/under-sizing it.
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-background">
+    <div className="h-dvh lg:h-screen overflow-hidden flex flex-col bg-background">
       <Header
         t={planner.t}
         lang={planner.lang}
@@ -46,6 +54,7 @@ function RoomPlanner() {
         theme={theme}
         toggleTheme={toggleTheme}
         roomsUrl="/rooms"
+        viewOnly={isMobileViewOnly}
       />
 
       <AlertDialog open={resetMode !== null} onOpenChange={(o) => !o && setResetMode(null)}>
@@ -73,51 +82,62 @@ function RoomPlanner() {
         setThreeDActive={planner.setThreeDActive}
       />
 
-      <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
-        {/* Left column: Unified Tabbed Sidebar */}
-        <Sidebar
-          t={planner.t}
-          lang={planner.lang}
-          items={planner.items}
-          openings={planner.openings}
-          selectedIds={planner.selectedIds}
-          setSelectedIds={planner.setSelectedIds}
-          nName={planner.nName}
-          setNName={planner.setNName}
-          nW={planner.nW}
-          setNW={planner.setNW}
-          nL={planner.nL}
-          setNL={planner.setNL}
-          nColor={planner.nColor}
-          setNColor={planner.setNColor}
-          nLayer={planner.nLayer}
-          setNLayer={planner.setNLayer}
-          nShape={planner.nShape}
-          setNShape={planner.setNShape}
-          oKind={planner.oKind}
-          setOKind={planner.setOKind}
-          oWall={planner.oWall}
-          setOWall={planner.setOWall}
-          oPos={planner.oPos}
-          setOPos={planner.setOPos}
-          oWidth={planner.oWidth}
-          setOWidth={planner.setOWidth}
-          roomW={planner.roomW}
-          roomL={planner.roomL}
-          addPreset={planner.addPreset}
-          addCustomBox={planner.addCustomBox}
-          addOpening={planner.addOpening}
-          removeOpening={planner.removeOpening}
-          removeItem={planner.removeItem}
-          threeDActive={planner.threeDActive}
-          corners={planner.corners}
-          setCorners={planner.setCorners}
-          wallColors={planner.wallColors}
-          setWallColors={planner.setWallColors}
-          selectedOpeningId={planner.selectedOpeningId}
-          setSelectedOpeningId={planner.setSelectedOpeningId}
-          openWalls={planner.openWalls}
-        />
+      <div
+        className={
+          isMobileViewOnly
+            ? "flex flex-1 min-h-0 w-full flex-col p-2"
+            : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+        }
+      >
+        {/* Left column: Unified Tabbed Sidebar -- hidden entirely in mobile
+            view-only mode (see useMobileViewOnly): there's no room to add
+            items/edit properties on a small screen, so the canvas gets the
+            whole viewport instead. */}
+        {!isMobileViewOnly && (
+          <Sidebar
+            t={planner.t}
+            lang={planner.lang}
+            items={planner.items}
+            openings={planner.openings}
+            selectedIds={planner.selectedIds}
+            setSelectedIds={planner.setSelectedIds}
+            nName={planner.nName}
+            setNName={planner.setNName}
+            nW={planner.nW}
+            setNW={planner.setNW}
+            nL={planner.nL}
+            setNL={planner.setNL}
+            nColor={planner.nColor}
+            setNColor={planner.setNColor}
+            nLayer={planner.nLayer}
+            setNLayer={planner.setNLayer}
+            nShape={planner.nShape}
+            setNShape={planner.setNShape}
+            oKind={planner.oKind}
+            setOKind={planner.setOKind}
+            oWall={planner.oWall}
+            setOWall={planner.setOWall}
+            oPos={planner.oPos}
+            setOPos={planner.setOPos}
+            oWidth={planner.oWidth}
+            setOWidth={planner.setOWidth}
+            roomW={planner.roomW}
+            roomL={planner.roomL}
+            addPreset={planner.addPreset}
+            addCustomBox={planner.addCustomBox}
+            addOpening={planner.addOpening}
+            removeOpening={planner.removeOpening}
+            removeItem={planner.removeItem}
+            threeDActive={planner.threeDActive}
+            corners={planner.corners}
+            setCorners={planner.setCorners}
+            wallColors={planner.wallColors}
+            setWallColors={planner.setWallColors}
+            selectedOpeningId={planner.selectedOpeningId}
+            setSelectedOpeningId={planner.setSelectedOpeningId}
+            openWalls={planner.openWalls}
+          />
+        )}
 
         {/* Right column: Drawing Stage */}
         <CanvasArea

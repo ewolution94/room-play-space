@@ -5,13 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberField } from "@/components/ui/number-field";
 import { Label } from "@/components/ui/label";
-import {
-  Plus,
-  FolderOpen,
-  LayoutGrid,
-  DoorOpen,
-  Route,
-} from "lucide-react";
+import { Plus, FolderOpen, LayoutGrid, DoorOpen, Route } from "lucide-react";
 import { createRoomLayout, createHallwayLayout } from "@/lib/multi-room-actions";
 import {
   buildStraightHallwayCorners,
@@ -101,7 +95,7 @@ export function MultiRoomSidebar({
 
     const room = createRoomLayout(rooms, { name, width: newRoomW, length: newRoomL, color });
 
-    setRooms(prev => [...prev, room]);
+    setRooms((prev) => [...prev, room]);
     setSelectedRoomId(room.id);
     setNewRoomName("");
     // Choose a different color for the next room
@@ -180,7 +174,7 @@ export function MultiRoomSidebar({
               <Input
                 placeholder={lang === "de" ? "z. B. Wohnzimmer" : "e.g. Living Room"}
                 value={newRoomName}
-                onChange={e => setNewRoomName(e.target.value)}
+                onChange={(e) => setNewRoomName(e.target.value)}
                 className="h-8 text-xs mt-1"
               />
             </div>
@@ -208,7 +202,11 @@ export function MultiRoomSidebar({
               </div>
             </div>
 
-            <Button type="submit" size="sm" className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white mt-1 gap-1">
+            <Button
+              type="submit"
+              size="sm"
+              className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white mt-1 gap-1"
+            >
               <Plus className="h-3.5 w-3.5" />
               <span>{t.addRoom}</span>
             </Button>
@@ -312,7 +310,11 @@ export function MultiRoomSidebar({
               </div>
             )}
 
-            <Button type="submit" size="sm" className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white mt-1 gap-1">
+            <Button
+              type="submit"
+              size="sm"
+              className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white mt-1 gap-1"
+            >
               <Plus className="h-3.5 w-3.5" />
               <span>{lang === "de" ? "Flur hinzufügen" : "Add Hallway"}</span>
             </Button>
@@ -324,16 +326,20 @@ export function MultiRoomSidebar({
       <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-2">
         <div className="flex items-center gap-1.5 font-semibold text-primary border-b pb-2 mb-1">
           <FolderOpen className="h-4 w-4 text-sky-500" />
-          <span>{lang === "de" ? "Räume Liste" : "Rooms List"} ({rooms.length})</span>
+          <span>
+            {lang === "de" ? "Räume Liste" : "Rooms List"} ({rooms.length})
+          </span>
         </div>
 
         {rooms.length === 0 ? (
           <p className="text-[11px] text-muted-foreground text-center py-4">
-            {lang === "de" ? "Noch keine Räume erstellt. Füge oben einen hinzu!" : "No rooms created yet. Add one above!"}
+            {lang === "de"
+              ? "Noch keine Räume erstellt. Füge oben einen hinzu!"
+              : "No rooms created yet. Add one above!"}
           </p>
         ) : (
           <div className="flex flex-col gap-1.5 max-h-[250px] overflow-y-auto">
-            {rooms.map(room => (
+            {rooms.map((room) => (
               <div
                 key={room.id}
                 onClick={() => {

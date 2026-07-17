@@ -10,6 +10,15 @@ import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/li
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { SlidersHorizontal } from "lucide-react";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 // Module-level (not per-component-instance) cache of parsed Kenney Furniture
 // Kit models, keyed by filename -- shared across every ThreeDView mount and
@@ -390,6 +399,14 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   const [wallFadeOpacity, setWallFadeOpacity] = useState(0.25);
   const [sunlightEnabled, setSunlightEnabled] = useState(true);
   const [sunlightAngle, setSunlightAngle] = useState(45);
+
+  // Mobile "view only" mode (see useMobileViewOnly): the always-visible "3D
+  // View Controls" panel becomes a togglable bottom sheet. Every toggle in
+  // it is a genuine view option (labels, sunlight, wall opacity), not an
+  // editing tool, so unlike CanvasArea's 2D panel nothing needs to be
+  // dropped for mobile -- just the presentation changes.
+  const { isMobileViewOnly } = useMobileViewOnly();
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
   // Bumped whenever a Kenney kit model this render needed wasn't cached yet
   // finishes loading, so the main scene-building effect below reruns and
@@ -1484,91 +1501,86 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   // Is German language active?
   const isDe = t.title === "Raumplaner";
 
-  return (
-    <div
-      ref={containerRef}
-      className="w-full h-full relative overflow-hidden bg-slate-50/50 rounded-lg"
-    >
-      <canvas ref={canvasRef} className="block w-full h-full" />
+  // Shared body for both the desktop always-visible panel and the mobile
+  // bottom sheet (see useMobileViewOnly) -- every one of these is a genuine
+  // view option (labels/sunlight/wall opacity/camera reset), not an editing
+  // tool, so nothing needs to be dropped for mobile, just re-presented.
+  const controlsBody = (
+    <>
+      {/* Toggle displays */}
+      <div className="flex flex-col gap-2">
+        <label className="flex items-center gap-2 cursor-pointer font-medium">
+          <input
+            type="checkbox"
+            checked={showNames}
+            onChange={(e) => setShowNames(e.target.checked)}
+            className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+          />
+          <span>{isDe ? "Beschriftungen anzeigen" : "Show Item Labels"}</span>
+        </label>
 
-      {/* 3D Control Panel Overlay */}
-      <div className="absolute top-3 right-3 z-10 w-64 max-h-[85vh] overflow-y-auto flex flex-col gap-3 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3.5 shadow-lg select-none text-[11px] text-foreground">
-        <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-2 text-xs text-primary">
-          <span>{isDe ? "3D-Steuerung" : "3D View Controls"}</span>
-        </div>
+        <label className="flex items-center gap-2 cursor-pointer font-medium">
+          <input
+            type="checkbox"
+            checked={sunlightEnabled}
+            onChange={(e) => setSunlightEnabled(e.target.checked)}
+            className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+          />
+          <span>{isDe ? "Sonnenlicht aktivieren" : "Enable Sunlight"}</span>
+        </label>
+      </div>
 
-        {/* Toggle displays */}
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 cursor-pointer font-medium">
-            <input
-              type="checkbox"
-              checked={showNames}
-              onChange={(e) => setShowNames(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-            />
-            <span>{isDe ? "Beschriftungen anzeigen" : "Show Item Labels"}</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer font-medium">
-            <input
-              type="checkbox"
-              checked={sunlightEnabled}
-              onChange={(e) => setSunlightEnabled(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-            />
-            <span>{isDe ? "Sonnenlicht aktivieren" : "Enable Sunlight"}</span>
-          </label>
-        </div>
-
-        {/* Sunlight Angle Slider */}
-        {sunlightEnabled && (
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
-              <span>{isDe ? "Sonnenlicht-Winkel" : "Sunlight Angle"}</span>
-              <span>{sunlightAngle}°</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="360"
-              step="5"
-              value={sunlightAngle}
-              onChange={(e) => setSunlightAngle(Number(e.target.value))}
-              className="h-1 w-full cursor-pointer bg-slate-200 accent-primary rounded-lg appearance-none dark:bg-slate-700"
-            />
-          </div>
-        )}
-
-        {/* Wall Opacity Slider */}
+      {/* Sunlight Angle Slider */}
+      {sunlightEnabled && (
         <div className="flex flex-col gap-1">
           <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
-            <span>{isDe ? "Wand-Transparenz" : "Faded Wall Opacity"}</span>
-            <span>{Math.round(wallFadeOpacity * 100)}%</span>
+            <span>{isDe ? "Sonnenlicht-Winkel" : "Sunlight Angle"}</span>
+            <span>{sunlightAngle}°</span>
           </div>
           <input
             type="range"
             min="0"
-            max="1"
-            step="0.05"
-            value={wallFadeOpacity}
-            onChange={(e) => setWallFadeOpacity(Number(e.target.value))}
+            max="360"
+            step="5"
+            value={sunlightAngle}
+            onChange={(e) => setSunlightAngle(Number(e.target.value))}
             className="h-1 w-full cursor-pointer bg-slate-200 accent-primary rounded-lg appearance-none dark:bg-slate-700"
           />
         </div>
+      )}
 
-        {/* Reset Camera Button */}
-        <button
-          onClick={resetCamera}
-          className="mt-1.5 w-full h-8 text-[11px] bg-primary text-primary-foreground font-semibold rounded-lg shadow hover:bg-primary/95 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
-          title={isDe ? "Kamera zurücksetzen (Taste 0 / Esc)" : "Reset camera target (Key 0 / Esc)"}
-        >
-          {isDe ? "Ansicht zurücksetzen" : "Reset Camera View"}
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[9px] bg-primary-foreground/20 text-primary-foreground rounded border border-primary-foreground/10">
-            Esc / 0
-          </kbd>
-        </button>
+      {/* Wall Opacity Slider */}
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
+          <span>{isDe ? "Wand-Transparenz" : "Faded Wall Opacity"}</span>
+          <span>{Math.round(wallFadeOpacity * 100)}%</span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={wallFadeOpacity}
+          onChange={(e) => setWallFadeOpacity(Number(e.target.value))}
+          className="h-1 w-full cursor-pointer bg-slate-200 accent-primary rounded-lg appearance-none dark:bg-slate-700"
+        />
+      </div>
 
-        {/* Keyboard instructions */}
+      {/* Reset Camera Button */}
+      <button
+        onClick={resetCamera}
+        className="mt-1.5 w-full h-8 text-[11px] bg-primary text-primary-foreground font-semibold rounded-lg shadow hover:bg-primary/95 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
+        title={isDe ? "Kamera zurücksetzen (Taste 0 / Esc)" : "Reset camera target (Key 0 / Esc)"}
+      >
+        {isDe ? "Ansicht zurücksetzen" : "Reset Camera View"}
+        <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[9px] bg-primary-foreground/20 text-primary-foreground rounded border border-primary-foreground/10">
+          Esc / 0
+        </kbd>
+      </button>
+
+      {/* Keyboard instructions -- not applicable on mobile (no keyboard/
+          right-click), so this block is skipped there entirely. */}
+      {!isMobileViewOnly && (
         <div className="border-t border-border/20 pt-2 text-[9px] text-muted-foreground/80 leading-relaxed flex flex-col gap-1">
           <div>
             •{" "}
@@ -1589,7 +1601,43 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
               : "Shift + Arrow Keys: Fast camera movement"}
           </div>
         </div>
-      </div>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full relative overflow-hidden bg-slate-50/50 rounded-lg"
+    >
+      <canvas ref={canvasRef} className="block w-full h-full" />
+
+      {isMobileViewOnly ? (
+        <Drawer open={mobileControlsOpen} onOpenChange={setMobileControlsOpen}>
+          <DrawerTrigger asChild>
+            <button
+              className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
+              title={isDe ? "3D-Steuerung" : "3D View Controls"}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
+          </DrawerTrigger>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>{isDe ? "3D-Steuerung" : "3D View Controls"}</DrawerTitle>
+            </DrawerHeader>
+            <div className="flex flex-col gap-3 px-4 pb-6 text-sm">{controlsBody}</div>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        /* 3D Control Panel Overlay */
+        <div className="absolute top-3 right-3 z-10 w-64 max-h-[85vh] overflow-y-auto flex flex-col gap-3 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3.5 shadow-lg select-none text-[11px] text-foreground">
+          <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-2 text-xs text-primary">
+            <span>{isDe ? "3D-Steuerung" : "3D View Controls"}</span>
+          </div>
+          {controlsBody}
+        </div>
+      )}
     </div>
   );
 }

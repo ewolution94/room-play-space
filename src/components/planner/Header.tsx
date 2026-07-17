@@ -45,6 +45,7 @@ export function Header({
   toggleTheme,
   backUrl,
   roomsUrl,
+  viewOnly,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -72,7 +73,7 @@ export function Header({
             </h1>
             <p className="hidden sm:block truncate text-xs text-muted-foreground">{t.subtitle}</p>
           </div>
-          {roomsUrl && (
+          {roomsUrl && !viewOnly && (
             <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 hidden md:flex">
               <Link to={roomsUrl}>
                 <LayoutGrid className="h-4 w-4" />
@@ -81,164 +82,212 @@ export function Header({
             </Button>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {roomsUrl && (
-            <Button variant="outline" size="sm" asChild className="md:hidden h-9 w-9 p-0">
-              <Link to={roomsUrl} title={lang === "de" ? "Grundrisse" : "Floor Plans"}>
-                <LayoutGrid className="h-4 w-4" />
-              </Link>
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={undo}
-            disabled={!canUndo}
-            title="Ctrl+Z"
-            className="px-2 sm:px-3"
-          >
-            <Undo2 className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">{t.undo}</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={redo}
-            disabled={!canRedo}
-            title="Ctrl+Shift+Z"
-            className="px-2 sm:px-3"
-          >
-            <Redo2 className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">{t.redo}</span>
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={onImportFile}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleTheme}
-            title={
-              theme === "light"
-                ? lang === "de"
-                  ? "Dunkelmodus aktivieren"
-                  : "Switch to Dark Mode"
-                : lang === "de"
-                  ? "Hellmodus aktivieren"
-                  : "Switch to Light Mode"
-            }
-            className="h-9 w-9 p-0 flex items-center justify-center"
-          >
-            {theme === "light" ? (
-              <Moon className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+        {/* Mobile view-only mode: every editing action below (undo/redo/
+            import/export/reset/tour) is meaningless with no sidebar or
+            tools to act on -- keep just navigation + theme/language. */}
+        {viewOnly ? (
+          <div className="flex items-center gap-2">
+            {roomsUrl && (
+              <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
+                <Link to={roomsUrl} title={lang === "de" ? "Grundrisse" : "Floor Plans"}>
+                  <LayoutGrid className="h-4 w-4" />
+                </Link>
+              </Button>
             )}
-          </Button>
-          {/* Inline on desktop -- only collapses into the "More" menu below
-              the lg breakpoint, once there's genuinely not enough header
-              width for these as standalone buttons. */}
-          <div className="hidden lg:flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setTourStep(0);
-                setTourOpen(true);
-              }}
-              className="gap-1.5"
-            >
-              <HelpCircle className="h-4 w-4" />
-              <span>{t.takeTheTour}</span>
-            </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setLang(lang === "en" ? "de" : "en")}
-              className="gap-1.5"
+              className="h-9 w-9 p-0 flex items-center justify-center"
+              title={lang === "en" ? "Deutsch" : "English"}
             >
               <Languages className="h-4 w-4" />
-              <span>{lang === "en" ? "Deutsch" : "English"}</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
-              <Download className="h-4 w-4" />
-              <span>{t.export}</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              className="gap-1.5"
+              onClick={toggleTheme}
+              title={
+                theme === "light"
+                  ? lang === "de"
+                    ? "Dunkelmodus aktivieren"
+                    : "Switch to Dark Mode"
+                  : lang === "de"
+                    ? "Hellmodus aktivieren"
+                    : "Switch to Light Mode"
+              }
+              className="h-9 w-9 p-0 flex items-center justify-center"
             >
-              <Upload className="h-4 w-4" />
-              <span>{t.import}</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setResetMode("items")}
-              disabled={items.length === 0}
-              className="gap-1.5"
-            >
-              <Eraser className="h-4 w-4" />
-              <span>{t.resetItems}</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setResetMode("all")}
-              disabled={items.length === 0 && openings.length === 0}
-              className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span>{t.resetAll}</span>
+              {theme === "light" ? (
+                <Moon className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              )}
             </Button>
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" title="More" className="lg:hidden">
-                <MoreHorizontal className="h-4 w-4" />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {roomsUrl && (
+              <Button variant="outline" size="sm" asChild className="md:hidden h-9 w-9 p-0">
+                <Link to={roomsUrl} title={lang === "de" ? "Grundrisse" : "Floor Plans"}>
+                  <LayoutGrid className="h-4 w-4" />
+                </Link>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={undo}
+              disabled={!canUndo}
+              title="Ctrl+Z"
+              className="px-2 sm:px-3"
+            >
+              <Undo2 className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t.undo}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={redo}
+              disabled={!canRedo}
+              title="Ctrl+Shift+Z"
+              className="px-2 sm:px-3"
+            >
+              <Redo2 className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t.redo}</span>
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={onImportFile}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleTheme}
+              title={
+                theme === "light"
+                  ? lang === "de"
+                    ? "Dunkelmodus aktivieren"
+                    : "Switch to Dark Mode"
+                  : lang === "de"
+                    ? "Hellmodus aktivieren"
+                    : "Switch to Light Mode"
+              }
+              className="h-9 w-9 p-0 flex items-center justify-center"
+            >
+              {theme === "light" ? (
+                <Moon className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+              )}
+            </Button>
+            {/* Inline on desktop -- only collapses into the "More" menu below
+              the lg breakpoint, once there's genuinely not enough header
+              width for these as standalone buttons. */}
+            <div className="hidden lg:flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setTourStep(0);
                   setTourOpen(true);
                 }}
+                className="gap-1.5"
               >
-                <HelpCircle className="mr-2 h-4 w-4" /> {t.takeTheTour}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setLang(lang === "en" ? "de" : "en")}>
-                <Languages className="mr-2 h-4 w-4" />
-                {lang === "en" ? "Deutsch" : "English"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={exportJSON}>
-                <Download className="mr-2 h-4 w-4" /> {t.export}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <Upload className="mr-2 h-4 w-4" /> {t.import}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setResetMode("items")} disabled={items.length === 0}>
-                <Eraser className="mr-2 h-4 w-4" /> {t.resetItems}
-              </DropdownMenuItem>
-              <DropdownMenuItem
+                <HelpCircle className="h-4 w-4" />
+                <span>{t.takeTheTour}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLang(lang === "en" ? "de" : "en")}
+                className="gap-1.5"
+              >
+                <Languages className="h-4 w-4" />
+                <span>{lang === "en" ? "Deutsch" : "English"}</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
+                <Download className="h-4 w-4" />
+                <span>{t.export}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-1.5"
+              >
+                <Upload className="h-4 w-4" />
+                <span>{t.import}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setResetMode("items")}
+                disabled={items.length === 0}
+                className="gap-1.5"
+              >
+                <Eraser className="h-4 w-4" />
+                <span>{t.resetItems}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setResetMode("all")}
                 disabled={items.length === 0 && openings.length === 0}
+                className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
               >
-                <Trash2 className="mr-2 h-4 w-4" /> {t.resetAll}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                <Trash2 className="h-4 w-4" />
+                <span>{t.resetAll}</span>
+              </Button>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" title="More" className="lg:hidden">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setTourStep(0);
+                    setTourOpen(true);
+                  }}
+                >
+                  <HelpCircle className="mr-2 h-4 w-4" /> {t.takeTheTour}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setLang(lang === "en" ? "de" : "en")}>
+                  <Languages className="mr-2 h-4 w-4" />
+                  {lang === "en" ? "Deutsch" : "English"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={exportJSON}>
+                  <Download className="mr-2 h-4 w-4" /> {t.export}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" /> {t.import}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setResetMode("items")}
+                  disabled={items.length === 0}
+                >
+                  <Eraser className="mr-2 h-4 w-4" /> {t.resetItems}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setResetMode("all")}
+                  disabled={items.length === 0 && openings.length === 0}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> {t.resetAll}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
     </header>
   );

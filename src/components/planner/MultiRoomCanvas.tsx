@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import type { RoomLayout, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import {
@@ -29,10 +30,19 @@ import {
   removeRoomLayout,
   clampRoomResize,
 } from "@/lib/multi-room-actions";
-import { HelpCircle, FolderOpen, Box } from "lucide-react";
+import { HelpCircle, FolderOpen, Box, SlidersHorizontal } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { MultiRoomInspector } from "./MultiRoomInspector";
 import { ThreeDView, type RoomInstance3D } from "./ThreeDView";
+import { RotateHint } from "./RotateHint";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 interface MultiRoomCanvasProps {
   t: TranslationStrings;
@@ -88,6 +98,12 @@ export function MultiRoomCanvas({
   const navigate = useNavigate();
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 800, h: 600 });
+
+  // Mobile "view only" mode (see useMobileViewOnly): room drag/select is
+  // disabled (onRoomPointerDown below becomes a no-op) and the always-
+  // visible "Layout Options" panel becomes a togglable bottom sheet.
+  const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
   const [activeDragIds, setActiveDragIds] = useState<Set<string>>(new Set());
   const [blockedRoomIds, setBlockedRoomIds] = useState<Set<string>>(new Set());
   const blockedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -403,6 +419,57 @@ export function MultiRoomCanvas({
     panDragRef.current = null;
   };
 
+  // Two-finger pinch-to-zoom (mobile view-only only -- see
+  // useMobileViewOnly). Mirrors the same pattern in canvas/CanvasArea.tsx
+  // (see the comment there for the full reasoning): once a second finger
+  // joins, the whole gesture is handled locally (zoom or swallowed) rather
+  // than ever handing individual events back to the pan/marquee handlers
+  // above mid-gesture, and only the final release re-syncs their state.
+  const pinchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStartRef = useRef<{ dist: number; zoom: number } | null>(null);
+  const pinchActiveRef = useRef(false);
+
+  const handleStagePointerDown = (e: React.PointerEvent) => {
+    if (isMobileViewOnly) {
+      if (pinchActiveRef.current) return;
+      pinchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinchPointersRef.current.size === 2) {
+        pinchActiveRef.current = true;
+        const [a, b] = Array.from(pinchPointersRef.current.values());
+        pinchStartRef.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: zoomFactor };
+        return;
+      }
+    }
+    onStagePointerDown(e);
+  };
+
+  const handleStagePointerMove = (e: React.PointerEvent) => {
+    if (isMobileViewOnly && pinchActiveRef.current) {
+      if (pinchPointersRef.current.has(e.pointerId)) {
+        pinchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+      if (pinchPointersRef.current.size === 2 && pinchStartRef.current) {
+        const [a, b] = Array.from(pinchPointersRef.current.values());
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        const ratio = dist / pinchStartRef.current.dist;
+        const next = Math.max(0.2, Math.min(2.0, pinchStartRef.current.zoom * ratio));
+        setZoomFactor(Math.round(next * 100) / 100);
+      }
+      return;
+    }
+    onStagePointerMove(e);
+  };
+
+  const handleStagePointerUp = (e: React.PointerEvent) => {
+    if (isMobileViewOnly && pinchActiveRef.current) {
+      pinchPointersRef.current.delete(e.pointerId);
+      if (pinchPointersRef.current.size > 0) return;
+      pinchActiveRef.current = false;
+      pinchStartRef.current = null;
+    }
+    onStagePointerUp(e);
+  };
+
   // Drag states. Note: dx/dy are recomputed against the *live* `scale` on every
   // pointer-move (not a value captured at drag-start), so this stays correct
   // even if the container is resized mid-drag. `startPos` holds every dragged
@@ -422,8 +489,12 @@ export function MultiRoomCanvas({
   };
 
   const onRoomPointerDown = (e: React.PointerEvent, room: RoomLayout) => {
-    // Left click or touch only
-    if (e.button !== 0) return;
+    // Left click or touch only. Also a no-op entirely in mobile view-only
+    // mode (see useMobileViewOnly) -- room dragging/selecting is an editing
+    // tool, not a view option, so it's disabled there; double-click
+    // navigation into a room (below) still works since it's a separate
+    // handler.
+    if (e.button !== 0 || isMobileViewOnly) return;
     e.stopPropagation();
 
     // If the clicked room is already part of a multi-room selection, drag the
@@ -727,24 +798,34 @@ export function MultiRoomCanvas({
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedRoomId, selectedRoomIds, collisionEnabled, floorW, floorL, setRooms]);
 
+  // flex-1 min-h-0 apply unconditionally below (not just lg:) -- see the
+  // matching comment in canvas/CanvasArea.tsx for why: without it, <main>
+  // has no defined height below lg, so the canvas below collapses to
+  // ~0px instead of filling the mobile flex wrapper.
   return (
-    <main className="min-w-0 lg:h-full lg:min-h-0 flex flex-col gap-2">
-      {/* Hint banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background/50 px-4 py-2.5 text-xs text-muted-foreground shadow-sm">
-        <div className="flex items-center gap-2">
-          <HelpCircle className="h-4 w-4 text-primary shrink-0" />
-          <span>{t.dragRoomHint}</span>
+    <main className="min-w-0 flex-1 min-h-0 lg:h-full flex flex-col gap-2">
+      {/* Hint banner -- hidden in mobile view-only mode (see
+          useMobileViewOnly): it's a room-dragging instruction for a tool
+          that's disabled there, so the space goes back to the canvas
+          (the RotateHint below covers the one thing worth telling a
+          mobile viewer). */}
+      {!isMobileViewOnly && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background/50 px-4 py-2.5 text-xs text-muted-foreground shadow-sm">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-primary shrink-0" />
+            <span>{t.dragRoomHint}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       <div
         ref={stageRef}
         className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 overflow-hidden select-none transition-colors duration-150
           ${threeDActive ? "" : multiSelectMode ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         style={{ touchAction: "none" }}
-        onPointerDown={threeDActive ? undefined : onStagePointerDown}
-        onPointerMove={threeDActive ? undefined : onStagePointerMove}
-        onPointerUp={threeDActive ? undefined : onStagePointerUp}
+        onPointerDown={threeDActive ? undefined : handleStagePointerDown}
+        onPointerMove={threeDActive ? undefined : handleStagePointerMove}
+        onPointerUp={threeDActive ? undefined : handleStagePointerUp}
       >
         {/* Dimensions label for the floor layout */}
         <div
@@ -760,6 +841,11 @@ export function MultiRoomCanvas({
           </span>
         </div>
 
+        {/* Rotate-to-landscape hint -- mobile view-only mode only, and only
+            in portrait (see useMobileViewOnly): rotating never exits
+            view-only mode, it just gives more canvas room. */}
+        {isMobileViewOnly && isPortrait && <RotateHint lang={lang} />}
+
         {/* 3D View toggle -- mirrors the single-room planner's ToolbarOverlay
             3D toggle exactly (see ToolbarOverlay.tsx), gated on every room
             forming one connected structure (see computeRoomConnectivity in
@@ -770,14 +856,31 @@ export function MultiRoomCanvas({
           onPointerDown={(e) => e.stopPropagation()}
         >
           <button
-            onClick={() => threeDEnabled && setThreeDActive(!threeDActive)}
+            onClick={() => {
+              if (!threeDEnabled) return;
+              if (!threeDActive && isMobileViewOnly && isPortrait) {
+                toast.info(
+                  lang === "de"
+                    ? "Bitte drehe dein Gerät ins Querformat, um den 3D-Modus zu nutzen."
+                    : "Rotate your device to landscape to use 3D mode.",
+                );
+                return;
+              }
+              setThreeDActive(!threeDActive);
+            }}
             disabled={!threeDEnabled}
             title={
               threeDDisabledReason ??
-              (lang === "de" ? "3D-Ansicht der gesamten Wohnung" : "3D view of the whole apartment")
+              (!threeDActive && isMobileViewOnly && isPortrait
+                ? lang === "de"
+                  ? "3D-Modus benötigt Querformat"
+                  : "3D mode requires landscape orientation"
+                : lang === "de"
+                  ? "3D-Ansicht der gesamten Wohnung"
+                  : "3D view of the whole apartment")
             }
             className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium flex items-center transition-colors ${
-              !threeDEnabled
+              !threeDEnabled || (!threeDActive && isMobileViewOnly && isPortrait)
                 ? "text-muted-foreground/40 cursor-not-allowed"
                 : threeDActive
                   ? "text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
@@ -807,8 +910,113 @@ export function MultiRoomCanvas({
           </div>
         )}
 
-        {/* 2D control options overlay */}
-        {!threeDActive && (
+        {/* Layout Options -- desktop keeps the always-visible floating
+            panel; mobile view-only mode (see useMobileViewOnly) swaps it
+            for a small trigger button + a bottom sheet, and drops the
+            edit-adjacent toggles (collision, multi-select) since room
+            dragging/selecting is disabled there (onRoomPointerDown is a
+            no-op on mobile). */}
+        {!threeDActive && isMobileViewOnly && (
+          <Drawer open={mobileOptionsOpen} onOpenChange={setMobileOptionsOpen}>
+            <DrawerTrigger asChild>
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute top-3 right-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
+                title={lang === "de" ? "Ansichtsoptionen" : "View Options"}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+            </DrawerTrigger>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>{lang === "de" ? "Layout Optionen" : "Layout Options"}</DrawerTitle>
+              </DrawerHeader>
+              <div className="flex flex-col gap-3 px-4 pb-6 text-sm">
+                <label className="flex items-center gap-2.5 cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={showFurniture}
+                    onChange={(e) => setShowFurniture(e.target.checked)}
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                  />
+                  <span>{lang === "de" ? "Möbel anzeigen" : "Show Furniture"}</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={showDimensions}
+                    onChange={(e) => setShowDimensions(e.target.checked)}
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                  />
+                  <span>{lang === "de" ? "Maße anzeigen" : "Show Dimensions"}</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={showLabels}
+                    onChange={(e) => setShowLabels(e.target.checked)}
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                  />
+                  <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
+                </label>
+
+                <div className="flex flex-col gap-1.5 border-t border-border/20 pt-3 mt-1">
+                  <div className="flex items-center justify-between font-medium text-xs">
+                    <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
+                    <span className="font-semibold text-primary">
+                      {Math.round(zoomFactor * 100)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <button
+                      onClick={() =>
+                        setZoomFactor(Math.max(0.2, Math.round((zoomFactor - 0.1) * 10) / 10))
+                      }
+                      className="h-7 w-7 rounded border border-border bg-background hover:bg-accent text-sm font-bold flex items-center justify-center transition-colors"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="2.0"
+                      step="0.05"
+                      value={zoomFactor}
+                      onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
+                      className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <button
+                      onClick={() =>
+                        setZoomFactor(Math.min(2.0, Math.round((zoomFactor + 0.1) * 10) / 10))
+                      }
+                      className="h-7 w-7 rounded border border-border bg-background hover:bg-accent text-sm font-bold flex items-center justify-center transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border-t border-border/20 pt-3">
+                  <button
+                    onClick={() => {
+                      setPanX(0);
+                      setPanY(0);
+                      setZoomFactor(0.85);
+                    }}
+                    className="w-full h-9 rounded border border-border bg-background hover:bg-accent text-xs font-semibold flex items-center justify-center gap-1 transition-colors text-muted-foreground hover:text-foreground"
+                  >
+                    <span>{lang === "de" ? "Ansicht zurücksetzen" : "Reset View"}</span>
+                  </button>
+                </div>
+              </div>
+            </DrawerContent>
+          </Drawer>
+        )}
+
+        {/* 2D control options overlay (desktop) */}
+        {!threeDActive && !isMobileViewOnly && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
             className="absolute top-3 right-3 z-20 w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md text-[11px]"

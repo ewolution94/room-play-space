@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheme } from "@/hooks/use-theme";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { STRINGS } from "@/lib/planner-translations";
 import type { RoomLayout, Lang } from "@/types/planner";
 import { MultiRoomCanvas } from "@/components/planner/MultiRoomCanvas";
@@ -45,6 +46,7 @@ let hasGeneratedRoomsThisSession = false;
 
 function MultiRoomOverview() {
   const { theme, toggleTheme, isDark } = useTheme();
+  const { isMobileViewOnly } = useMobileViewOnly();
 
   // Language management
   const [lang, setLang] = useState<Lang>("en");
@@ -190,8 +192,12 @@ function MultiRoomOverview() {
     }
   };
 
+  // h-dvh (not just min-h-screen) -- see the matching comment in
+  // routes/index.tsx for why: keeps the flex column bounded to the
+  // actual visible viewport on mobile browsers, where 100vh alone is
+  // notoriously unreliable (address bar show/hide).
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-background">
+    <div className="h-dvh lg:h-screen overflow-hidden flex flex-col bg-background">
       {/* Header section */}
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
@@ -219,131 +225,185 @@ function MultiRoomOverview() {
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              className="md:hidden h-9 w-9 p-0"
-              title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}
-            >
-              <Link to="/">
-                <Sparkles className="h-4 w-4 text-amber-500" />
-              </Link>
-            </Button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={onImportFile}
-            />
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleTheme}
-              title={
-                theme === "light"
-                  ? lang === "de"
-                    ? "Dunkelmodus aktivieren"
-                    : "Switch to Dark Mode"
-                  : lang === "de"
-                    ? "Hellmodus aktivieren"
-                    : "Switch to Light Mode"
-              }
-              className="h-9 w-9 p-0 flex items-center justify-center"
-            >
-              {theme === "light" ? (
-                <Moon className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-              )}
-            </Button>
-
-            {/* Inline on desktop -- only collapses into the "Options" menu below
-                the lg breakpoint, once there's genuinely not enough header
-                width for these as standalone buttons. */}
-            <div className="hidden lg:flex items-center gap-2">
+          {/* Mobile view-only mode: every editing action below (export/
+              import/clear) is meaningless with no sidebar or tools to act
+              on -- keep just navigation + theme/language, mirroring the
+              single-room Header's own viewOnly treatment. */}
+          {isMobileViewOnly ? (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
+                <Link to="/" title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                </Link>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => changeLanguage(lang === "en" ? "de" : "en")}
-                className="gap-1.5"
+                className="h-9 w-9 p-0 flex items-center justify-center"
+                title={lang === "en" ? "Deutsch" : "English"}
               >
                 <Languages className="h-4 w-4" />
-                <span>{lang === "en" ? "Deutsch" : "English"}</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
-                <Download className="h-4 w-4" />
-                <span>{t.export}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="gap-1.5"
+                onClick={toggleTheme}
+                title={
+                  theme === "light"
+                    ? lang === "de"
+                      ? "Dunkelmodus aktivieren"
+                      : "Switch to Dark Mode"
+                    : lang === "de"
+                      ? "Hellmodus aktivieren"
+                      : "Switch to Light Mode"
+                }
+                className="h-9 w-9 p-0 flex items-center justify-center"
               >
-                <Upload className="h-4 w-4" />
-                <span>{t.import}</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearAllRooms}
-                className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>{lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}</span>
+                {theme === "light" ? (
+                  <Moon className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                )}
               </Button>
             </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="md:hidden h-9 w-9 p-0"
+                title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}
+              >
+                <Link to="/">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                </Link>
+              </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="lg:hidden">
-                  <span>{lang === "de" ? "Optionen" : "Options"}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => changeLanguage(lang === "en" ? "de" : "en")}>
-                  <Languages className="mr-2 h-4 w-4" />
-                  {lang === "en" ? "Deutsch" : "English"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={exportJSON}>
-                  <Download className="mr-2 h-4 w-4" /> {t.export}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="mr-2 h-4 w-4" /> {t.import}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={clearAllRooms}
-                  className="text-rose-500 hover:text-rose-600 focus:text-rose-600"
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={onImportFile}
+              />
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleTheme}
+                title={
+                  theme === "light"
+                    ? lang === "de"
+                      ? "Dunkelmodus aktivieren"
+                      : "Switch to Dark Mode"
+                    : lang === "de"
+                      ? "Hellmodus aktivieren"
+                      : "Switch to Light Mode"
+                }
+                className="h-9 w-9 p-0 flex items-center justify-center"
+              >
+                {theme === "light" ? (
+                  <Moon className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                )}
+              </Button>
+
+              {/* Inline on desktop -- only collapses into the "Options" menu below
+                the lg breakpoint, once there's genuinely not enough header
+                width for these as standalone buttons. */}
+              <div className="hidden lg:flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => changeLanguage(lang === "en" ? "de" : "en")}
+                  className="gap-1.5"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />{" "}
-                  {lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                  <Languages className="h-4 w-4" />
+                  <span>{lang === "en" ? "Deutsch" : "English"}</span>
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
+                  <Download className="h-4 w-4" />
+                  <span>{t.export}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-1.5"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>{t.import}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllRooms}
+                  className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>{lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}</span>
+                </Button>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="lg:hidden">
+                    <span>{lang === "de" ? "Optionen" : "Options"}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => changeLanguage(lang === "en" ? "de" : "en")}>
+                    <Languages className="mr-2 h-4 w-4" />
+                    {lang === "en" ? "Deutsch" : "English"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={exportJSON}>
+                    <Download className="mr-2 h-4 w-4" /> {t.export}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="mr-2 h-4 w-4" /> {t.import}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={clearAllRooms}
+                    className="text-rose-500 hover:text-rose-600 focus:text-rose-600"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />{" "}
+                    {lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main floor-plan planner panel */}
-      <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
-        {/* Left Column: Sidebar to add rooms and adjust selection details */}
-        <MultiRoomSidebar
-          t={t}
-          rooms={rooms}
-          setRooms={setRooms}
-          selectedRoomId={selectedRoomId}
-          setSelectedRoomId={setSelectedRoomId}
-          selectedRoomIds={selectedRoomIds}
-          setSelectedRoomIds={setSelectedRoomIds}
-          lang={lang}
-        />
+      <div
+        className={
+          isMobileViewOnly
+            ? "flex flex-1 min-h-0 w-full flex-col p-2"
+            : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+        }
+      >
+        {/* Left Column: Sidebar to add rooms and adjust selection details --
+            hidden entirely in mobile view-only mode (see useMobileViewOnly),
+            same reasoning as the single-room Sidebar in routes/index.tsx. */}
+        {!isMobileViewOnly && (
+          <MultiRoomSidebar
+            t={t}
+            rooms={rooms}
+            setRooms={setRooms}
+            selectedRoomId={selectedRoomId}
+            setSelectedRoomId={setSelectedRoomId}
+            selectedRoomIds={selectedRoomIds}
+            setSelectedRoomIds={setSelectedRoomIds}
+            lang={lang}
+          />
+        )}
 
         {/* Right Column: master floor canvas */}
         <MultiRoomCanvas

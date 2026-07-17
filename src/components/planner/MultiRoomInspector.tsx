@@ -138,9 +138,21 @@ export function MultiRoomInspector({
               onToggleCollapse();
             }}
             className="p-0.5 rounded hover:bg-primary/10 transition-colors"
-            title={isCollapsed ? (lang === "de" ? "Erweitern" : "Expand") : (lang === "de" ? "Einklappen" : "Collapse")}
+            title={
+              isCollapsed
+                ? lang === "de"
+                  ? "Erweitern"
+                  : "Expand"
+                : lang === "de"
+                  ? "Einklappen"
+                  : "Collapse"
+            }
           >
-            {isCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+            {isCollapsed ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronUp className="h-3.5 w-3.5" />
+            )}
           </button>
         </div>
       </div>

@@ -1,8 +1,10 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 
-interface NumberFieldProps
-  extends Omit<React.ComponentProps<typeof Input>, "value" | "onChange" | "type"> {
+interface NumberFieldProps extends Omit<
+  React.ComponentProps<typeof Input>,
+  "value" | "onChange" | "type"
+> {
   value: number;
   onCommit: (value: number) => void;
   min?: number;

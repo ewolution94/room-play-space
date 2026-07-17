@@ -252,6 +252,11 @@ export interface HeaderProps {
   toggleTheme: () => void;
   backUrl?: string;
   roomsUrl?: string;
+  /** Mobile "view only" mode (see useMobileViewOnly) -- strips the header
+   * down to just identity + theme/language + navigation, since every
+   * editing action (undo/redo/import/export/reset/tour) is meaningless
+   * when there's no sidebar or tools to act on. */
+  viewOnly?: boolean;
 }
 
 export interface SidebarProps {

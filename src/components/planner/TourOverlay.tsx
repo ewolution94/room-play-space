@@ -153,7 +153,12 @@ export function TourOverlay({
               {tourStep + 1} / {steps.length}
             </span>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={closeTour} className="h-8 text-xs font-semibold">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeTour}
+                className="h-8 text-xs font-semibold"
+              >
                 {t.tourSkip}
               </Button>
               <Button
@@ -166,11 +171,19 @@ export function TourOverlay({
                 {t.tourBack}
               </Button>
               {isLast ? (
-                <Button size="sm" className="h-8 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/95" onClick={closeTour}>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/95"
+                  onClick={closeTour}
+                >
                   {t.tourDone}
                 </Button>
               ) : (
-                <Button size="sm" className="h-8 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/95" onClick={() => setTourStep((s) => s + 1)}>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/95"
+                  onClick={() => setTourStep((s) => s + 1)}
+                >
                   {t.tourNext}
                 </Button>
               )}
