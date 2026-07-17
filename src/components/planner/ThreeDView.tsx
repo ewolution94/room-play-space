@@ -663,6 +663,13 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
       // (not the whole scene) -- see the generic fade test in the
       // animation loop below.
       fadeThreshold: number;
+      // Sticky "is this wall currently faded" state, used to add
+      // hysteresis around fadeThreshold in the animation loop below --
+      // without it, a camera sitting almost exactly on the threshold
+      // (e.g. orbiting near a wall, or two coincident walls whose
+      // thresholds differ by a hair) flips this every frame, and the
+      // opacity lerp below just chases a target that's itself flickering.
+      isBlockingState: boolean;
     }[] = [];
 
     // Every room/hallway instance builds its own walls independently, each
@@ -672,7 +679,7 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     // change from the single-room version of this function: every other
     // wall-building/opening-carving/mitre-joint calculation below is
     // untouched.
-    for (const room of rooms) {
+    for (const [roomIndex, room] of rooms.entries()) {
       const isPolygonRoom = room.corners.length !== 4;
 
       // Rectangular rooms (the overwhelming common case) keep the exact
@@ -737,6 +744,26 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
 
         const localGlassMat = glassMat.clone();
         const localWoodMat = woodMat.clone();
+
+        // Adjacent rooms are placed exactly flush against each other (0cm
+        // gap -- required for the door/connectivity detection in
+        // room-adjacency.ts to work), so every shared boundary between two
+        // room instances has each side independently drawing its own solid
+        // wall geometry sitting in the literal same 3D location outside a
+        // door's own carved span. Two coincident semi-transparent surfaces
+        // in the same spot is a textbook z-fighting setup: the GPU's depth
+        // test has no reliable winner, so it flips per pixel/per frame as
+        // the camera moves -- exactly the flicker reported around inner
+        // walls near hallway junctions. `polygonOffset` gives each ROOM
+        // INSTANCE (not each wall) a small, consistent depth bias so any
+        // two coincident walls from different instances always resolve to
+        // the same winner instead of fighting; it doesn't measurably shift
+        // where anything visually appears.
+        for (const mat of [localWallMat, localGlassMat, localWoodMat]) {
+          mat.polygonOffset = true;
+          mat.polygonOffsetFactor = roomIndex * 0.5;
+          mat.polygonOffsetUnits = roomIndex * 0.5;
+        }
 
         // "bottom"/"left" are walked in reverse of forward-winding order in
         // the legacy named convention (see hallway-shapes.ts), so their
@@ -966,6 +993,7 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
           normal,
           mid: { x: wallCenterX, z: wallCenterZ },
           fadeThreshold: Math.max(room.width, room.length) * 0.1,
+          isBlockingState: false,
         });
       };
 
@@ -1411,8 +1439,23 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
         // hallway's, and (unlike the old top/bottom/left/right string
         // heuristic this replaces) also generalizes correctly to any
         // number of rooms placed anywhere in the shared scene.
+        //
+        // Hysteresis band around fadeThreshold (rather than a single hard
+        // cutoff): which side of the threshold flips the boolean depends
+        // on the wall's CURRENT state, so a camera sitting almost exactly
+        // on the threshold -- which happens constantly while orbiting near
+        // a wall, or at any of the many wall-to-wall junctions in a
+        // multi-room apartment -- can't flip it back and forth every
+        // single frame. Without this, isBlocking (and therefore
+        // targetOpacity) itself flickers, and the opacity lerp below is
+        // just smoothly chasing an unstable target, which still reads as
+        // visible flicker despite the smoothing.
         const dot = (camX - w.mid.x) * w.normal.x + (camZ - w.mid.z) * w.normal.z;
-        const isBlocking = dot > w.fadeThreshold;
+        const hysteresis = w.fadeThreshold * 0.5;
+        const isBlocking = w.isBlockingState
+          ? dot > w.fadeThreshold - hysteresis
+          : dot > w.fadeThreshold + hysteresis;
+        w.isBlockingState = isBlocking;
 
         if (isBlocking) {
           targetOpacity = THREE.MathUtils.lerp(1.0, wallFadeOpacityRef.current, fadeFactor);

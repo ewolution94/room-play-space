@@ -8,6 +8,7 @@ import {
 } from "@/lib/hallway-shapes";
 import { closedSubIntervals } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { usePinchZoom } from "@/hooks/use-pinch-zoom";
 import { ThreeDView, type RoomInstance3D } from "../ThreeDView";
 import { RotateHint } from "../RotateHint";
 import { HintBanner } from "./HintBanner";
@@ -315,73 +316,23 @@ export function CanvasArea({
   };
 
   // Two-finger pinch-to-zoom (mobile view-only only -- see
-  // useMobileViewOnly). The stage below runs with touchAction:"none" so a
-  // single-finger drag can pan/select instead of the page scrolling --
-  // that same setting also suppresses the browser's own native pinch-zoom
-  // gesture, so this reimplements pinch as an explicit gesture that drives
-  // the same zoomFactor as the Zoom slider in the view-options sheet.
-  // Tracks raw pointer positions rather than native `touchstart`/
-  // `touchmove` events, to stay in the same Pointer Events model the rest
-  // of this file's drag/pan/select/rotate logic already uses.
-  const pinchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchStartRef = useRef<{ dist: number; zoom: number } | null>(null);
-  // Once a second finger joins mid-gesture, the whole gesture is treated
-  // as a pinch through to its end -- every event for its pointers is
-  // handled locally (zoomed or swallowed) rather than ever handing control
-  // back to the single-finger pan/select handler mid-gesture. Without
-  // this, lifting just one of the two fingers after a pinch would let the
-  // remaining finger fall through to the pan handler, which never saw any
-  // of the pinch's move events, so it would resume panning from its
-  // original pre-pinch start position -- a sudden jump equal to however
-  // far that finger travelled during the pinch. Fully releasing (both
-  // fingers up) always resets this, ready for the next fresh gesture.
-  const pinchActiveRef = useRef(false);
-
-  const handleStagePointerDown = (e: React.PointerEvent) => {
-    if (isMobileViewOnly) {
-      if (pinchActiveRef.current) return;
-      pinchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pinchPointersRef.current.size === 2) {
-        pinchActiveRef.current = true;
-        const [a, b] = Array.from(pinchPointersRef.current.values());
-        pinchStartRef.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: zoomFactor };
-        return;
-      }
-    }
-    onStagePointerDown(e);
-  };
-
-  const handleStagePointerMove = (e: React.PointerEvent) => {
-    if (isMobileViewOnly && pinchActiveRef.current) {
-      if (pinchPointersRef.current.has(e.pointerId)) {
-        pinchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      }
-      if (pinchPointersRef.current.size === 2 && pinchStartRef.current) {
-        const [a, b] = Array.from(pinchPointersRef.current.values());
-        const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        const ratio = dist / pinchStartRef.current.dist;
-        const next = Math.max(0.1, Math.min(2.0, pinchStartRef.current.zoom * ratio));
-        setZoomFactor(Math.round(next * 100) / 100);
-      }
-      return;
-    }
-    onStagePointerMove(e);
-  };
-
-  const handleStagePointerUp = (e: React.PointerEvent) => {
-    if (isMobileViewOnly && pinchActiveRef.current) {
-      pinchPointersRef.current.delete(e.pointerId);
-      if (pinchPointersRef.current.size > 0) return;
-      // Last finger of the pinch just lifted -- forward this one to the
-      // normal handler so it clears the hook's own leftover pan/isPanning
-      // state from before the pinch took over (it's a no-op otherwise:
-      // there's no marquee/drag in progress to resolve, and releasing a
-      // pointer that was never actually captured is already caught there).
-      pinchActiveRef.current = false;
-      pinchStartRef.current = null;
-    }
-    onStagePointerUp(e);
-  };
+  // useMobileViewOnly and use-pinch-zoom.ts for the full reasoning,
+  // including why it's built on window-level listeners rather than the
+  // stage element's own pointer props).
+  const {
+    handlePointerDown: handleStagePointerDown,
+    handlePointerMove: handleStagePointerMove,
+    handlePointerUp: handleStagePointerUp,
+  } = usePinchZoom({
+    enabled: isMobileViewOnly,
+    zoomFactor,
+    setZoomFactor,
+    min: 0.1,
+    max: 2.0,
+    onPointerDown: onStagePointerDown,
+    onPointerMove: onStagePointerMove,
+    onPointerUp: onStagePointerUp,
+  });
 
   // flex-1 min-h-0 apply unconditionally below (not just lg:) so this
   // <main> fills its parent's height in the mobile flex-column wrapper too

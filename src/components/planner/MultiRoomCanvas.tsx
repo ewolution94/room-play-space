@@ -36,6 +36,7 @@ import { MultiRoomInspector } from "./MultiRoomInspector";
 import { ThreeDView, type RoomInstance3D } from "./ThreeDView";
 import { RotateHint } from "./RotateHint";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { usePinchZoom } from "@/hooks/use-pinch-zoom";
 import {
   Drawer,
   DrawerContent,
@@ -420,55 +421,23 @@ export function MultiRoomCanvas({
   };
 
   // Two-finger pinch-to-zoom (mobile view-only only -- see
-  // useMobileViewOnly). Mirrors the same pattern in canvas/CanvasArea.tsx
-  // (see the comment there for the full reasoning): once a second finger
-  // joins, the whole gesture is handled locally (zoom or swallowed) rather
-  // than ever handing individual events back to the pan/marquee handlers
-  // above mid-gesture, and only the final release re-syncs their state.
-  const pinchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchStartRef = useRef<{ dist: number; zoom: number } | null>(null);
-  const pinchActiveRef = useRef(false);
-
-  const handleStagePointerDown = (e: React.PointerEvent) => {
-    if (isMobileViewOnly) {
-      if (pinchActiveRef.current) return;
-      pinchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pinchPointersRef.current.size === 2) {
-        pinchActiveRef.current = true;
-        const [a, b] = Array.from(pinchPointersRef.current.values());
-        pinchStartRef.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: zoomFactor };
-        return;
-      }
-    }
-    onStagePointerDown(e);
-  };
-
-  const handleStagePointerMove = (e: React.PointerEvent) => {
-    if (isMobileViewOnly && pinchActiveRef.current) {
-      if (pinchPointersRef.current.has(e.pointerId)) {
-        pinchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      }
-      if (pinchPointersRef.current.size === 2 && pinchStartRef.current) {
-        const [a, b] = Array.from(pinchPointersRef.current.values());
-        const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        const ratio = dist / pinchStartRef.current.dist;
-        const next = Math.max(0.2, Math.min(2.0, pinchStartRef.current.zoom * ratio));
-        setZoomFactor(Math.round(next * 100) / 100);
-      }
-      return;
-    }
-    onStagePointerMove(e);
-  };
-
-  const handleStagePointerUp = (e: React.PointerEvent) => {
-    if (isMobileViewOnly && pinchActiveRef.current) {
-      pinchPointersRef.current.delete(e.pointerId);
-      if (pinchPointersRef.current.size > 0) return;
-      pinchActiveRef.current = false;
-      pinchStartRef.current = null;
-    }
-    onStagePointerUp(e);
-  };
+  // useMobileViewOnly and use-pinch-zoom.ts for the full reasoning,
+  // including why it's built on window-level listeners rather than the
+  // stage element's own pointer props).
+  const {
+    handlePointerDown: handleStagePointerDown,
+    handlePointerMove: handleStagePointerMove,
+    handlePointerUp: handleStagePointerUp,
+  } = usePinchZoom({
+    enabled: isMobileViewOnly,
+    zoomFactor,
+    setZoomFactor,
+    min: 0.2,
+    max: 2.0,
+    onPointerDown: onStagePointerDown,
+    onPointerMove: onStagePointerMove,
+    onPointerUp: onStagePointerUp,
+  });
 
   // Drag states. Note: dx/dy are recomputed against the *live* `scale` on every
   // pointer-move (not a value captured at drag-start), so this stays correct
