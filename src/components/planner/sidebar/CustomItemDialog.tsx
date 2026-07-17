@@ -41,6 +41,7 @@ const LAYER_OPTIONS: { value: ItemLayer; labelEn: string; labelDe: string }[] = 
   { value: "under", labelEn: "Under", labelDe: "Unterlage" },
   { value: "main", labelEn: "Main", labelDe: "Hauptmöbel" },
   { value: "on-top", labelEn: "On Top", labelDe: "Aufsatz" },
+  { value: "wall", labelEn: "Wall", labelDe: "Wand" },
 ];
 
 export function CustomItemDialog({
@@ -155,7 +156,7 @@ export function CustomItemDialog({
               <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 {lang === "de" ? "Ebene" : "Layer"}
               </Label>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-4 gap-1">
                 {LAYER_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}

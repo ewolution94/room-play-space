@@ -41,7 +41,7 @@ export const importSchema = z.object({
         icon: z.string().optional(),
         height: z.number().optional(),
         elevation: z.number().optional(),
-        layer: z.enum(["under", "main", "on-top"]).optional(),
+        layer: z.enum(["under", "main", "on-top", "wall"]).optional(),
         shape: z.enum(["rect", "circle"]).optional(),
       }),
     )

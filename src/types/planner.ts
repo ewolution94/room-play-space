@@ -12,9 +12,18 @@ export type ItemKind = "furniture" | "chair";
 // else and never collide with anything. "on-top" items (lamps, laptops,
 // vases) sit on top of a main item (a desk, a table) and also never
 // collide -- placement on a valid surface is a visual convention, not an
-// enforced constraint. Missing/undefined always means "main", so rooms
-// saved before this field existed keep behaving exactly as before.
-export type ItemLayer = "under" | "main" | "on-top";
+// enforced constraint. "wall" items (sconces, art, mirrors, pendant
+// lights) are mounted on a wall at a fixed height regardless of what's on
+// the floor beneath them: like "on-top" they never collide with anything
+// (see collidesWithOthers in planner-math.ts, which already treats any
+// non-"main" layer this way) and are excluded from findOnTopHost/
+// computeOnTopElevation's auto-settle-onto-furniture behavior (which only
+// ever looks at "on-top" items -- see the pointer-up handler in
+// use-room-planner.ts), so dragging a wall item never resets its elevation
+// to the floor or to whatever furniture happens to be under it. Missing/
+// undefined always means "main", so rooms saved before this field existed
+// keep behaving exactly as before.
+export type ItemLayer = "under" | "main" | "on-top" | "wall";
 
 // Visual shape of the item's rendered swatch. The collision footprint is
 // always the item's width x length rectangle regardless of shape -- this
@@ -39,6 +48,69 @@ export interface Item {
   shape?: ItemShape; // defaults to "rect"
 }
 
+// Explicit surface-material hint for the 3D view (see ThreeDView.tsx's
+// materialForPreset), replacing an earlier version that *guessed* a
+// material from keywords in the item's icon key/name -- that heuristic had
+// real gaps (several wood/fabric/metal pieces fell through to a flat
+// generic material) and at least one outright bug (a bed-frame keyword
+// match made "bunk-bed" render in upholstery fabric). Every preset below
+// sets this explicitly. `undefined` (only ever true for legacy custom
+// boxes, which have no catalog key at all) falls back to a plain
+// MeshStandardMaterial with no procedural texture.
+export type PresetMaterial =
+  | "wood"
+  | "fabric"
+  | "leather"
+  | "metal"
+  | "ceramic"
+  | "stone"
+  | "glass"
+  | "plant"
+  | "rug"
+  | "plastic";
+
+// A real, extracted Kenney Furniture Kit (CC0) model available to render in
+// place of the flat procedural box, for presets where a kit model is a good
+// silhouette/proportion match (see the mapping built into PRESETS in
+// planner-presets.ts -- roughly 70 of ~130 presets have one; the rest keep
+// the box, either because the kit has no matching piece or because scaling
+// one to this preset's shape would visibly distort it).
+//
+// `file` names a .glb copied into public/models/kenney/, loaded via
+// GLTFLoader at runtime (see ThreeDView.tsx). min/max are that model's OWN
+// bounding box, in cm, read directly from its glTF accessor min/max --
+// Kenney authors each piece with its floor-contact corner at/near the local
+// origin rather than centered (confirmed by inspecting every mapped file),
+// so these are NOT symmetric around 0 in general. ThreeDView.tsx uses them
+// to position a scaled instance so its actual geometry -- not some assumed
+// centered box -- lines up exactly with the item's own x/y footprint and
+// floor elevation. See src/lib/kit-models.ts for the scale-envelope logic
+// that decides, per placed item, whether the model still looks acceptable
+// at that item's current width/length/height or should fall back to the box.
+export interface KitModel {
+  file: string;
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+}
+
+// A low-poly procedural shape to render instead of the flat box, for
+// presets with no matching Kenney kit model (see src/lib/procedural-models.ts
+// for the actual generator functions and the reasoning behind the
+// part/color-offset schema). `family` must be a key of
+// PROCEDURAL_GENERATORS there -- checked by a catalog-integrity test rather
+// than the type system, since a plain string keeps this file free of a
+// dependency on procedural-models.ts's generator implementations. `params`
+// are small per-preset knobs (leg thickness, number of drawer lines, lamp
+// mount type, ...) forwarded verbatim to that family's generator.
+export interface ProceduralModel {
+  family: string;
+  params?: Record<string, number | boolean | string>;
+}
+
 export interface Preset {
   key: string;
   category: string;
@@ -51,6 +123,20 @@ export interface Preset {
   h?: number; // default height in cm
   layer?: ItemLayer; // defaults to "main"
   shape?: ItemShape; // defaults to "rect"
+  material?: PresetMaterial;
+  // Default mount height (cm) for a "wall" layer preset (see ItemLayer) --
+  // e.g. a sconce sits higher than a towel rack. Ignored for every other
+  // layer. Falls back to WALL_MOUNT_DEFAULT_ELEVATION (use-room-planner.ts)
+  // when a "wall" preset doesn't specify its own.
+  elevation?: number;
+  // Optional real 3D model to render instead of the box -- see KitModel above.
+  kitModel?: KitModel;
+  // Optional procedural low-poly shape to render instead of the box, for
+  // presets kitModel didn't cover -- see ProceduralModel above. Ignored if
+  // kitModel is also set and currently resolving to "model" (see
+  // resolveRenderMode/kit-models.ts) -- kitModel always takes priority when
+  // usable; this is the fallback below it, one step above the plain box.
+  proceduralModel?: ProceduralModel;
 }
 
 // Rectangular rooms (exactly 4 corners) address a wall by name, as they

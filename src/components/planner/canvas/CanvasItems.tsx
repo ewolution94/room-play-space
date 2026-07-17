@@ -14,12 +14,15 @@ interface CanvasItemsProps {
 
 // Base stacking order by layer -- "under" items (rugs, mats) always render
 // beneath "main" furniture, which renders beneath "on-top" items (lamps,
-// laptops, ...). Selected items are boosted above everything regardless of
-// layer so they're never hidden mid-drag. Opacity gives the same three
-// tiers a visual read even when items overlap: under items read as
-// translucent/beneath, on-top items are nearly solid but slightly lifted.
-const LAYER_BASE_Z: Record<string, number> = { under: 1, main: 2, "on-top": 3 };
-const LAYER_OPACITY: Record<string, number> = { under: 0.55, main: 1, "on-top": 0.92 };
+// laptops, ...), which renders beneath "wall" items (sconces, art, mirrors
+// -- mounted highest of all, so they should never visually disappear
+// behind floor furniture in this 2D top-down view). Selected items are
+// boosted above everything regardless of layer so they're never hidden
+// mid-drag. Opacity gives the same tiers a visual read even when items
+// overlap: under items read as translucent/beneath, on-top and wall items
+// are nearly solid but slightly lifted.
+const LAYER_BASE_Z: Record<string, number> = { under: 1, main: 2, "on-top": 3, wall: 4 };
+const LAYER_OPACITY: Record<string, number> = { under: 0.55, main: 1, "on-top": 0.92, wall: 0.85 };
 
 export function CanvasItems({
   items,

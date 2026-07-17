@@ -1471,14 +1471,25 @@ export function MultiRoomCanvas({
                       {showFurniture &&
                         [...room.items]
                           .sort((a, b) => {
-                            const rank: Record<string, number> = { under: 0, main: 1, "on-top": 2 };
+                            const rank: Record<string, number> = {
+                              under: 0,
+                              main: 1,
+                              "on-top": 2,
+                              wall: 3,
+                            };
                             return (rank[a.layer ?? "main"] ?? 1) - (rank[b.layer ?? "main"] ?? 1);
                           })
                           .map((item) => {
                             const layer = item.layer ?? "main";
                             const shape = item.shape ?? "rect";
                             const opacity =
-                              layer === "under" ? 0.35 : layer === "on-top" ? 0.8 : 0.6;
+                              layer === "under"
+                                ? 0.35
+                                : layer === "on-top"
+                                  ? 0.8
+                                  : layer === "wall"
+                                    ? 0.7
+                                    : 0.6;
                             const cx = item.x + item.width / 2;
                             const cy = item.y + item.length / 2;
                             return (

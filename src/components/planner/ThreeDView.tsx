@@ -1,12 +1,50 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { Item, Opening, Point } from "@/types/planner";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { Item, KitModel, Opening, Point, PresetMaterial } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
-import { getDefaultHeight } from "@/lib/planner-presets";
+import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
+import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/lib/kit-models";
+import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
+
+// Module-level (not per-component-instance) cache of parsed Kenney Furniture
+// Kit models, keyed by filename -- shared across every ThreeDView mount and
+// every rebuild of the big scene-building effect below, which tears down
+// and rebuilds the whole scene from scratch on almost any state change
+// (item add/move/select, ...). Without this cache, that rebuild cadence
+// would mean re-fetching and re-parsing the same .glb over and over.
+// Cloning a cached THREE.Group (see the render loop below) is cheap and
+// synchronous; only the FIRST time a given file is needed does an actual
+// async load happen. A cloned instance's meshes still share the cached
+// template's geometry/material objects (THREE.Object3D.clone() is a
+// shallow clone), so they're tagged via userData.sharedFromKitCache and
+// deliberately never disposed in this component's per-rebuild cleanup --
+// only the box/cylinder path's genuinely-per-rebuild resources are.
+const kitModelCache = new Map<string, THREE.Group>();
+const kitModelLoading = new Set<string>();
+const kitGltfLoader = new GLTFLoader();
+
+function loadKitModelIntoCache(file: string, onLoaded: () => void) {
+  if (kitModelCache.has(file) || kitModelLoading.has(file)) return;
+  kitModelLoading.add(file);
+  kitGltfLoader.load(
+    `/models/kenney/${file}`,
+    (gltf) => {
+      kitModelCache.set(file, gltf.scene);
+      kitModelLoading.delete(file);
+      onLoaded();
+    },
+    undefined,
+    (err) => {
+      console.error(`Failed to load Kenney kit model "${file}"`, err);
+      kitModelLoading.delete(file);
+    },
+  );
+}
 
 // Re-exported for existing consumers (e.g. InspectorSection.tsx imports
 // this from "../ThreeDView") -- the implementation now lives in
@@ -112,10 +150,14 @@ function subtractOpenSpans(
   return result;
 }
 
-function createProceduralTexture(
-  type: "wood" | "fabric" | "plant" | "rug",
-  baseColor: string,
-): THREE.Texture {
+// Which procedural canvas pattern (if any) a material gets, applied on top
+// of the item's own base color. Plain PBR-only materials (metal, ceramic,
+// glass, plastic) intentionally have no entry here -- their premium look
+// comes entirely from the metalness/roughness/transparency tuning in
+// getMaterialParams below, not a drawn texture.
+type TextureType = "wood" | "fabric" | "leather" | "plant" | "rug" | "stone";
+
+function createProceduralTexture(type: TextureType, baseColor: string): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;
@@ -173,12 +215,170 @@ function createProceduralTexture(
         Math.random() > 0.5 ? darkenColor(baseColor, 0.07) : lightenColor(baseColor, 0.07);
       ctx.fillRect(rx, ry, 2, 2);
     }
+  } else if (type === "leather") {
+    // Soft mottled hide grain -- low-contrast blotches plus a fine scatter
+    // of tiny creases, unlike fabric's uniform crosshatch weave.
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = darkenColor(baseColor, 0.1);
+    for (let i = 0; i < 90; i++) {
+      const rx = Math.random() * 256;
+      const ry = Math.random() * 256;
+      const rSize = 10 + Math.random() * 22;
+      ctx.beginPath();
+      ctx.ellipse(
+        rx,
+        ry,
+        rSize,
+        rSize * (0.6 + Math.random() * 0.4),
+        Math.random() * Math.PI,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = darkenColor(baseColor, 0.2);
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < 140; i++) {
+      const rx = Math.random() * 256;
+      const ry = Math.random() * 256;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx + (Math.random() - 0.5) * 6, ry + (Math.random() - 0.5) * 6);
+      ctx.stroke();
+    }
+  } else if (type === "stone") {
+    // Marble-style veining -- a handful of long, thin, softly wandering
+    // light/dark streaks over the base color.
+    for (let i = 0; i < 6; i++) {
+      let x = Math.random() * 256;
+      let y = Math.random() * 256;
+      ctx.strokeStyle =
+        Math.random() > 0.5 ? lightenColor(baseColor, 0.25) : darkenColor(baseColor, 0.2);
+      ctx.lineWidth = 0.5 + Math.random() * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let seg = 0; seg < 8; seg++) {
+        x += (Math.random() - 0.5) * 60;
+        y += (Math.random() - 0.5) * 60;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   return texture;
+}
+
+/**
+ * Maps a preset's explicit `material` hint (see Preset.material in
+ * types/planner.ts) to concrete PBR parameters for the item's 3D mesh --
+ * this replaces an earlier version that *guessed* a material from keywords
+ * in the item's icon key/name (which had real gaps: several wood/fabric/
+ * metal pieces fell through to a flat generic material, and a "bed"
+ * keyword match on "bunk-bed" wrongly applied an upholstery fabric
+ * texture). `undefined` (legacy custom boxes with no catalog key at all)
+ * falls back to the same plain default the old heuristic used when nothing
+ * matched.
+ */
+function getMaterialParams(material?: PresetMaterial): {
+  textureType: TextureType | null;
+  metalness: number;
+  roughness: number;
+  transparent?: boolean;
+  opacity?: number;
+} {
+  switch (material) {
+    case "wood":
+      return { textureType: "wood", metalness: 0, roughness: 0.7 };
+    case "fabric":
+      return { textureType: "fabric", metalness: 0.05, roughness: 0.95 };
+    case "leather":
+      return { textureType: "leather", metalness: 0.08, roughness: 0.55 };
+    case "metal":
+      return { textureType: null, metalness: 0.88, roughness: 0.22 };
+    case "ceramic":
+      // Glossy porcelain -- very low roughness for a wet-look sheen
+      // instead of the flat matte white boxes toilets/tubs/vases used to
+      // render as.
+      return { textureType: null, metalness: 0.05, roughness: 0.12 };
+    case "stone":
+      return { textureType: "stone", metalness: 0.05, roughness: 0.3 };
+    case "glass":
+      return {
+        textureType: null,
+        metalness: 0.1,
+        roughness: 0.05,
+        transparent: true,
+        opacity: 0.55,
+      };
+    case "plant":
+      return { textureType: "plant", metalness: 0, roughness: 0.6 };
+    case "rug":
+      return { textureType: "rug", metalness: 0, roughness: 0.95 };
+    case "plastic":
+      return { textureType: null, metalness: 0.05, roughness: 0.5 };
+    default:
+      return { textureType: null, metalness: 0.1, roughness: 0.5 };
+  }
+}
+
+/** Shifts `hex` toward black (negative) or white (positive) by |offset| (0..1). 0 returns hex unchanged. */
+function shadeColor(hex: string, offset: number): string {
+  if (offset === 0) return hex;
+  return offset < 0 ? darkenColor(hex, -offset) : lightenColor(hex, offset);
+}
+
+const UNIT_CYLINDER_GEO = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+const UNIT_CONE_GEO = new THREE.ConeGeometry(0.5, 1, 16);
+const UNIT_SPHERE_GEO = new THREE.SphereGeometry(0.5, 12, 10);
+
+/**
+ * Builds a THREE.Group from a preset's procedural part list (see
+ * src/lib/procedural-models.ts) -- one Mesh per part, each with its own
+ * (never shared/cached) geometry and material so the existing per-rebuild
+ * scene.traverse() disposal in this component's cleanup handles them
+ * exactly like the plain box path already does, with no special-casing
+ * needed (unlike the Kenney kit-model path, which shares cached geometry
+ * across instances and must opt out of that same disposal via
+ * userData.sharedFromKitCache).
+ */
+function buildProceduralGroup(
+  parts: ProceduralPart[],
+  baseColor: string,
+  materialParams: ReturnType<typeof getMaterialParams>,
+): THREE.Group {
+  const group = new THREE.Group();
+  for (const part of parts) {
+    const geometry =
+      part.shape === "box"
+        ? new THREE.BoxGeometry(part.sx, part.sy, part.sz)
+        : part.shape === "cylinder"
+          ? UNIT_CYLINDER_GEO.clone()
+          : part.shape === "cone"
+            ? UNIT_CONE_GEO.clone()
+            : UNIT_SPHERE_GEO.clone();
+    if (part.shape !== "box") {
+      geometry.scale(part.sx, part.sy, part.sz);
+    }
+    const color = shadeColor(baseColor, part.colorOffset ?? 0);
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      roughness: materialParams.roughness,
+      metalness: materialParams.metalness,
+      transparent: materialParams.transparent ?? false,
+      opacity: materialParams.opacity ?? 1,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(part.x, part.y, part.z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return group;
 }
 
 export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDViewProps) {
@@ -190,6 +390,11 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   const [wallFadeOpacity, setWallFadeOpacity] = useState(0.25);
   const [sunlightEnabled, setSunlightEnabled] = useState(true);
   const [sunlightAngle, setSunlightAngle] = useState(45);
+
+  // Bumped whenever a Kenney kit model this render needed wasn't cached yet
+  // finishes loading, so the main scene-building effect below reruns and
+  // picks it up from kitModelCache -- see loadKitModelIntoCache above.
+  const [kitModelVersion, setKitModelVersion] = useState(0);
 
   // References for live updates without scene rebuilds
   const dirLightRef = useRef<THREE.DirectionalLight | null>(null);
@@ -767,13 +972,162 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
 
     // --- Render Placed Items (every instance's furniture, offset the same
     // way its walls were above) ---
-    const activeItemMeshes = new Map<string, THREE.Mesh>();
+    const activeItemMeshes = new Map<string, THREE.Object3D>();
 
     for (const room of rooms) {
       for (const it of room.items) {
         const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
         const itElev = it.elevation ?? 0;
         const isCircle = (it.shape ?? "rect") === "circle";
+        const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
+
+        // --- Kenney kit model path -------------------------------------
+        // If this preset has a mapped kit model AND it's already loaded AND
+        // the item's current size hasn't drifted too far from the preset's
+        // own default (see resolveRenderMode/kit-models.ts), render the
+        // real model instead of a box. Otherwise fall through to the
+        // existing box/cylinder path below exactly as before -- including
+        // the very first frame a not-yet-cached model is needed, while its
+        // async load (kicked off here) is in flight.
+        const kitModel: KitModel | undefined = preset?.kitModel;
+        let renderedWithKitModel = false;
+
+        if (kitModel) {
+          const cachedTemplate = kitModelCache.get(kitModel.file);
+          if (cachedTemplate) {
+            const currentDims = { w: it.width, h: itHeight, l: it.length };
+            const defaultDims = { w: preset!.w, h: preset!.h ?? itHeight, l: preset!.l };
+            const mode = resolveRenderMode(currentDims, defaultDims);
+            if (mode === "model") {
+              const scaleVec = computeModelScale(currentDims, kitModel);
+
+              const outerGroup = new THREE.Group();
+              outerGroup.position.set(
+                room.x + it.x + it.width / 2 - centerX,
+                itElev,
+                room.y + it.y + it.length / 2 - centerZ,
+              );
+              outerGroup.rotation.y = -(it.rotation * Math.PI) / 180;
+
+              const instance = cachedTemplate.clone(true);
+              // The kit model's own local origin sits at (or near) its
+              // floor-contact corner, NOT centered (see KitModel's doc
+              // comment in types/planner.ts) -- offsetting by its own
+              // min*scale alongside the item's own half-width/half-length
+              // is what lines its actual geometry up with the same
+              // footprint rectangle and floor elevation the box path uses,
+              // regardless of which corner any individual kit file happens
+              // to be authored around.
+              instance.position.set(
+                -it.width / 2 - kitModel.minX * scaleVec.x,
+                -kitModel.minY * scaleVec.y,
+                -it.length / 2 - kitModel.minZ * scaleVec.z,
+              );
+              // scaleVec is a cm/cm ratio (correct for the position offset
+              // above, since kitModel.minX/etc. are already stored in cm).
+              // But the mesh's raw local vertex data, as left by GLTFLoader,
+              // is in meters (glTF's authoring unit) -- Three.js's
+              // instance.scale is applied directly to that raw data, so it
+              // needs the additional meters->cm conversion factor here, or
+              // the model renders roughly 100x too small (in practice,
+              // collapses to a few cm and is invisible). See kit-models.ts's
+              // KIT_MODEL_UNIT_SCALE doc comment for the full derivation.
+              instance.scale.set(
+                scaleVec.x * KIT_MODEL_UNIT_SCALE,
+                scaleVec.y * KIT_MODEL_UNIT_SCALE,
+                scaleVec.z * KIT_MODEL_UNIT_SCALE,
+              );
+              instance.traverse((node) => {
+                if ((node as THREE.Mesh).isMesh) {
+                  const mesh = node as THREE.Mesh;
+                  mesh.castShadow = true;
+                  mesh.receiveShadow = true;
+                  // Never disposed by this component's cleanup below --
+                  // geometry/material are owned by kitModelCache, shared
+                  // with every other instance and every future rebuild.
+                  mesh.userData.sharedFromKitCache = true;
+                }
+              });
+              outerGroup.add(instance);
+              scene.add(outerGroup);
+              activeItemMeshes.set(it.id, outerGroup);
+
+              if (selectedIds.has(it.id)) {
+                const highlightGeo = new THREE.BoxGeometry(
+                  it.width + 1.5,
+                  itHeight + 1.5,
+                  it.length + 1.5,
+                );
+                const highlightMat = new THREE.MeshBasicMaterial({
+                  color: "#a855f7",
+                  wireframe: true,
+                  transparent: true,
+                  opacity: 0.6,
+                });
+                const highlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
+                highlightMesh.position.set(0, itHeight / 2, 0);
+                outerGroup.add(highlightMesh);
+              }
+
+              renderedWithKitModel = true;
+            }
+          } else {
+            loadKitModelIntoCache(kitModel.file, () => setKitModelVersion((v) => v + 1));
+          }
+        }
+
+        if (renderedWithKitModel) continue;
+
+        // --- Procedural low-poly model path ------------------------------
+        // One step below the Kenney kit model: for presets with no matching
+        // .glb (see Preset.proceduralModel in types/planner.ts), build a
+        // small group of primitive shapes (box/cylinder/cone/sphere) that
+        // at least suggests the real silhouette -- legs on a table, a
+        // pedestal+bowl for a toilet, a base+pole+shade for a lamp -- rather
+        // than falling all the way back to a single flat box. Always
+        // available synchronously (no async load, unlike kit models), and
+        // reshapes live with the item's current width/height/length exactly
+        // like the box path below.
+        if (preset?.proceduralModel) {
+          const dims = { w: it.width, h: itHeight, l: it.length };
+          const parts = generateProceduralParts(preset.proceduralModel, dims);
+          if (parts.length > 0) {
+            const presetMaterial = preset.material;
+            const materialParams = getMaterialParams(presetMaterial);
+
+            const outerGroup = new THREE.Group();
+            outerGroup.position.set(
+              room.x + it.x + it.width / 2 - centerX,
+              itElev,
+              room.y + it.y + it.length / 2 - centerZ,
+            );
+            outerGroup.rotation.y = -(it.rotation * Math.PI) / 180;
+
+            const partsGroup = buildProceduralGroup(parts, it.color, materialParams);
+            outerGroup.add(partsGroup);
+            scene.add(outerGroup);
+            activeItemMeshes.set(it.id, outerGroup);
+
+            if (selectedIds.has(it.id)) {
+              const highlightGeo = new THREE.BoxGeometry(
+                it.width + 1.5,
+                itHeight + 1.5,
+                it.length + 1.5,
+              );
+              const highlightMat = new THREE.MeshBasicMaterial({
+                color: "#a855f7",
+                wireframe: true,
+                transparent: true,
+                opacity: 0.6,
+              });
+              const highlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
+              highlightMesh.position.set(0, itHeight / 2, 0);
+              outerGroup.add(highlightMesh);
+            }
+
+            continue;
+          }
+        }
 
         // A circular preset (round table, round rug, vase, ...) gets a unit
         // cylinder scaled to its width/length/height footprint instead of a
@@ -787,85 +1141,21 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
           (itemGeo as THREE.CylinderGeometry).scale(it.width, itHeight, it.length);
         }
 
-        let textureType: "wood" | "fabric" | "plant" | "rug" | null = null;
-        let metalness = 0.1;
-        let roughness = 0.5;
-
-        const lowerIcon = (it.icon || "").toLowerCase();
-        const lowerName = it.name.toLowerCase();
-
-        if (
-          lowerIcon.includes("fridge") ||
-          lowerIcon.includes("sink") ||
-          lowerIcon.includes("stove") ||
-          lowerName.includes("kühlschrank") ||
-          lowerName.includes("spüle") ||
-          lowerName.includes("herd")
-        ) {
-          metalness = 0.85;
-          roughness = 0.2;
-        } else if (
-          lowerIcon.includes("desk") ||
-          lowerIcon.includes("table") ||
-          lowerIcon.includes("bookshelf") ||
-          lowerIcon.includes("wardrobe") ||
-          lowerIcon.includes("cabinet") ||
-          lowerName.includes("tisch") ||
-          lowerName.includes("regal") ||
-          lowerName.includes("schrank") ||
-          lowerName.includes("desk") ||
-          lowerName.includes("table") ||
-          lowerName.includes("shelf") ||
-          lowerName.includes("wardrobe")
-        ) {
-          if (
-            !(
-              lowerIcon.includes("filing") &&
-              (it.color === "#9aa0a6" || it.color.toLowerCase() === "#gray")
-            )
-          ) {
-            textureType = "wood";
-            roughness = 0.7;
-          } else {
-            metalness = 0.5;
-            roughness = 0.35;
-          }
-        } else if (
-          lowerIcon.includes("chair") ||
-          lowerIcon.includes("sofa") ||
-          lowerIcon.includes("armchair") ||
-          lowerIcon.includes("bed") ||
-          lowerName.includes("stuhl") ||
-          lowerName.includes("sofa") ||
-          lowerName.includes("sessel") ||
-          lowerName.includes("bett") ||
-          lowerName.includes("chair") ||
-          lowerName.includes("couch") ||
-          lowerName.includes("bed")
-        ) {
-          textureType = "fabric";
-          roughness = 0.95;
-        } else if (
-          lowerIcon.includes("plant") ||
-          lowerName.includes("pflanze") ||
-          lowerName.includes("plant")
-        ) {
-          textureType = "plant";
-          roughness = 0.6;
-        } else if (
-          lowerIcon.includes("rug") ||
-          lowerName.includes("teppich") ||
-          lowerName.includes("rug")
-        ) {
-          textureType = "rug";
-          roughness = 0.95;
-        }
+        // Explicit material hint from the catalog (see Preset.material in
+        // types/planner.ts) -- undefined for a legacy custom box with no
+        // catalog key, which falls back to a plain generic material via
+        // getMaterialParams's default case.
+        const presetMaterial = preset?.material;
+        const { textureType, metalness, roughness, transparent, opacity } =
+          getMaterialParams(presetMaterial);
 
         // Base side material
         const sideMat = new THREE.MeshStandardMaterial({
           color: it.color,
-          roughness: roughness,
-          metalness: metalness,
+          roughness,
+          metalness,
+          transparent: transparent ?? false,
+          opacity: opacity ?? 1,
         });
 
         if (textureType) {
@@ -883,8 +1173,10 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
         // material grouping.
         const textCol = readableText(it.color);
         const topMat = new THREE.MeshStandardMaterial({
-          roughness: roughness,
-          metalness: metalness,
+          roughness,
+          metalness,
+          transparent: transparent ?? false,
+          opacity: opacity ?? 1,
         });
 
         // Calculate ideal aspect-ratio canvas dimensions to prevent texture squishing/stretching
@@ -958,6 +1250,44 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
               ctx.fillStyle =
                 Math.random() > 0.5 ? darkenColor(it.color, 0.07) : lightenColor(it.color, 0.07);
               ctx.fillRect(rx, ry, 2, 2);
+            }
+          } else if (textureType === "leather") {
+            ctx.globalAlpha = 0.15;
+            ctx.fillStyle = darkenColor(it.color, 0.1);
+            for (let j = 0; j < 70; j++) {
+              const rx = Math.random() * canvasW;
+              const ry = Math.random() * canvasH;
+              const rSize = (8 + Math.random() * 18) * (Math.min(canvasW, canvasH) / 256);
+              ctx.beginPath();
+              ctx.ellipse(rx, ry, rSize, rSize * 0.75, Math.random() * Math.PI, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = darkenColor(it.color, 0.2);
+            ctx.lineWidth = 0.6;
+            for (let j = 0; j < 100; j++) {
+              const rx = Math.random() * canvasW;
+              const ry = Math.random() * canvasH;
+              ctx.beginPath();
+              ctx.moveTo(rx, ry);
+              ctx.lineTo(rx + (Math.random() - 0.5) * 6, ry + (Math.random() - 0.5) * 6);
+              ctx.stroke();
+            }
+          } else if (textureType === "stone") {
+            for (let j = 0; j < 5; j++) {
+              let x = Math.random() * canvasW;
+              let y = Math.random() * canvasH;
+              ctx.strokeStyle =
+                Math.random() > 0.5 ? lightenColor(it.color, 0.25) : darkenColor(it.color, 0.2);
+              ctx.lineWidth = 0.5 + Math.random() * 1.5;
+              ctx.beginPath();
+              ctx.moveTo(x, y);
+              for (let seg = 0; seg < 6; seg++) {
+                x += (Math.random() - 0.5) * (canvasW * 0.25);
+                y += (Math.random() - 0.5) * (canvasH * 0.25);
+                ctx.lineTo(x, y);
+              }
+              ctx.stroke();
             }
           }
 
@@ -1118,6 +1448,12 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
 
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {
+          // Geometry/material of a cloned Kenney kit model instance are
+          // shared with kitModelCache's template (THREE.Object3D.clone()
+          // is shallow) and every other instance of the same file -- never
+          // dispose those here, only the genuinely-per-rebuild box/cylinder
+          // geometry and materials created above.
+          if (obj.userData.sharedFromKitCache) return;
           obj.geometry.dispose();
           if (Array.isArray(obj.material)) {
             obj.material.forEach((mat) => mat.dispose());
@@ -1134,7 +1470,16 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
       controlsRef.current = null;
       cameraRef.current = null;
     };
-  }, [rooms, selectedIds, showNames, isDark, sceneBounds, sunlightAngle, sunlightEnabled]);
+  }, [
+    rooms,
+    selectedIds,
+    showNames,
+    isDark,
+    sceneBounds,
+    sunlightAngle,
+    sunlightEnabled,
+    kitModelVersion,
+  ]);
 
   // Is German language active?
   const isDe = t.title === "Raumplaner";

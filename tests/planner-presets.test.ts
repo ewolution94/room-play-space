@@ -57,11 +57,50 @@ describe("PRESETS catalog integrity", () => {
     }
   });
 
-  test("layer is either unset (main) or one of the three valid values", () => {
-    const valid = new Set(["under", "main", "on-top"]);
+  test("layer is either unset (main) or one of the four valid values", () => {
+    const valid = new Set(["under", "main", "on-top", "wall"]);
     for (const p of PRESETS) {
       if (p.layer !== undefined) {
         assert.ok(valid.has(p.layer), `${p.key} has invalid layer "${p.layer}"`);
+      }
+    }
+  });
+
+  test("every preset has an explicit material hint, one of the valid PresetMaterial values", () => {
+    const valid = new Set([
+      "wood",
+      "fabric",
+      "leather",
+      "metal",
+      "ceramic",
+      "stone",
+      "glass",
+      "plant",
+      "rug",
+      "plastic",
+    ]);
+    for (const p of PRESETS) {
+      assert.ok(p.material, `${p.key} is missing a material hint`);
+      assert.ok(valid.has(p.material!), `${p.key} has invalid material "${p.material}"`);
+    }
+  });
+
+  test("'wall' layer items are mounted furniture, not floor-scale (h <= 220cm)", () => {
+    for (const p of PRESETS) {
+      if (p.layer === "wall") {
+        assert.ok(p.h! <= 220, `${p.key} (wall) has h=${p.h}, expected mounted-fixture scale`);
+      }
+    }
+  });
+
+  test("a 'wall' layer preset's own elevation (when set) plus its height stays within head-clearance of a 240cm wall", () => {
+    for (const p of PRESETS) {
+      if (p.layer === "wall" && p.elevation !== undefined) {
+        const top = p.elevation + p.h!;
+        assert.ok(
+          top <= 240,
+          `${p.key} (wall) would poke through the 240cm wall height: elevation ${p.elevation} + h ${p.h} = ${top}`,
+        );
       }
     }
   });

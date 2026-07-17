@@ -6,7 +6,7 @@ import { Package, Search, Square, X } from "lucide-react";
 import type { Preset } from "@/types/planner";
 import { PRESET_ICON } from "@/lib/planner-presets";
 
-type CatalogLayer = "main" | "under" | "on-top";
+type CatalogLayer = "main" | "under" | "on-top" | "wall";
 
 // Filters a layer's category->presets map down to entries whose name (in
 // the active language) matches the search query, dropping any category
@@ -37,7 +37,7 @@ interface CatalogSectionProps {
   addPreset: (preset: Preset) => void;
 }
 
-const LAYER_ORDER: CatalogLayer[] = ["main", "under", "on-top"];
+const LAYER_ORDER: CatalogLayer[] = ["main", "under", "on-top", "wall"];
 
 function CatalogGrid({
   t,
@@ -76,15 +76,22 @@ function CatalogGrid({
           <div className="grid grid-cols-4 gap-1">
             {list.map((p) => {
               const Icon = PRESET_ICON[p.key] ?? Square;
+              const has3dModel = Boolean(p.kitModel);
               return (
                 <button
                   key={p.key}
                   type="button"
                   disabled={threeDActive}
                   onClick={() => addPreset(p)}
-                  className="group flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border border-border/40 bg-background/50 p-1 text-center transition-all duration-200 hover:border-primary hover:bg-accent/50 disabled:opacity-50 disabled:pointer-events-none"
-                  title={`${lang === "de" ? p.nameDe : p.nameEn} (${p.w}×${p.l}cm)`}
+                  className="group relative flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border border-border/40 bg-background/50 p-1 text-center transition-all duration-200 hover:border-primary hover:bg-accent/50 disabled:opacity-50 disabled:pointer-events-none"
+                  title={`${lang === "de" ? p.nameDe : p.nameEn} (${p.w}×${p.l}cm)${has3dModel ? (lang === "de" ? " — echtes 3D-Modell" : " — real 3D model") : ""}`}
                 >
+                  {has3dModel && (
+                    <span
+                      className="pointer-events-none absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary/70"
+                      aria-hidden="true"
+                    />
+                  )}
                   <Icon
                     className="h-4.5 w-4.5 text-foreground/85 transition group-hover:scale-105"
                     strokeWidth={1.5}
@@ -148,7 +155,7 @@ export function CatalogSection({
           )}
         </div>
         <Tabs value={activeLayer} onValueChange={(v) => setActiveLayer(v as CatalogLayer)}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             {LAYER_ORDER.map((layer) => (
               <TabsTrigger key={layer} value={layer} className="text-[11px]">
                 {t.catalogLayers[layer] ?? layer}

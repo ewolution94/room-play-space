@@ -67,12 +67,13 @@ export function Sidebar({
   const [openingOpen, setOpeningOpen] = useState(false);
 
   // Group presets by layer, then by category within each layer, for the
-  // catalog's three-tab (Main / Under / On Top) layout.
+  // catalog's four-tab (Main / Under / On Top / Wall) layout.
   const categorizedByLayer = useMemo(() => {
-    const layers: Record<"under" | "main" | "on-top", Record<string, Preset[]>> = {
+    const layers: Record<"under" | "main" | "on-top" | "wall", Record<string, Preset[]>> = {
       main: {},
       under: {},
       "on-top": {},
+      wall: {},
     };
     for (const p of PRESETS) {
       const layer = p.layer ?? "main";

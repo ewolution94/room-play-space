@@ -39,6 +39,16 @@ import {
 // match whatever it's actually meant to sit on.
 const ON_TOP_DEFAULT_ELEVATION = 75;
 
+// Default mount height (cm) for a "wall" layer item (sconces, art, mirrors,
+// pendant lights, ...) that doesn't specify its own Preset.elevation --
+// roughly eye/picture-rail height, a reasonable default for most wall decor.
+// Unlike ON_TOP_DEFAULT_ELEVATION above, this is never recomputed after
+// placement: "wall" items are deliberately excluded from the drag-end
+// auto-elevate effect below (which only ever touches "on-top" items), so a
+// wall-mounted item keeps whatever height it's given here (or its own
+// Preset.elevation) no matter what furniture ends up underneath it.
+const WALL_MOUNT_DEFAULT_ELEVATION = 150;
+
 // Real-world height of an item, used to figure out where an "on-top" item's
 // surface lands when something is auto-elevated onto it (see
 // computeOnTopElevation in planner-math.ts). Falls back through the same
@@ -451,7 +461,12 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       icon: preset.key,
       layer,
       shape: preset.shape ?? "rect",
-      elevation: layer === "on-top" ? ON_TOP_DEFAULT_ELEVATION : 0,
+      elevation:
+        layer === "on-top"
+          ? ON_TOP_DEFAULT_ELEVATION
+          : layer === "wall"
+            ? (preset.elevation ?? WALL_MOUNT_DEFAULT_ELEVATION)
+            : 0,
     };
     const spot = findFreeSpot(draft, items, corners, collisionEnabled);
     if (!spot) {
@@ -478,7 +493,12 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       kind: "furniture",
       layer: nLayer,
       shape: nShape,
-      elevation: nLayer === "on-top" ? ON_TOP_DEFAULT_ELEVATION : 0,
+      elevation:
+        nLayer === "on-top"
+          ? ON_TOP_DEFAULT_ELEVATION
+          : nLayer === "wall"
+            ? WALL_MOUNT_DEFAULT_ELEVATION
+            : 0,
     };
     const spot = findFreeSpot(draft, items, corners, collisionEnabled);
     if (!spot) {
