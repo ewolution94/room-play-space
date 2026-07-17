@@ -6,6 +6,7 @@ import {
   wallColorKey,
   wallOutwardNormal,
 } from "@/lib/hallway-shapes";
+import { closedSubIntervals } from "@/lib/room-adjacency";
 import { ThreeDView } from "../ThreeDView";
 import { HintBanner } from "./HintBanner";
 import { RoomDimensionBadge } from "./RoomDimensionBadge";
@@ -395,36 +396,47 @@ export function CanvasArea({
                     doesn't depend on which endpoint is "a" vs "b", so this
                     is pixel-identical to the old hardcoded top/right/
                     bottom/left blocks for every existing rectangular room.
-                    A wall whose key is in `openWalls` (the "0-4 walls"
+                    Each wall is further split into its closed sub-run(s)
+                    around any `openWalls` interval(s) (the "0-4 walls"
                     feature -- either auto-detected as touching a neighbor
-                    in the multi-room overview, or manually forced open) is
-                    skipped entirely: no line, no color, an actual gap in
-                    the floor plan rather than just a wide doorway. */}
-                {wallSegments(corners).map((seg) => {
+                    in the multi-room overview, or manually forced open) --
+                    an actual gap in the floor plan, not a wide doorway,
+                    and only over the span that's actually open rather than
+                    the whole wall vanishing next to a shorter neighbor. */}
+                {wallSegments(corners).flatMap((seg) => {
                   const colorKey = wallColorKey(seg.index, corners.length);
-                  if (openWalls.has(colorKey)) return null;
-                  return (
-                    <React.Fragment key={seg.index}>
-                      <line
-                        x1={cm(seg.a.x)}
-                        y1={cm(seg.a.y)}
-                        x2={cm(seg.b.x)}
-                        y2={cm(seg.b.y)}
-                        className="stroke-slate-700 dark:stroke-slate-400"
-                        strokeWidth={cm(6)}
-                        strokeLinecap="round"
-                      />
-                      <line
-                        x1={cm(seg.a.x)}
-                        y1={cm(seg.a.y)}
-                        x2={cm(seg.b.x)}
-                        y2={cm(seg.b.y)}
-                        stroke={wallColors[colorKey] || "#f1f5f9"}
-                        strokeWidth={cm(4)}
-                        strokeLinecap="round"
-                      />
-                    </React.Fragment>
-                  );
+                  const openIntervals = openWalls.get(colorKey) ?? [];
+                  const closed = closedSubIntervals(seg.length, openIntervals);
+                  const ux = (seg.b.x - seg.a.x) / (seg.length || 1);
+                  const uy = (seg.b.y - seg.a.y) / (seg.length || 1);
+                  return closed.map((c, i) => {
+                    const ax = seg.a.x + ux * c.start;
+                    const ay = seg.a.y + uy * c.start;
+                    const bx = seg.a.x + ux * c.end;
+                    const by = seg.a.y + uy * c.end;
+                    return (
+                      <React.Fragment key={`${seg.index}-${i}`}>
+                        <line
+                          x1={cm(ax)}
+                          y1={cm(ay)}
+                          x2={cm(bx)}
+                          y2={cm(by)}
+                          className="stroke-slate-700 dark:stroke-slate-400"
+                          strokeWidth={cm(6)}
+                          strokeLinecap="round"
+                        />
+                        <line
+                          x1={cm(ax)}
+                          y1={cm(ay)}
+                          x2={cm(bx)}
+                          y2={cm(by)}
+                          stroke={wallColors[colorKey] || "#f1f5f9"}
+                          strokeWidth={cm(4)}
+                          strokeLinecap="round"
+                        />
+                      </React.Fragment>
+                    );
+                  });
                 })}
 
                 {/* Wall id/number labels -- opt-in debug overlay so users can
@@ -444,7 +456,9 @@ export function CanvasArea({
                 {showWallIds &&
                   wallSegments(corners).map((seg) => {
                     const colorKey = wallColorKey(seg.index, corners.length);
-                    if (openWalls.has(colorKey)) return null;
+                    const isFullyOpen =
+                      closedSubIntervals(seg.length, openWalls.get(colorKey) ?? []).length === 0;
+                    if (isFullyOpen) return null;
                     const midX = cm((seg.a.x + seg.b.x) / 2);
                     const midY = cm((seg.a.y + seg.b.y) / 2);
                     const n = wallOutwardNormal(seg.a, seg.b);

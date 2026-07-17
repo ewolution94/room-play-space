@@ -25,7 +25,11 @@ import {
 } from "@/lib/planner-math";
 import { importSchema } from "@/lib/planner-schema";
 import { getDefaultHeight } from "@/lib/planner-presets";
-import { computeAutoOpenWalls, resolveEffectiveOpenWalls } from "@/lib/room-adjacency";
+import {
+  computeAutoOpenIntervals,
+  resolveEffectiveOpenIntervals,
+  type WallOpenInterval,
+} from "@/lib/room-adjacency";
 
 // Typical desk/table/counter height (cm) -- the default elevation a
 // newly-placed "on-top" item (lamp, laptop, vase, ...) gets so the 3D view
@@ -74,14 +78,23 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   };
   const { room: initialRoom, siblings: initialSiblings } = getInitialRoomData();
 
-  // Which of this room's walls are effectively open (auto-detected touching
-  // a sibling, or an explicit override on the room itself). Computed once
-  // from the same snapshot the rest of this room's initial state comes from
-  // -- see RoomLayout.wallOverrides and room-adjacency.ts.
-  const [openWalls] = useState<Set<string>>(() => {
-    if (!initialRoom) return new Set<string>();
-    const autoOpen = computeAutoOpenWalls(initialSiblings).get(initialRoom.id) ?? new Set();
-    return resolveEffectiveOpenWalls(initialRoom, autoOpen);
+  // Which spans of this room's walls are effectively open (auto-detected
+  // touching a sibling, or an explicit override on the room itself).
+  // Computed once from the same snapshot the rest of this room's initial
+  // state comes from -- see RoomLayout.wallOverrides and room-adjacency.ts.
+  const [openWalls] = useState<Map<string, WallOpenInterval[]>>(() => {
+    if (!initialRoom) return new Map();
+    const roomCorners: Point[] =
+      initialRoom.corners && initialRoom.corners.length >= 3
+        ? initialRoom.corners
+        : [
+            { x: 0, y: 0 },
+            { x: initialRoom.width, y: 0 },
+            { x: initialRoom.width, y: initialRoom.length },
+            { x: 0, y: initialRoom.length },
+          ];
+    const autoOpen = computeAutoOpenIntervals(initialSiblings).get(initialRoom.id) ?? new Map();
+    return resolveEffectiveOpenIntervals(initialRoom, roomCorners, autoOpen);
   });
 
   const [roomW, setRoomW] = useState(() => initialRoom?.width ?? 480);

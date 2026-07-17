@@ -21,8 +21,25 @@ export const FLOOR_L = 1500; // cm, virtual master-plan workspace length
 
 type OBB = { x: number; y: number; width: number; length: number; rotation: number };
 
+// A room is never actually drawn with an angular CSS/SVG rotation -- the
+// overview always renders it as a plain axis-aligned width x length box
+// (see MultiRoomCanvas.tsx's room <div>, which has no transform tied to
+// room.rotation at all). rotateRoomLayout's 90 degree "Rotate" action
+// already bakes the rotation into the room by swapping width/length (and
+// rebuilding corners) -- room.rotation past that point is bookkeeping
+// only, not a pending transform still waiting to be applied. Feeding it
+// into obbCorners here anyway used to double-rotate the room for
+// collision purposes: after one 90 degree rotation, the box was already
+// visually swapped, and then obbCorners rotated *that* swapped box by
+// another 90 degrees, which for a rectangle flips the bounding box back to
+// the pre-rotation dimensions -- so collision kept using the room's
+// original (pre-rotation) footprint forever after its first rotation. Every
+// room-vs-room OBB in this file uses rotation: 0 for exactly this reason;
+// item-vs-item collision (planner-math.ts) is unrelated and correctly still
+// uses the item's real rotation, since items *are* visually CSS-rotated in
+// place.
 function toOBB(r: Pick<RoomLayout, "x" | "y" | "width" | "length" | "rotation">): OBB {
-  return { x: r.x, y: r.y, width: r.width, length: r.length, rotation: r.rotation };
+  return { x: r.x, y: r.y, width: r.width, length: r.length, rotation: 0 };
 }
 
 /**
@@ -402,7 +419,9 @@ export function clampRoomResize(
     otherRooms.some(
       (other) =>
         other.id !== room.id &&
-        obbOverlap({ x: room.x, y: room.y, width, length, rotation: room.rotation }, toOBB(other)),
+        // rotation: 0 -- see toOBB's comment above; a room's footprint is
+        // never actually angularly rotated for collision purposes.
+        obbOverlap({ x: room.x, y: room.y, width, length, rotation: 0 }, toOBB(other)),
     );
 
   if (!collidesAt(requestedWidth, requestedLength)) {

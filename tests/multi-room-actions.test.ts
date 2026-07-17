@@ -162,6 +162,38 @@ describe("rotateRoomLayout", () => {
     assert.deepEqual(afterLens, beforeLens);
   });
 
+  test("a room's real rotated footprint (not a double-rotated stale box) is used in later collision checks", () => {
+    // Regression test for a real bug: room-vs-room OBBs used to feed the
+    // room's `rotation` field into obbCorners, but a room's rendered
+    // footprint is never actually angularly rotated -- rotateRoomLayout
+    // already bakes a 90 degree turn into width/length directly. Applying
+    // *another* rotation on top of that already-swapped box, for collision
+    // purposes only, produced a bogus box that didn't match what was
+    // actually on screen -- in practice this showed up as "collision
+    // worked, then I rotated a room and it stopped working, like it was
+    // still using the pre-rotation box."
+    //
+    // A starts tall & narrow (60x300) and gets rotated once, becoming wide
+    // & short (300x60) at the same top-left anchor -- its real footprint
+    // is now x:[0,300], y:[0,60].
+    const roomA = makeRoom({ id: "a", x: 0, y: 0, width: 60, length: 300, rotation: 0 });
+    const afterFirstRotation = rotateRoomLayout([roomA], "a", true);
+    const a = afterFirstRotation.find((r) => r.id === "a")!;
+    assert.equal(a.rotation, 90);
+    assert.equal(a.width, 300);
+    assert.equal(a.length, 60);
+
+    // C sits at x:[20,70], y:[0,50] -- squarely inside A's real footprint,
+    // but outside the bogus box the old buggy math would have computed
+    // (re-rotating A's already-swapped 300x60 box by 90 degrees around its
+    // center gives a box spanning roughly x:[120,180], y:[-120,180], which
+    // C deliberately sits nowhere near).
+    const roomC = makeRoom({ id: "c", x: 20, y: 0, width: 50, length: 50, rotation: 0 });
+    const result = rotateRoomLayout([a, roomC], "c", true);
+    const c = result.find((r) => r.id === "c")!;
+    assert.equal(c.rotation, 0);
+  });
+
   test("a colliding rotation is blocked the same way for polygon rooms as for rectangles", () => {
     // Bounding box is 300 wide x 260 tall before rotating, 260 wide x 300
     // tall after. A neighbor placed just below the pre-rotation bbox (with

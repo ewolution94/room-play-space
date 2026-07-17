@@ -8,7 +8,11 @@ import {
   wallSegments,
   wallColorKey,
 } from "@/lib/hallway-shapes";
-import { computeAutoOpenWalls, resolveEffectiveOpenWalls } from "@/lib/room-adjacency";
+import {
+  computeAutoOpenIntervals,
+  resolveEffectiveOpenIntervals,
+  closedSubIntervals,
+} from "@/lib/room-adjacency";
 import {
   FLOOR_W,
   FLOOR_L,
@@ -68,11 +72,11 @@ export function MultiRoomCanvas({
   const [blockedRoomIds, setBlockedRoomIds] = useState<Set<string>>(new Set());
   const blockedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Which of each room's walls touch a neighbor's wall right now -- the
-  // "0-4 walls" feature's auto-suggestion half (see room-adjacency.ts).
+  // Which spans of each room's walls touch a neighbor's wall right now --
+  // the "0-4 walls" feature's auto-suggestion half (see room-adjacency.ts).
   // Recomputed whenever the room list changes (drag, resize, add/remove);
   // O(rooms^2) but floor plans here run to tens of rooms, not thousands.
-  const autoOpenWalls = useMemo(() => computeAutoOpenWalls(rooms), [rooms]);
+  const autoOpenWalls = useMemo(() => computeAutoOpenIntervals(rooms), [rooms]);
 
   // Floating draggable inspector state -- mirrors the single-room planner's
   // floating Inspector panel in CanvasArea.tsx exactly, so editing a room's
@@ -410,12 +414,20 @@ export function MultiRoomCanvas({
 
         const collides = (x: number, y: number) => {
           if (!collisionEnabled) return false;
+          // rotation: 0 for both sides -- a room's rendered footprint is
+          // always the plain axis-aligned width x length box (no CSS/SVG
+          // rotation is ever applied to a room), and rotateRoomLayout
+          // already bakes a 90 degree rotation into width/length directly.
+          // Feeding room.rotation into obbCorners here double-rotates the
+          // box and silently reverts collision to the room's pre-rotation
+          // footprint -- see the comment on toOBB in multi-room-actions.ts
+          // for the full explanation of this exact bug.
           const candidateObb = {
             x,
             y,
             width: currentRoom.width,
             length: currentRoom.length,
-            rotation: currentRoom.rotation,
+            rotation: 0,
           };
           return next.some(
             (other) =>
@@ -425,7 +437,7 @@ export function MultiRoomCanvas({
                 y: other.y,
                 width: other.width,
                 length: other.length,
-                rotation: other.rotation,
+                rotation: 0,
               }),
           );
         };
@@ -616,6 +628,12 @@ export function MultiRoomCanvas({
         });
 
         if (collisionEnabled) {
+          // rotation: 0 for both sides -- see the comment on toOBB in
+          // multi-room-actions.ts (a room's rendered footprint is never
+          // actually angularly rotated, so feeding room.rotation into
+          // obbCorners here double-rotates it and silently reverts
+          // collision to the pre-rotation footprint after the room's
+          // first 90 degree rotation).
           const collided = next.some(
             (r) =>
               ids.has(r.id) &&
@@ -624,13 +642,13 @@ export function MultiRoomCanvas({
                   other.id !== r.id &&
                   !ids.has(other.id) &&
                   obbOverlap(
-                    { x: r.x, y: r.y, width: r.width, length: r.length, rotation: r.rotation },
+                    { x: r.x, y: r.y, width: r.width, length: r.length, rotation: 0 },
                     {
                       x: other.x,
                       y: other.y,
                       width: other.width,
                       length: other.length,
-                      rotation: other.rotation,
+                      rotation: 0,
                     },
                   ),
               ),
@@ -840,12 +858,16 @@ export function MultiRoomCanvas({
                     ];
               const isPolygonRoom = roomCorners.length !== 4;
               // Merges this room's manual wallOverrides on top of the
-              // auto-detected touching-neighbor set above -- see
-              // room-adjacency.ts. A wall in here gets no outline drawn at
-              // all below, an actual gap rather than a doorway-sized one.
-              const effectiveOpenWalls = resolveEffectiveOpenWalls(
+              // auto-detected touching-neighbor spans above -- see
+              // room-adjacency.ts. Each wall's open interval(s) get no
+              // outline drawn over them below (an actual gap), while the
+              // rest of that same wall still renders normally -- so a long
+              // wall next to a short neighbor only opens the matching span
+              // instead of vanishing entirely.
+              const effectiveOpenWalls = resolveEffectiveOpenIntervals(
                 room,
-                autoOpenWalls.get(room.id) ?? new Set(),
+                roomCorners,
+                autoOpenWalls.get(room.id) ?? new Map(),
               );
 
               return (
@@ -891,29 +913,34 @@ export function MultiRoomCanvas({
 
                       {/* Thick CAD outer walls (8cm thickness), drawn as
                           independent per-wall segments (rather than one
-                          closed outline) so any wall that's effectively
-                          open -- see room-adjacency.ts -- can be skipped
-                          entirely, leaving a real gap in the thumbnail
-                          instead of a closed box. Uses the same inset
-                          corner points for a rectangular room as the old
-                          hardcoded x=4/y=4/width-8/height-8 rect (verified
-                          in hallway-shapes.test.ts), so closed rooms render
-                          pixel-identical to before. */}
-                      {wallSegments(insetRectilinearPolygon(roomCorners, 4)).map((seg) => {
+                          closed outline), each further split into its
+                          closed sub-run(s) around any open interval(s) --
+                          see room-adjacency.ts -- so a long wall next to a
+                          shorter touching neighbor only opens the matching
+                          span instead of the entire wall vanishing. Uses
+                          the same inset corner points for a rectangular
+                          room as the old hardcoded x=4/y=4/width-8/
+                          height-8 rect (verified in hallway-shapes.test.ts),
+                          so a fully-closed room renders pixel-identical to
+                          before. */}
+                      {wallSegments(insetRectilinearPolygon(roomCorners, 4)).flatMap((seg) => {
                         const key = wallColorKey(seg.index, roomCorners.length);
-                        if (effectiveOpenWalls.has(key)) return null;
-                        return (
+                        const openIntervals = effectiveOpenWalls.get(key) ?? [];
+                        const closed = closedSubIntervals(seg.length, openIntervals);
+                        const ux = (seg.b.x - seg.a.x) / (seg.length || 1);
+                        const uy = (seg.b.y - seg.a.y) / (seg.length || 1);
+                        return closed.map((c, i) => (
                           <line
-                            key={seg.index}
-                            x1={seg.a.x}
-                            y1={seg.a.y}
-                            x2={seg.b.x}
-                            y2={seg.b.y}
+                            key={`${seg.index}-${i}`}
+                            x1={seg.a.x + ux * c.start}
+                            y1={seg.a.y + uy * c.start}
+                            x2={seg.a.x + ux * c.end}
+                            y2={seg.a.y + uy * c.end}
                             className="stroke-zinc-800 dark:stroke-zinc-300"
                             strokeWidth={8}
                             strokeLinecap="round"
                           />
-                        );
+                        ));
                       })}
 
                       {/* CAD Dimension lines inside the room */}
@@ -1017,12 +1044,21 @@ export function MultiRoomCanvas({
                       </text>
 
                       {/* Openings (Doors/Windows) simplified representation.
-                          An opening whose wall is now effectively open is
-                          skipped (not deleted -- see MultiRoomInspector.tsx)
-                          since there's no wall left to draw it on. */}
+                          An opening whose span actually falls inside an
+                          open interval on its wall is skipped (not deleted
+                          -- see MultiRoomInspector.tsx) since there's no
+                          wall left there to draw it on; one still sitting
+                          in a closed sub-run of a partially-open wall
+                          keeps rendering normally. */}
                       {room.openings.map((op) => {
                         const wallKey = typeof op.wall === "string" ? op.wall : String(op.wall);
-                        if (effectiveOpenWalls.has(wallKey)) return null;
+                        const openIntervals = effectiveOpenWalls.get(wallKey) ?? [];
+                        const opStart = op.position;
+                        const opEnd = op.position + op.width;
+                        const overlapsOpenWall = openIntervals.some(
+                          (iv) => opStart < iv.end && opEnd > iv.start,
+                        );
+                        if (overlapsOpenWall) return null;
 
                         let ox = 0,
                           oy = 0,
@@ -1246,7 +1282,7 @@ export function MultiRoomCanvas({
               selectedRoom={rooms.find((r) => r.id === selectedRoomId) || null}
               selectedRoomIds={selectedRoomIds}
               autoOpenWalls={
-                selectedRoomId ? (autoOpenWalls.get(selectedRoomId) ?? new Set()) : new Set()
+                selectedRoomId ? (autoOpenWalls.get(selectedRoomId) ?? new Map()) : new Map()
               }
               updateSelectedRoom={updateSelectedRoom}
               rotateRoom={rotateRoom}

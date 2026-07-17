@@ -5,7 +5,8 @@ import type { Item, Opening, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
 import { getDefaultHeight } from "@/lib/planner-presets";
-import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
+import { wallSegments } from "@/lib/hallway-shapes";
+import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 
 // Re-exported for existing consumers (e.g. InspectorSection.tsx imports
 // this from "../ThreeDView") -- the implementation now lives in
@@ -23,11 +24,11 @@ interface ThreeDViewProps {
   corners: Point[];
   wallColors: Record<string, string>;
   isDark?: boolean;
-  // Wall keys (wallColorKey() format) that are effectively open -- see
-  // room-adjacency.ts. A wall in this set gets no geometry at all (not even
-  // a wide doorway), a true archway through to whatever is on the other
-  // side.
-  openWalls: Set<string>;
+  // Open interval(s) per wall (wallColorKey() format) -- see
+  // room-adjacency.ts. The span(s) covered get no geometry at all (not
+  // even a wide doorway), a true archway through to whatever is on the
+  // other side; the rest of that same wall still extrudes normally.
+  openWalls: Map<string, WallOpenInterval[]>;
 }
 
 function parseColor(hex: string): { r: number; g: number; b: number } {
@@ -58,6 +59,37 @@ function lightenColor(hex: string, percent: number): string {
   const G = Math.round(g + (255 - g) * percent);
   const B = Math.round(b + (255 - b) * percent);
   return `#${((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1)}`;
+}
+
+/**
+ * Subtracts a list of "open" spans (auto-detected touching-neighbor
+ * archways -- see room-adjacency.ts) from a list of wall-chunk segments,
+ * splitting any segment an open span crosses into the parts that survive.
+ * Deliberately separate from closedSubIntervals (hallway-shapes.ts's
+ * counterpart, which starts from a single 0..length span): here the input
+ * segments are already whatever's left after door/window carving, each
+ * with its own start/end, not necessarily contiguous or zero-based.
+ */
+function subtractOpenSpans(
+  segments: { start: number; end: number }[],
+  openSpans: { start: number; end: number }[],
+): { start: number; end: number }[] {
+  if (openSpans.length === 0) return segments;
+  const result: { start: number; end: number }[] = [];
+  for (const seg of segments) {
+    let cursor = seg.start;
+    const relevant = openSpans
+      .filter((o) => o.end > seg.start && o.start < seg.end)
+      .sort((a, b) => a.start - b.start);
+    for (const o of relevant) {
+      const s = Math.max(seg.start, o.start);
+      const e = Math.min(seg.end, o.end);
+      if (s > cursor) result.push({ start: cursor, end: s });
+      cursor = Math.max(cursor, e);
+    }
+    if (cursor < seg.end) result.push({ start: cursor, end: seg.end });
+  }
+  return result;
 }
 
 function createProceduralTexture(
@@ -427,6 +459,15 @@ export function ThreeDView({
       const isReversedNamedWall =
         typeof wallSide === "string" && (wallSide === "bottom" || wallSide === "left");
 
+      // This wall's auto/manually open span(s) -- see room-adjacency.ts.
+      // Computed in the exact same forward-winding (ptA-relative)
+      // coordinate frame buildWallSegments itself uses for every named
+      // wall (verified against every one of the 4 named-wall call sites
+      // below: each passes ptA/ptB in the same order wallSegments(corners)
+      // would for that wall's index), so it can be used directly here with
+      // no isReversedNamedWall-style flip.
+      const wallOpenSpans = openWalls.get(colorKey) ?? [];
+
       const wallOpenings = openings
         .filter((o) => o.wall === wallSide)
         .map((o) => {
@@ -438,6 +479,11 @@ export function ThreeDView({
           }
           return o;
         })
+        // An opening that now falls inside an open span has no wall left
+        // to sit in -- skip it (not delete it; see MultiRoomInspector.tsx
+        // for why auto-detected opens deliberately never touch saved
+        // opening data).
+        .filter((o) => !wallOpenSpans.some((s) => o.position < s.end && o.position + o.width > s.start))
         .sort((a, b) => a.position - b.position);
 
       const offsets =
@@ -596,7 +642,15 @@ export function ThreeDView({
         segments.push({ start: lastPos, end: length + endOffset });
       }
 
-      for (const seg of segments) {
+      // Carve out the auto/manually open span(s) -- a true archway (no
+      // geometry at all), unlike a door/window's carve above which still
+      // leaves a lintel/sill/frame. Applied after door/window carving
+      // since a real opening should never legitimately land inside an
+      // open span (filtered out above), so this only ever further splits
+      // the plain wall-chunk segments.
+      const finalSegments = subtractOpenSpans(segments, wallOpenSpans);
+
+      for (const seg of finalSegments) {
         const segLen = seg.end - seg.start;
         if (segLen <= 0.1) continue;
         const segGeo = new THREE.BoxGeometry(segLen, wallHeight, wallThickness);
@@ -625,19 +679,19 @@ export function ThreeDView({
       });
     };
 
-    // A wall in `openWalls` (the "0-4 walls" feature -- see
-    // room-adjacency.ts) gets buildWallSegments skipped entirely rather
-    // than built-then-hidden: no geometry means a true archway through to
-    // whatever room is on the other side, not just an unusually wide
-    // doorway.
+    // Every wall is always built now -- buildWallSegments itself carves out
+    // whichever span(s) of it are open (the "0-4 walls" feature -- see
+    // room-adjacency.ts and subtractOpenSpans above) as a true archway
+    // through to whatever's on the other side, leaving the rest of that
+    // same wall standing. A wall that's 100% open just ends up with zero
+    // wall-chunk segments, equivalent to skipping it entirely.
     if (!isPolygonRoom) {
-      if (!openWalls.has("top")) buildWallSegments("top", corners[0], corners[1]);
-      if (!openWalls.has("right")) buildWallSegments("right", corners[1], corners[2]);
-      if (!openWalls.has("bottom")) buildWallSegments("bottom", corners[2], corners[3]);
-      if (!openWalls.has("left")) buildWallSegments("left", corners[3], corners[0]);
+      buildWallSegments("top", corners[0], corners[1]);
+      buildWallSegments("right", corners[1], corners[2]);
+      buildWallSegments("bottom", corners[2], corners[3]);
+      buildWallSegments("left", corners[3], corners[0]);
     } else {
       for (const seg of wallSegments(corners)) {
-        if (openWalls.has(wallColorKey(seg.index, corners.length))) continue;
         buildWallSegments(seg.index, seg.a, seg.b);
       }
     }

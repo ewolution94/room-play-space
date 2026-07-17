@@ -1,6 +1,7 @@
 import React from "react";
 import type { Opening, Point } from "@/types/planner";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
+import type { WallOpenInterval } from "@/lib/room-adjacency";
 
 interface CanvasOpeningsProps {
   openings: Opening[];
@@ -12,12 +13,14 @@ interface CanvasOpeningsProps {
   lang: string;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
-  // Wall keys (wallColorKey() format) that are effectively open -- see
-  // room-adjacency.ts. An opening whose wall is now open is skipped
-  // (not deleted -- see MultiRoomInspector.tsx for why auto-detected opens
-  // deliberately don't touch saved opening data), so it reappears exactly
-  // where it was if the wall is later closed again.
-  openWalls: Set<string>;
+  // Open interval(s) per wall (wallColorKey() format) -- see
+  // room-adjacency.ts. An opening whose span actually falls inside one of
+  // these is skipped (not deleted -- see MultiRoomInspector.tsx for why
+  // auto-detected opens deliberately don't touch saved opening data), so
+  // it reappears exactly where it was if the wall is later closed again.
+  // One sitting in a still-closed sub-run of a partially-open wall keeps
+  // rendering normally.
+  openWalls: Map<string, WallOpenInterval[]>;
 }
 
 export function CanvasOpenings({
@@ -35,11 +38,15 @@ export function CanvasOpenings({
   return (
     <>
       {openings.map((o) => {
-        // A wall that's currently open has nothing to hang a door/window on
-        // -- mirrors the same string-vs-numeric wall key convention used
-        // throughout (see ThreeDView.tsx's identical colorKey derivation).
+        // An opening whose span actually overlaps an open interval on its
+        // wall has nothing to hang a door/window on there -- mirrors the
+        // same string-vs-numeric wall key convention used throughout (see
+        // ThreeDView.tsx's identical colorKey derivation).
         const wallKey = typeof o.wall === "string" ? o.wall : String(o.wall);
-        if (openWalls.has(wallKey)) return null;
+        const openIntervals = openWalls.get(wallKey) ?? [];
+        const oStart = o.position;
+        const oEnd = o.position + o.width;
+        if (openIntervals.some((iv) => oStart < iv.end && oEnd > iv.start)) return null;
 
         // Find start and end corners for the wall
         const seg = resolveWallSegment(corners, o.wall);

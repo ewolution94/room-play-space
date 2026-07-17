@@ -12,7 +12,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { Opening } from "@/types/planner";
+import type { Opening, Point } from "@/types/planner";
+import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
+import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 
 interface OpeningsDialogProps {
   t: any;
@@ -33,11 +35,14 @@ interface OpeningsDialogProps {
    * rectangular room (named wall picker, unchanged), anything else for a
    * polygon (L/T-shaped hallway) room (numeric "Wall N" picker). */
   cornersCount: number;
-  /** Wall keys (wallColorKey() format) that are currently open (the
-   * "0-4 walls" feature -- see room-adjacency.ts). There's nothing to cut
-   * a door/window into on an open wall, so it's excluded from the picker
-   * entirely. */
-  openWalls: Set<string>;
+  /** The room's own corners, needed to know each wall's length (to tell a
+   * fully-open wall apart from one that's only partly open). */
+  corners: Point[];
+  /** Open interval(s) per wall (wallColorKey() format) -- see
+   * room-adjacency.ts. A wall is excluded from the picker only once it's
+   * *fully* open (no closed span left to cut a door/window into); a
+   * partially-open wall stays selectable, same as before this feature. */
+  openWalls: Map<string, WallOpenInterval[]>;
 }
 
 export function OpeningsDialog({
@@ -56,34 +61,42 @@ export function OpeningsDialog({
   setOWidth,
   addOpening,
   cornersCount,
+  corners,
   openWalls,
 }: OpeningsDialogProps) {
   const isPolygon = cornersCount !== 4;
   const NAMED_WALLS = ["top", "right", "bottom", "left"] as const;
-  const availableNamedWalls = NAMED_WALLS.filter((w) => !openWalls.has(w));
-  const availableWallIndices = Array.from({ length: cornersCount }, (_, i) => i).filter(
-    (i) => !openWalls.has(String(i)),
-  );
+  const wallSegs = wallSegments(corners);
+  const isWallFullyOpen = (key: string, length: number) =>
+    closedSubIntervals(length, openWalls.get(key) ?? []).length === 0;
+  const availableNamedWalls = NAMED_WALLS.filter((w, idx) => {
+    const seg = wallSegs[idx];
+    return !!seg && !isWallFullyOpen(w, seg.length);
+  });
+  const availableWallIndices = wallSegs
+    .filter((seg) => !isWallFullyOpen(wallColorKey(seg.index, corners.length), seg.length))
+    .map((seg) => seg.index);
+  const isCurrentWallFullyOpen = (() => {
+    const key = typeof oWall === "string" ? oWall : String(oWall);
+    const seg = typeof oWall === "number" ? wallSegs[oWall] : wallSegs[NAMED_WALLS.indexOf(oWall as (typeof NAMED_WALLS)[number])];
+    if (!seg) return false;
+    return isWallFullyOpen(key, seg.length);
+  })();
 
   // Keep the selected wall valid for whichever room is currently open --
   // switching from a rectangular room to a hallway (or back) while this
   // dialog's state is still around shouldn't leave a stale/invalid value
   // selected in the dropdown. Also re-picks a wall if the currently
-  // selected one just became open (nothing to hang a door/window on
-  // anymore).
+  // selected one just became fully open (nothing left to hang a door/
+  // window on) -- a partially-open wall stays selected as-is.
   useEffect(() => {
     if (isPolygon && typeof oWall === "string") {
       setOWall(availableWallIndices[0] ?? 0);
     } else if (!isPolygon && typeof oWall === "number") {
       setOWall(availableNamedWalls[0] ?? "top");
-    } else if (isPolygon && openWalls.has(String(oWall)) && availableWallIndices.length > 0) {
+    } else if (isPolygon && isCurrentWallFullyOpen && availableWallIndices.length > 0) {
       setOWall(availableWallIndices[0]);
-    } else if (
-      !isPolygon &&
-      typeof oWall === "string" &&
-      openWalls.has(oWall) &&
-      availableNamedWalls.length > 0
-    ) {
+    } else if (!isPolygon && isCurrentWallFullyOpen && availableNamedWalls.length > 0) {
       setOWall(availableNamedWalls[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,16 +171,16 @@ export function OpeningsDialog({
                     ))
                   ) : (
                     <>
-                      {!openWalls.has("top") && (
+                      {availableNamedWalls.includes("top") && (
                         <option value="top" className="bg-background">{t.top}</option>
                       )}
-                      {!openWalls.has("bottom") && (
+                      {availableNamedWalls.includes("bottom") && (
                         <option value="bottom" className="bg-background">{t.bottom}</option>
                       )}
-                      {!openWalls.has("left") && (
+                      {availableNamedWalls.includes("left") && (
                         <option value="left" className="bg-background">{t.left}</option>
                       )}
-                      {!openWalls.has("right") && (
+                      {availableNamedWalls.includes("right") && (
                         <option value="right" className="bg-background">{t.right}</option>
                       )}
                     </>

@@ -18,15 +18,18 @@ import {
 import type { RoomLayout, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
+import type { WallOpenInterval } from "@/lib/room-adjacency";
 
 interface MultiRoomInspectorProps {
   t: TranslationStrings;
   lang: "en" | "de";
   selectedRoom: RoomLayout | null;
   selectedRoomIds: Set<string>;
-  // Wall keys (wallColorKey() format) auto-detected as touching a neighbor
-  // right now, for selectedRoom specifically -- see room-adjacency.ts.
-  autoOpenWalls: Set<string>;
+  // Auto-detected touching span(s) per wall (wallColorKey() format), for
+  // selectedRoom specifically -- see room-adjacency.ts. Only used here to
+  // show the "touching" badge; the actual Auto/Open/Closed control is
+  // still all-or-nothing per wall (see setWallOverride below).
+  autoOpenWalls: Map<string, WallOpenInterval[]>;
   updateSelectedRoom: (patch: Partial<RoomLayout>) => void;
   rotateRoom: (id: string) => void;
   duplicateRoom: (id: string) => void;

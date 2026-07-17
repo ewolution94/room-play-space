@@ -1,5 +1,6 @@
 import type React from "react";
 import type { TranslationStrings } from "@/lib/planner-translations";
+import type { WallOpenInterval } from "@/lib/room-adjacency";
 
 export type Lang = "en" | "de";
 
@@ -208,7 +209,7 @@ export interface SidebarProps {
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
-  openWalls: Set<string>;
+  openWalls: Map<string, WallOpenInterval[]>;
 }
 
 export interface CanvasAreaProps {
@@ -271,7 +272,7 @@ export interface CanvasAreaProps {
   // Wall keys (wallColorKey() format) that are effectively open -- merges
   // this room's own wallOverrides with adjacency auto-detected against its
   // siblings in the multi-room overview. See room-adjacency.ts.
-  openWalls: Set<string>;
+  openWalls: Map<string, WallOpenInterval[]>;
 }
 
 export interface TourOverlayProps {
@@ -391,5 +392,5 @@ export interface UseRoomPlannerReturn {
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
-  openWalls: Set<string>;
+  openWalls: Map<string, WallOpenInterval[]>;
 }

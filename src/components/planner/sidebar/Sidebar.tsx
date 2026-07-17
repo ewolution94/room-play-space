@@ -178,6 +178,7 @@ export function Sidebar({
                 setOWidth={setOWidth}
                 addOpening={addOpening}
                 cornersCount={corners.length}
+                corners={corners}
                 openWalls={openWalls}
               />
             </div>
