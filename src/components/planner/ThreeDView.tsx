@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { Item, Opening, Point } from "@/types/planner";
@@ -14,21 +14,41 @@ import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency"
 // unit-tested without needing to load this file's Three.js/JSX code.
 export { getDefaultHeight };
 
-interface ThreeDViewProps {
-  t: TranslationStrings;
-  roomW: number; // cm
-  roomL: number; // cm
+/**
+ * One room/hallway's worth of geometry to render, in the SAME shared
+ * floor-plan coordinate space room-adjacency.ts's globalCorners() and the
+ * multi-room overview already use: `corners` are LOCAL (0..width x
+ * 0..length, rotation already baked in -- see rotateRoomLayout), and `x`/`y`
+ * is that room's own offset into the shared space. A lone single-room view
+ * (CanvasArea.tsx) just passes one instance with x=0, y=0, which makes every
+ * position/offset calculation below collapse back to exactly the original
+ * single-room math -- this is what lets one code path serve both the
+ * single-room 3D view and the whole-apartment 3D view (see
+ * MultiRoomCanvas.tsx) without duplicating any Three.js scene-building
+ * logic.
+ */
+export interface RoomInstance3D {
+  id: string;
+  x: number; // cm, offset into the shared floor-plan space (0 for a standalone single room)
+  y: number;
+  width: number; // cm -- this instance's own local bounding-box width
+  length: number; // cm -- this instance's own local bounding-box length
+  corners: Point[]; // LOCAL corners (0..width, 0..length frame)
   items: Item[];
   openings: Opening[];
-  selectedIds: Set<string>;
-  corners: Point[];
   wallColors: Record<string, string>;
-  isDark?: boolean;
   // Open interval(s) per wall (wallColorKey() format) -- see
   // room-adjacency.ts. The span(s) covered get no geometry at all (not
   // even a wide doorway), a true archway through to whatever is on the
   // other side; the rest of that same wall still extrudes normally.
   openWalls: Map<string, WallOpenInterval[]>;
+}
+
+interface ThreeDViewProps {
+  t: TranslationStrings;
+  rooms: RoomInstance3D[];
+  selectedIds: Set<string>;
+  isDark?: boolean;
 }
 
 function parseColor(hex: string): { r: number; g: number; b: number } {
@@ -161,18 +181,7 @@ function createProceduralTexture(
   return texture;
 }
 
-export function ThreeDView({
-  t,
-  roomW,
-  roomL,
-  items,
-  openings,
-  selectedIds,
-  corners,
-  wallColors,
-  isDark = false,
-  openWalls,
-}: ThreeDViewProps) {
+export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -188,6 +197,41 @@ export function ThreeDView({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const wallFadeOpacityRef = useRef<number>(0.25);
 
+  // The overall bounding box of every room instance's real placed shape
+  // (each instance's LOCAL corners translated by its own x/y, exactly like
+  // globalCorners() in room-adjacency.ts), which the whole scene is
+  // centered and sized against instead of a single room's own width/length.
+  // For the single-room call site (one instance at x=0,y=0) this reduces
+  // to exactly [0,width] x [0,length] -- i.e. centerX/centerZ come out to
+  // roomW/2 and roomL/2 and totalW/totalL come out to roomW/roomL, so every
+  // camera/light/fade calculation below behaves identically to before.
+  const sceneBounds = useMemo(() => {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const room of rooms) {
+      if (!room.corners || room.corners.length < 3) continue;
+      for (const c of room.corners) {
+        const gx = room.x + c.x;
+        const gz = room.y + c.y;
+        if (gx < minX) minX = gx;
+        if (gx > maxX) maxX = gx;
+        if (gz < minZ) minZ = gz;
+        if (gz > maxZ) maxZ = gz;
+      }
+    }
+    if (!isFinite(minX)) {
+      return { centerX: 0, centerZ: 0, totalW: 100, totalL: 100 };
+    }
+    return {
+      centerX: (minX + maxX) / 2,
+      centerZ: (minZ + maxZ) / 2,
+      totalW: Math.max(1, maxX - minX),
+      totalL: Math.max(1, maxZ - minZ),
+    };
+  }, [rooms]);
+
   // Sync state values with refs for animation loop / effects
   useEffect(() => {
     wallFadeOpacityRef.current = wallFadeOpacity;
@@ -197,14 +241,22 @@ export function ThreeDView({
     if (dirLightRef.current) {
       dirLightRef.current.visible = sunlightEnabled;
       const rad = (sunlightAngle * Math.PI) / 180;
-      dirLightRef.current.position.set(Math.cos(rad) * roomW, 350, Math.sin(rad) * roomL);
+      dirLightRef.current.position.set(
+        Math.cos(rad) * sceneBounds.totalW,
+        350,
+        Math.sin(rad) * sceneBounds.totalL,
+      );
     }
-  }, [sunlightEnabled, sunlightAngle, roomW, roomL]);
+  }, [sunlightEnabled, sunlightAngle, sceneBounds]);
 
   // Reset Camera View Helper
   const resetCamera = () => {
     if (cameraRef.current && controlsRef.current) {
-      cameraRef.current.position.set(roomW * 0.8, Math.max(roomW, roomL) * 1.2, roomL * 1.2);
+      cameraRef.current.position.set(
+        sceneBounds.totalW * 0.8,
+        Math.max(sceneBounds.totalW, sceneBounds.totalL) * 1.2,
+        sceneBounds.totalL * 1.2,
+      );
       controlsRef.current.target.set(0, 0, 0);
       controlsRef.current.update();
     }
@@ -261,13 +313,16 @@ export function ThreeDView({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [roomW, roomL]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneBounds]);
 
   // Main Three.js Scene Setup Effect
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (!container || !canvas || !corners || corners.length < 3) return;
+    if (!container || !canvas || rooms.length === 0) return;
+
+    const { centerX, centerZ, totalW, totalL } = sceneBounds;
 
     // --- Scene Setup ---
     const scene = new THREE.Scene();
@@ -277,7 +332,7 @@ export function ThreeDView({
     const width = container.clientWidth;
     const height = container.clientHeight;
     const camera = new THREE.PerspectiveCamera(45, width / height, 10, 5000);
-    camera.position.set(roomW * 0.8, Math.max(roomW, roomL) * 1.2, roomL * 1.2);
+    camera.position.set(totalW * 0.8, Math.max(totalW, totalL) * 1.2, totalL * 1.2);
     cameraRef.current = camera;
 
     // --- Renderer Setup ---
@@ -303,7 +358,7 @@ export function ThreeDView({
 
     const dirLight = new THREE.DirectionalLight("#ffffff", 0.85);
     const rad = (sunlightAngle * Math.PI) / 180;
-    dirLight.position.set(Math.cos(rad) * roomW, 350, Math.sin(rad) * roomL);
+    dirLight.position.set(Math.cos(rad) * totalW, 350, Math.sin(rad) * totalL);
     dirLight.visible = sunlightEnabled;
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
@@ -311,8 +366,8 @@ export function ThreeDView({
     dirLight.shadow.camera.near = 10;
     dirLight.shadow.camera.far = 1000;
 
-    // Dynamic shadow camera boundaries based on room size
-    const d = Math.max(roomW, roomL) * 0.8;
+    // Dynamic shadow camera boundaries based on overall scene size
+    const d = Math.max(totalW, totalL) * 0.8;
     dirLight.shadow.camera.left = -d;
     dirLight.shadow.camera.right = d;
     dirLight.shadow.camera.top = d;
@@ -375,590 +430,607 @@ export function ThreeDView({
       return { x: dx / len, y: dy / len };
     };
 
-    const isPolygonRoom = corners.length !== 4;
     const halfThick = wallThickness / 2;
 
-    // Rectangular rooms (the overwhelming common case) keep the exact
-    // original precise-miter math: each corner's offset is
-    // halfThick/sin(interior angle), which produces a clean mitered joint
-    // at any angle. Polygon rooms (L/T-shaped hallways) are, by
-    // construction (see hallway-shapes.ts), built entirely from 90/270
-    // degree corners -- sin(90)=1 and |sin(270)|=1, so the precise formula
-    // reduces to exactly halfThick at every corner regardless of convex vs.
-    // concave. That means a flat "extend every wall by halfThick at both
-    // ends" is not an approximation here, it's the same math simplified for
-    // the one corner-angle family these shapes ever use, and it sidesteps
-    // needing a general convex/concave sign convention for an N-gon.
-    let wallOffsets: Record<string, { start: number; end: number }> = {};
-    if (!isPolygonRoom) {
-      const w0 = getUnitVector(corners[0], corners[1]); // top
-      const w1 = getUnitVector(corners[1], corners[2]); // right
-      const w2 = getUnitVector(corners[2], corners[3]); // bottom
-      const w3 = getUnitVector(corners[3], corners[0]); // left
-
-      const getSinTheta = (v1: { x: number; y: number }, v2: { x: number; y: number }) => {
-        return Math.max(0.1, Math.abs(v1.x * v2.y - v1.y * v2.x));
-      };
-
-      const sin0 = getSinTheta(w3, w0); // corner 0 (left-top)
-      const sin1 = getSinTheta(w0, w1); // corner 1 (top-right)
-      const sin2 = getSinTheta(w1, w2); // corner 2 (right-bottom)
-      const sin3 = getSinTheta(w2, w3); // corner 3 (bottom-left)
-
-      wallOffsets = {
-        top: { start: -halfThick / sin0, end: halfThick / sin1 },
-        right: { start: halfThick / sin1, end: -halfThick / sin2 },
-        bottom: { start: -halfThick / sin2, end: halfThick / sin3 },
-        left: { start: halfThick / sin3, end: -halfThick / sin0 },
-      };
-    }
-
     const walls: {
-      side: string | number;
       group: THREE.Group;
       currentOpacity: number;
-      // Only set for polygon-room walls -- used by the generic camera-fade
-      // test below instead of the axis-aligned top/bottom/left/right
-      // heuristic, which assumes a rectangular room.
-      normal?: { x: number; z: number };
-      mid?: { x: number; z: number };
+      normal: { x: number; z: number };
+      mid: { x: number; z: number };
+      // Camera-fade blocking threshold, scaled to THIS instance's own size
+      // (not the whole scene) -- see the generic fade test in the
+      // animation loop below.
+      fadeThreshold: number;
     }[] = [];
 
-    // Helper function to build segments for a single wall
-    const buildWallSegments = (wallSide: string | number, ptA: Point, ptB: Point) => {
-      const ax = ptA.x - roomW / 2;
-      const az = ptA.y - roomL / 2;
-      const bx = ptB.x - roomW / 2;
-      const bz = ptB.y - roomL / 2;
+    // Every room/hallway instance builds its own walls independently, each
+    // offset by its own x/y into the shared scene (0 for a standalone
+    // single-room view) and centered against the OVERALL scene bounds
+    // rather than its own half-width/half-length -- this is the only real
+    // change from the single-room version of this function: every other
+    // wall-building/opening-carving/mitre-joint calculation below is
+    // untouched.
+    for (const room of rooms) {
+      const isPolygonRoom = room.corners.length !== 4;
 
-      const dx = bx - ax;
-      const dz = bz - az;
-      const length = Math.sqrt(dx * dx + dz * dz);
-      if (length <= 0.1) return;
+      // Rectangular rooms (the overwhelming common case) keep the exact
+      // original precise-miter math: each corner's offset is
+      // halfThick/sin(interior angle), which produces a clean mitered joint
+      // at any angle. Polygon rooms (L/T-shaped hallways) are, by
+      // construction (see hallway-shapes.ts), built entirely from 90/270
+      // degree corners -- sin(90)=1 and |sin(270)|=1, so the precise formula
+      // reduces to exactly halfThick at every corner regardless of convex vs.
+      // concave. That means a flat "extend every wall by halfThick at both
+      // ends" is not an approximation here, it's the same math simplified for
+      // the one corner-angle family these shapes ever use, and it sidesteps
+      // needing a general convex/concave sign convention for an N-gon.
+      let wallOffsets: Record<string, { start: number; end: number }> = {};
+      if (!isPolygonRoom) {
+        const w0 = getUnitVector(room.corners[0], room.corners[1]); // top
+        const w1 = getUnitVector(room.corners[1], room.corners[2]); // right
+        const w2 = getUnitVector(room.corners[2], room.corners[3]); // bottom
+        const w3 = getUnitVector(room.corners[3], room.corners[0]); // left
 
-      const centerX = (ax + bx) / 2;
-      const centerZ = (az + bz) / 2;
-      const rotationY = -Math.atan2(dz, dx);
+        const getSinTheta = (v1: { x: number; y: number }, v2: { x: number; y: number }) => {
+          return Math.max(0.1, Math.abs(v1.x * v2.y - v1.y * v2.x));
+        };
 
-      const wallGroup = new THREE.Group();
-      wallGroup.position.set(centerX, 0, centerZ);
-      wallGroup.rotation.y = rotationY;
+        const sin0 = getSinTheta(w3, w0); // corner 0 (left-top)
+        const sin1 = getSinTheta(w0, w1); // corner 1 (top-right)
+        const sin2 = getSinTheta(w1, w2); // corner 2 (right-bottom)
+        const sin3 = getSinTheta(w2, w3); // corner 3 (bottom-left)
 
-      // Clone base materials to fade each wall group independently
-      const colorKey = typeof wallSide === "string" ? wallSide : String(wallSide);
-      const localWallMat = wallMat.clone();
-      localWallMat.color.set(wallColors[colorKey] || "#f1f5f9");
+        wallOffsets = {
+          top: { start: -halfThick / sin0, end: halfThick / sin1 },
+          right: { start: halfThick / sin1, end: -halfThick / sin2 },
+          bottom: { start: -halfThick / sin2, end: halfThick / sin3 },
+          left: { start: halfThick / sin3, end: -halfThick / sin0 },
+        };
+      }
 
-      const localGlassMat = glassMat.clone();
-      const localWoodMat = woodMat.clone();
+      // Helper function to build segments for a single wall of THIS instance
+      const buildWallSegments = (wallSide: string | number, ptA: Point, ptB: Point) => {
+        const ax = room.x + ptA.x - centerX;
+        const az = room.y + ptA.y - centerZ;
+        const bx = room.x + ptB.x - centerX;
+        const bz = room.y + ptB.y - centerZ;
 
-      // "bottom"/"left" are walked in reverse of forward-winding order in
-      // the legacy named convention (see hallway-shapes.ts), so their
-      // opening positions need flipping to a start-from-ptA measurement.
-      // Numeric (polygon-room) walls are always forward-winding already.
-      const isReversedNamedWall =
-        typeof wallSide === "string" && (wallSide === "bottom" || wallSide === "left");
+        const dx = bx - ax;
+        const dz = bz - az;
+        const length = Math.sqrt(dx * dx + dz * dz);
+        if (length <= 0.1) return;
 
-      // This wall's auto/manually open span(s) -- see room-adjacency.ts.
-      // Computed in the exact same forward-winding (ptA-relative)
-      // coordinate frame buildWallSegments itself uses for every named
-      // wall (verified against every one of the 4 named-wall call sites
-      // below: each passes ptA/ptB in the same order wallSegments(corners)
-      // would for that wall's index), so it can be used directly here with
-      // no isReversedNamedWall-style flip.
-      const wallOpenSpans = openWalls.get(colorKey) ?? [];
+        const wallCenterX = (ax + bx) / 2;
+        const wallCenterZ = (az + bz) / 2;
+        const rotationY = -Math.atan2(dz, dx);
 
-      const wallOpenings = openings
-        .filter((o) => o.wall === wallSide)
-        .map((o) => {
-          if (isReversedNamedWall) {
-            return {
-              ...o,
-              position: length - o.position - o.width,
-            };
+        const wallGroup = new THREE.Group();
+        wallGroup.position.set(wallCenterX, 0, wallCenterZ);
+        wallGroup.rotation.y = rotationY;
+
+        // Clone base materials to fade each wall group independently
+        const colorKey = typeof wallSide === "string" ? wallSide : String(wallSide);
+        const localWallMat = wallMat.clone();
+        localWallMat.color.set(room.wallColors[colorKey] || "#f1f5f9");
+
+        const localGlassMat = glassMat.clone();
+        const localWoodMat = woodMat.clone();
+
+        // "bottom"/"left" are walked in reverse of forward-winding order in
+        // the legacy named convention (see hallway-shapes.ts), so their
+        // opening positions need flipping to a start-from-ptA measurement.
+        // Numeric (polygon-room) walls are always forward-winding already.
+        const isReversedNamedWall =
+          typeof wallSide === "string" && (wallSide === "bottom" || wallSide === "left");
+
+        // This wall's auto/manually open span(s) -- see room-adjacency.ts.
+        // Computed in the exact same forward-winding (ptA-relative)
+        // coordinate frame buildWallSegments itself uses for every named
+        // wall (verified against every one of the 4 named-wall call sites
+        // below: each passes ptA/ptB in the same order wallSegments(corners)
+        // would for that wall's index), so it can be used directly here with
+        // no isReversedNamedWall-style flip.
+        const wallOpenSpans = room.openWalls.get(colorKey) ?? [];
+
+        const wallOpenings = room.openings
+          .filter((o) => o.wall === wallSide)
+          .map((o) => {
+            if (isReversedNamedWall) {
+              return {
+                ...o,
+                position: length - o.position - o.width,
+              };
+            }
+            return o;
+          })
+          // An opening that now falls inside an open span has no wall left
+          // to sit in -- skip it (not delete it; see MultiRoomInspector.tsx
+          // for why auto-detected opens deliberately never touch saved
+          // opening data).
+          .filter(
+            (o) => !wallOpenSpans.some((s) => o.position < s.end && o.position + o.width > s.start),
+          )
+          .sort((a, b) => a.position - b.position);
+
+        const offsets =
+          typeof wallSide === "string"
+            ? wallOffsets[wallSide]
+            : { start: -halfThick, end: halfThick };
+        const startOffset = offsets.start;
+        const endOffset = offsets.end;
+
+        const segments: { start: number; end: number }[] = [];
+        let lastPos = startOffset;
+
+        for (const o of wallOpenings) {
+          if (o.position > lastPos) {
+            segments.push({ start: lastPos, end: o.position });
           }
-          return o;
-        })
-        // An opening that now falls inside an open span has no wall left
-        // to sit in -- skip it (not delete it; see MultiRoomInspector.tsx
-        // for why auto-detected opens deliberately never touch saved
-        // opening data).
-        .filter((o) => !wallOpenSpans.some((s) => o.position < s.end && o.position + o.width > s.start))
-        .sort((a, b) => a.position - b.position);
 
-      const offsets =
-        typeof wallSide === "string"
-          ? wallOffsets[wallSide]
-          : { start: -halfThick, end: halfThick };
-      const startOffset = offsets.start;
-      const endOffset = offsets.end;
+          const opStart = o.position;
+          const opEnd = o.position + o.width;
+          const opCenterLocal = (opStart + opEnd) / 2 - length / 2;
+          const sillHeight = 90;
+          const windowHeight = 120;
+          const doorHeight = 200;
 
-      const segments: { start: number; end: number }[] = [];
-      let lastPos = startOffset;
+          if (o.kind === "window") {
+            const sillGeo = new THREE.BoxGeometry(o.width, sillHeight, wallThickness);
+            const sillMesh = new THREE.Mesh(sillGeo, localWallMat);
+            sillMesh.position.set(opCenterLocal, sillHeight / 2, 0);
+            sillMesh.castShadow = true;
+            sillMesh.receiveShadow = true;
+            wallGroup.add(sillMesh);
 
-      for (const o of wallOpenings) {
-        if (o.position > lastPos) {
-          segments.push({ start: lastPos, end: o.position });
+            const lintelH = wallHeight - (sillHeight + windowHeight);
+            if (lintelH > 0) {
+              const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
+              const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
+              lintelMesh.position.set(opCenterLocal, wallHeight - lintelH / 2, 0);
+              lintelMesh.castShadow = true;
+              lintelMesh.receiveShadow = true;
+              wallGroup.add(lintelMesh);
+            }
+
+            // Glass pane (rendered in the middle, slightly smaller to fit inside frame border)
+            const glassGeo = new THREE.BoxGeometry(o.width - 8, windowHeight - 8, 4);
+            const glassMesh = new THREE.Mesh(glassGeo, localGlassMat);
+            glassMesh.position.set(opCenterLocal, sillHeight + windowHeight / 2, 0);
+            wallGroup.add(glassMesh);
+
+            // Solid Frame for high visibility and color reflection
+            const frameMat = new THREE.MeshStandardMaterial({
+              color: o.color || "#475569",
+              roughness: 0.7,
+              metalness: 0.15,
+            });
+            const frameThickness = wallThickness - 1; // Slightly inset to prevent z-fighting
+            const frameBorder = 4; // 4cm border width
+
+            // Top frame rail
+            const topRailGeo = new THREE.BoxGeometry(o.width, frameBorder, frameThickness);
+            const topRail = new THREE.Mesh(topRailGeo, frameMat);
+            topRail.position.set(opCenterLocal, sillHeight + windowHeight - frameBorder / 2, 0);
+            topRail.castShadow = true;
+            topRail.receiveShadow = true;
+            wallGroup.add(topRail);
+
+            // Bottom frame rail
+            const botRailGeo = new THREE.BoxGeometry(o.width, frameBorder, frameThickness);
+            const botRail = new THREE.Mesh(botRailGeo, frameMat);
+            botRail.position.set(opCenterLocal, sillHeight + frameBorder / 2, 0);
+            botRail.castShadow = true;
+            botRail.receiveShadow = true;
+            wallGroup.add(botRail);
+
+            // Left frame post
+            const leftPostGeo = new THREE.BoxGeometry(
+              frameBorder,
+              windowHeight - frameBorder * 2,
+              frameThickness,
+            );
+            const leftPost = new THREE.Mesh(leftPostGeo, frameMat);
+            leftPost.position.set(
+              opCenterLocal - o.width / 2 + frameBorder / 2,
+              sillHeight + windowHeight / 2,
+              0,
+            );
+            leftPost.castShadow = true;
+            leftPost.receiveShadow = true;
+            wallGroup.add(leftPost);
+
+            // Right frame post
+            const rightPostGeo = new THREE.BoxGeometry(
+              frameBorder,
+              windowHeight - frameBorder * 2,
+              frameThickness,
+            );
+            const rightPost = new THREE.Mesh(rightPostGeo, frameMat);
+            rightPost.position.set(
+              opCenterLocal + o.width / 2 - frameBorder / 2,
+              sillHeight + windowHeight / 2,
+              0,
+            );
+            rightPost.castShadow = true;
+            rightPost.receiveShadow = true;
+            wallGroup.add(rightPost);
+          } else if (o.kind === "door") {
+            const lintelH = wallHeight - doorHeight;
+            if (lintelH > 0) {
+              const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
+              const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
+              lintelMesh.position.set(opCenterLocal, wallHeight - lintelH / 2, 0);
+              lintelMesh.castShadow = true;
+              lintelMesh.receiveShadow = true;
+              wallGroup.add(lintelMesh);
+            }
+
+            const doorThick = 4;
+            const doorWidth = o.width - 4;
+            const leafGeo = new THREE.BoxGeometry(doorWidth, doorHeight - 2, doorThick);
+            const localDoorLeafMat = localWoodMat.clone();
+            if (o.color) {
+              localDoorLeafMat.color.set(o.color);
+            }
+            const leafMesh = new THREE.Mesh(leafGeo, localDoorLeafMat);
+
+            const isStart = (o.hinge || "start") === "start";
+            const isStart3D = isReversedNamedWall ? !isStart : isStart;
+
+            if (isStart3D) {
+              leafMesh.geometry.translate(doorWidth / 2, 0, 0);
+              leafMesh.position.set(opStart - length / 2 + 2, (doorHeight - 2) / 2, 0);
+              const angle = o.swing === "out" ? Math.PI / 4 : -Math.PI / 4;
+              leafMesh.rotation.y = angle;
+            } else {
+              leafMesh.geometry.translate(-doorWidth / 2, 0, 0);
+              leafMesh.position.set(opStart + o.width - length / 2 - 2, (doorHeight - 2) / 2, 0);
+              const angle = o.swing === "out" ? -Math.PI / 4 : Math.PI / 4;
+              leafMesh.rotation.y = angle;
+            }
+            leafMesh.castShadow = true;
+            wallGroup.add(leafMesh);
+
+            const frameGeo = new THREE.BoxGeometry(o.width, doorHeight, wallThickness - 2);
+            const edges = new THREE.EdgesGeometry(frameGeo);
+            const frameEdge = new THREE.LineSegments(
+              edges,
+              new THREE.LineBasicMaterial({ color: o.color || "#475569" }),
+            );
+            frameEdge.position.set(opCenterLocal, doorHeight / 2, 0);
+            wallGroup.add(frameEdge);
+          }
+
+          lastPos = Math.min(length + endOffset, o.position + o.width);
         }
 
-        const opStart = o.position;
-        const opEnd = o.position + o.width;
-        const opCenterLocal = (opStart + opEnd) / 2 - length / 2;
-        const sillHeight = 90;
-        const windowHeight = 120;
-        const doorHeight = 200;
-
-        if (o.kind === "window") {
-          const sillGeo = new THREE.BoxGeometry(o.width, sillHeight, wallThickness);
-          const sillMesh = new THREE.Mesh(sillGeo, localWallMat);
-          sillMesh.position.set(opCenterLocal, sillHeight / 2, 0);
-          sillMesh.castShadow = true;
-          sillMesh.receiveShadow = true;
-          wallGroup.add(sillMesh);
-
-          const lintelH = wallHeight - (sillHeight + windowHeight);
-          if (lintelH > 0) {
-            const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
-            const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-            lintelMesh.position.set(opCenterLocal, wallHeight - lintelH / 2, 0);
-            lintelMesh.castShadow = true;
-            lintelMesh.receiveShadow = true;
-            wallGroup.add(lintelMesh);
-          }
-
-          // Glass pane (rendered in the middle, slightly smaller to fit inside frame border)
-          const glassGeo = new THREE.BoxGeometry(o.width - 8, windowHeight - 8, 4);
-          const glassMesh = new THREE.Mesh(glassGeo, localGlassMat);
-          glassMesh.position.set(opCenterLocal, sillHeight + windowHeight / 2, 0);
-          wallGroup.add(glassMesh);
-
-          // Solid Frame for high visibility and color reflection
-          const frameMat = new THREE.MeshStandardMaterial({
-            color: o.color || "#475569",
-            roughness: 0.7,
-            metalness: 0.15,
-          });
-          const frameThickness = wallThickness - 1; // Slightly inset to prevent z-fighting
-          const frameBorder = 4; // 4cm border width
-
-          // Top frame rail
-          const topRailGeo = new THREE.BoxGeometry(o.width, frameBorder, frameThickness);
-          const topRail = new THREE.Mesh(topRailGeo, frameMat);
-          topRail.position.set(opCenterLocal, sillHeight + windowHeight - frameBorder / 2, 0);
-          topRail.castShadow = true;
-          topRail.receiveShadow = true;
-          wallGroup.add(topRail);
-
-          // Bottom frame rail
-          const botRailGeo = new THREE.BoxGeometry(o.width, frameBorder, frameThickness);
-          const botRail = new THREE.Mesh(botRailGeo, frameMat);
-          botRail.position.set(opCenterLocal, sillHeight + frameBorder / 2, 0);
-          botRail.castShadow = true;
-          botRail.receiveShadow = true;
-          wallGroup.add(botRail);
-
-          // Left frame post
-          const leftPostGeo = new THREE.BoxGeometry(
-            frameBorder,
-            windowHeight - frameBorder * 2,
-            frameThickness,
-          );
-          const leftPost = new THREE.Mesh(leftPostGeo, frameMat);
-          leftPost.position.set(
-            opCenterLocal - o.width / 2 + frameBorder / 2,
-            sillHeight + windowHeight / 2,
-            0,
-          );
-          leftPost.castShadow = true;
-          leftPost.receiveShadow = true;
-          wallGroup.add(leftPost);
-
-          // Right frame post
-          const rightPostGeo = new THREE.BoxGeometry(
-            frameBorder,
-            windowHeight - frameBorder * 2,
-            frameThickness,
-          );
-          const rightPost = new THREE.Mesh(rightPostGeo, frameMat);
-          rightPost.position.set(
-            opCenterLocal + o.width / 2 - frameBorder / 2,
-            sillHeight + windowHeight / 2,
-            0,
-          );
-          rightPost.castShadow = true;
-          rightPost.receiveShadow = true;
-          wallGroup.add(rightPost);
-        } else if (o.kind === "door") {
-          const lintelH = wallHeight - doorHeight;
-          if (lintelH > 0) {
-            const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
-            const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-            lintelMesh.position.set(opCenterLocal, wallHeight - lintelH / 2, 0);
-            lintelMesh.castShadow = true;
-            lintelMesh.receiveShadow = true;
-            wallGroup.add(lintelMesh);
-          }
-
-          const doorThick = 4;
-          const doorWidth = o.width - 4;
-          const leafGeo = new THREE.BoxGeometry(doorWidth, doorHeight - 2, doorThick);
-          const localDoorLeafMat = localWoodMat.clone();
-          if (o.color) {
-            localDoorLeafMat.color.set(o.color);
-          }
-          const leafMesh = new THREE.Mesh(leafGeo, localDoorLeafMat);
-
-          const isStart = (o.hinge || "start") === "start";
-          const isStart3D = isReversedNamedWall ? !isStart : isStart;
-
-          if (isStart3D) {
-            leafMesh.geometry.translate(doorWidth / 2, 0, 0);
-            leafMesh.position.set(opStart - length / 2 + 2, (doorHeight - 2) / 2, 0);
-            const angle = o.swing === "out" ? Math.PI / 4 : -Math.PI / 4;
-            leafMesh.rotation.y = angle;
-          } else {
-            leafMesh.geometry.translate(-doorWidth / 2, 0, 0);
-            leafMesh.position.set(opStart + o.width - length / 2 - 2, (doorHeight - 2) / 2, 0);
-            const angle = o.swing === "out" ? -Math.PI / 4 : Math.PI / 4;
-            leafMesh.rotation.y = angle;
-          }
-          leafMesh.castShadow = true;
-          wallGroup.add(leafMesh);
-
-          const frameGeo = new THREE.BoxGeometry(o.width, doorHeight, wallThickness - 2);
-          const edges = new THREE.EdgesGeometry(frameGeo);
-          const frameEdge = new THREE.LineSegments(
-            edges,
-            new THREE.LineBasicMaterial({ color: o.color || "#475569" }),
-          );
-          frameEdge.position.set(opCenterLocal, doorHeight / 2, 0);
-          wallGroup.add(frameEdge);
+        if (length + endOffset > lastPos) {
+          segments.push({ start: lastPos, end: length + endOffset });
         }
 
-        lastPos = Math.min(length + endOffset, o.position + o.width);
-      }
+        // Carve out the auto/manually open span(s) -- a true archway (no
+        // geometry at all), unlike a door/window's carve above which still
+        // leaves a lintel/sill/frame. Applied after door/window carving
+        // since a real opening should never legitimately land inside an
+        // open span (filtered out above), so this only ever further splits
+        // the plain wall-chunk segments.
+        const finalSegments = subtractOpenSpans(segments, wallOpenSpans);
 
-      if (length + endOffset > lastPos) {
-        segments.push({ start: lastPos, end: length + endOffset });
-      }
+        for (const seg of finalSegments) {
+          const segLen = seg.end - seg.start;
+          if (segLen <= 0.1) continue;
+          const segGeo = new THREE.BoxGeometry(segLen, wallHeight, wallThickness);
+          const segMesh = new THREE.Mesh(segGeo, localWallMat);
+          const localCenter = (seg.start + seg.end) / 2 - length / 2;
+          segMesh.position.set(localCenter, wallHeight / 2, 0);
+          segMesh.castShadow = true;
+          segMesh.receiveShadow = true;
+          wallGroup.add(segMesh);
+        }
 
-      // Carve out the auto/manually open span(s) -- a true archway (no
-      // geometry at all), unlike a door/window's carve above which still
-      // leaves a lintel/sill/frame. Applied after door/window carving
-      // since a real opening should never legitimately land inside an
-      // open span (filtered out above), so this only ever further splits
-      // the plain wall-chunk segments.
-      const finalSegments = subtractOpenSpans(segments, wallOpenSpans);
+        scene.add(wallGroup);
+        // Outward-facing normal of this wall segment, used by the generic
+        // camera-fade test in the animation loop below (every wall, of
+        // every instance, uses this same normal+midpoint test -- see that
+        // loop for why this generalizes correctly to a rectangular room's
+        // axis-aligned walls too). corners are wound clockwise on screen --
+        // (dz,-dx) is that winding's outward normal in the room's centered
+        // (x,z) plane, verified against known wall directions in
+        // hallway-shapes.ts.
+        const normal = { x: dz / length, z: -dx / length };
+        walls.push({
+          group: wallGroup,
+          currentOpacity: 1.0,
+          normal,
+          mid: { x: wallCenterX, z: wallCenterZ },
+          fadeThreshold: Math.max(room.width, room.length) * 0.1,
+        });
+      };
 
-      for (const seg of finalSegments) {
-        const segLen = seg.end - seg.start;
-        if (segLen <= 0.1) continue;
-        const segGeo = new THREE.BoxGeometry(segLen, wallHeight, wallThickness);
-        const segMesh = new THREE.Mesh(segGeo, localWallMat);
-        const localCenter = (seg.start + seg.end) / 2 - length / 2;
-        segMesh.position.set(localCenter, wallHeight / 2, 0);
-        segMesh.castShadow = true;
-        segMesh.receiveShadow = true;
-        wallGroup.add(segMesh);
-      }
-
-      scene.add(wallGroup);
-      // Outward-facing normal of this wall segment, for the generic
-      // camera-fade test polygon rooms use below (rectangular rooms keep
-      // the original axis-aligned top/bottom/left/right heuristic and
-      // don't need this). corners are wound clockwise on screen -- (dz,-dx)
-      // is that winding's outward normal in the room's centered (x,z)
-      // plane, verified against known wall directions in hallway-shapes.ts.
-      const normal = { x: dz / length, z: -dx / length };
-      walls.push({
-        side: wallSide,
-        group: wallGroup,
-        currentOpacity: 1.0,
-        normal,
-        mid: { x: centerX, z: centerZ },
-      });
-    };
-
-    // Every wall is always built now -- buildWallSegments itself carves out
-    // whichever span(s) of it are open (the "0-4 walls" feature -- see
-    // room-adjacency.ts and subtractOpenSpans above) as a true archway
-    // through to whatever's on the other side, leaving the rest of that
-    // same wall standing. A wall that's 100% open just ends up with zero
-    // wall-chunk segments, equivalent to skipping it entirely.
-    if (!isPolygonRoom) {
-      buildWallSegments("top", corners[0], corners[1]);
-      buildWallSegments("right", corners[1], corners[2]);
-      buildWallSegments("bottom", corners[2], corners[3]);
-      buildWallSegments("left", corners[3], corners[0]);
-    } else {
-      for (const seg of wallSegments(corners)) {
-        buildWallSegments(seg.index, seg.a, seg.b);
+      // Every wall is always built now -- buildWallSegments itself carves out
+      // whichever span(s) of it are open (the "0-4 walls" feature -- see
+      // room-adjacency.ts and subtractOpenSpans above) as a true archway
+      // through to whatever's on the other side, leaving the rest of that
+      // same wall standing. A wall that's 100% open just ends up with zero
+      // wall-chunk segments, equivalent to skipping it entirely.
+      if (!isPolygonRoom) {
+        buildWallSegments("top", room.corners[0], room.corners[1]);
+        buildWallSegments("right", room.corners[1], room.corners[2]);
+        buildWallSegments("bottom", room.corners[2], room.corners[3]);
+        buildWallSegments("left", room.corners[3], room.corners[0]);
+      } else {
+        for (const seg of wallSegments(room.corners)) {
+          buildWallSegments(seg.index, seg.a, seg.b);
+        }
       }
     }
 
-    // --- Render Placed Items ---
+    // --- Render Placed Items (every instance's furniture, offset the same
+    // way its walls were above) ---
     const activeItemMeshes = new Map<string, THREE.Mesh>();
 
-    for (const it of items) {
-      const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
-      const itElev = it.elevation ?? 0;
-      const isCircle = (it.shape ?? "rect") === "circle";
+    for (const room of rooms) {
+      for (const it of room.items) {
+        const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
+        const itElev = it.elevation ?? 0;
+        const isCircle = (it.shape ?? "rect") === "circle";
 
-      // A circular preset (round table, round rug, vase, ...) gets a unit
-      // cylinder scaled to its width/length/height footprint instead of a
-      // box -- purely visual, matching the 2D canvas's inscribed-ellipse
-      // treatment. Collision never considers shape (see planner-math.ts),
-      // so this has no effect beyond how the item looks in 3D.
-      const itemGeo: THREE.BufferGeometry = isCircle
-        ? new THREE.CylinderGeometry(0.5, 0.5, 1, 32)
-        : new THREE.BoxGeometry(it.width, itHeight, it.length);
-      if (isCircle) {
-        (itemGeo as THREE.CylinderGeometry).scale(it.width, itHeight, it.length);
-      }
-
-      let textureType: "wood" | "fabric" | "plant" | "rug" | null = null;
-      let metalness = 0.1;
-      let roughness = 0.5;
-
-      const lowerIcon = (it.icon || "").toLowerCase();
-      const lowerName = it.name.toLowerCase();
-
-      if (
-        lowerIcon.includes("fridge") ||
-        lowerIcon.includes("sink") ||
-        lowerIcon.includes("stove") ||
-        lowerName.includes("kühlschrank") ||
-        lowerName.includes("spüle") ||
-        lowerName.includes("herd")
-      ) {
-        metalness = 0.85;
-        roughness = 0.2;
-      } else if (
-        lowerIcon.includes("desk") ||
-        lowerIcon.includes("table") ||
-        lowerIcon.includes("bookshelf") ||
-        lowerIcon.includes("wardrobe") ||
-        lowerIcon.includes("cabinet") ||
-        lowerName.includes("tisch") ||
-        lowerName.includes("regal") ||
-        lowerName.includes("schrank") ||
-        lowerName.includes("desk") ||
-        lowerName.includes("table") ||
-        lowerName.includes("shelf") ||
-        lowerName.includes("wardrobe")
-      ) {
-        if (
-          !(
-            lowerIcon.includes("filing") &&
-            (it.color === "#9aa0a6" || it.color.toLowerCase() === "#gray")
-          )
-        ) {
-          textureType = "wood";
-          roughness = 0.7;
-        } else {
-          metalness = 0.5;
-          roughness = 0.35;
-        }
-      } else if (
-        lowerIcon.includes("chair") ||
-        lowerIcon.includes("sofa") ||
-        lowerIcon.includes("armchair") ||
-        lowerIcon.includes("bed") ||
-        lowerName.includes("stuhl") ||
-        lowerName.includes("sofa") ||
-        lowerName.includes("sessel") ||
-        lowerName.includes("bett") ||
-        lowerName.includes("chair") ||
-        lowerName.includes("couch") ||
-        lowerName.includes("bed")
-      ) {
-        textureType = "fabric";
-        roughness = 0.95;
-      } else if (
-        lowerIcon.includes("plant") ||
-        lowerName.includes("pflanze") ||
-        lowerName.includes("plant")
-      ) {
-        textureType = "plant";
-        roughness = 0.6;
-      } else if (
-        lowerIcon.includes("rug") ||
-        lowerName.includes("teppich") ||
-        lowerName.includes("rug")
-      ) {
-        textureType = "rug";
-        roughness = 0.95;
-      }
-
-      // Base side material
-      const sideMat = new THREE.MeshStandardMaterial({
-        color: it.color,
-        roughness: roughness,
-        metalness: metalness,
-      });
-
-      if (textureType) {
-        const tex = createProceduralTexture(textureType, it.color);
-        sideMat.map = tex;
-        tex.repeat.set(it.width / 40, it.length / 40);
-      }
-
-      // Top face material -- a canvas-textured material carrying the
-      // item's color, procedural detail, selection border and name/dims
-      // label. Built once and then dropped into the right material slot
-      // for whichever geometry this item uses: index 2 of 6 for a box
-      // (+x,-x,+y,-y,+z,-z groups), or index 1 of 3 for a cylinder
-      // (side, top, bottom groups) -- see THREE.CylinderGeometry's default
-      // material grouping.
-      const textCol = readableText(it.color);
-      const topMat = new THREE.MeshStandardMaterial({
-        roughness: roughness,
-        metalness: metalness,
-      });
-
-      // Calculate ideal aspect-ratio canvas dimensions to prevent texture squishing/stretching
-      const aspect = it.width / it.length;
-      let canvasW = 512;
-      let canvasH = 512;
-      if (aspect > 1) {
-        canvasH = Math.round(512 / aspect);
-      } else {
-        canvasW = Math.round(512 * aspect);
-      }
-
-      // Ensure a minimum canvas size for sharp rendering
-      canvasW = Math.max(128, canvasW);
-      canvasH = Math.max(128, canvasH);
-
-      const canvas = document.createElement("canvas");
-      canvas.width = canvasW;
-      canvas.height = canvasH;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        // Draw background color
-        ctx.fillStyle = it.color;
-        ctx.fillRect(0, 0, canvasW, canvasH);
-
-        // Draw procedural details
-        if (textureType === "wood") {
-          ctx.strokeStyle = darkenColor(it.color, 0.12);
-          ctx.lineWidth = Math.max(1, canvasW * 0.008);
-          for (let j = -20; j < canvasW + 20; j += 16) {
-            ctx.beginPath();
-            for (let y = 0; y <= canvasH; y += 8) {
-              const wave = Math.sin(y * 0.04 + j * 0.05) * 4 + Math.cos(y * 0.01) * 2;
-              const x = j + wave;
-              if (y === 0) ctx.moveTo(x, y);
-              else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-          }
-        } else if (textureType === "fabric") {
-          ctx.strokeStyle = darkenColor(it.color, 0.08);
-          ctx.lineWidth = 0.8;
-          for (let j = 0; j < Math.max(canvasW, canvasH); j += 8) {
-            if (j < canvasH) {
-              ctx.beginPath();
-              ctx.moveTo(0, j);
-              ctx.lineTo(canvasW, j);
-              ctx.stroke();
-            }
-            if (j < canvasW) {
-              ctx.beginPath();
-              ctx.moveTo(j, 0);
-              ctx.lineTo(j, canvasH);
-              ctx.stroke();
-            }
-          }
-        } else if (textureType === "plant") {
-          ctx.fillStyle = darkenColor(it.color, 0.15);
-          for (let j = 0; j < 50; j++) {
-            const rx = Math.random() * canvasW;
-            const ry = Math.random() * canvasH;
-            const rSize = 3 + Math.random() * 8;
-            ctx.beginPath();
-            ctx.ellipse(rx, ry, rSize, rSize / 2, Math.random() * Math.PI, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        } else if (textureType === "rug") {
-          for (let j = 0; j < 2000; j++) {
-            const rx = Math.random() * canvasW;
-            const ry = Math.random() * canvasH;
-            ctx.fillStyle =
-              Math.random() > 0.5 ? darkenColor(it.color, 0.07) : lightenColor(it.color, 0.07);
-            ctx.fillRect(rx, ry, 2, 2);
-          }
-        }
-
-        // Draw selection border if selected
-        if (selectedIds.has(it.id)) {
-          ctx.strokeStyle = "#a855f7";
-          ctx.lineWidth = Math.max(4, Math.min(canvasW, canvasH) * 0.04);
-          ctx.strokeRect(0, 0, canvasW, canvasH);
-        }
-
-        // Draw text labels if enabled
-        if (showNames) {
-          ctx.fillStyle = textCol;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-
-          const minDim = Math.min(canvasW, canvasH);
-          const titleSize = Math.max(12, Math.round(minDim * 0.11));
-          const subSize = Math.max(9, Math.round(minDim * 0.08));
-
-          ctx.font = `bold ${titleSize}px sans-serif`;
-          const nameY = canvasH * 0.42;
-          const dimY = canvasH * 0.62;
-
-          ctx.fillText(it.name, canvasW / 2, nameY);
-
-          ctx.font = `500 ${subSize}px sans-serif`;
-          ctx.fillStyle =
-            textCol === "#fff" ? "rgba(255, 255, 255, 0.75)" : "rgba(17, 17, 17, 0.7)";
-          ctx.fillText(`${it.width} × ${it.length}`, canvasW / 2, dimY);
-        }
-      }
-
-      const tex = new THREE.CanvasTexture(canvas);
-      topMat.map = tex;
-
-      // Box groups: [+x, -x, +y(top), -y(bottom), +z, -z].
-      // Cylinder groups: [side, top, bottom].
-      const faceMats: THREE.Material[] = isCircle
-        ? [sideMat, topMat, sideMat]
-        : [sideMat, sideMat, topMat, sideMat, sideMat, sideMat];
-
-      const itemMesh = new THREE.Mesh(itemGeo, faceMats);
-      itemMesh.position.x = it.x + it.width / 2 - roomW / 2;
-      itemMesh.position.z = it.y + it.length / 2 - roomL / 2;
-      itemMesh.position.y = itElev + itHeight / 2;
-
-      itemMesh.rotation.y = -(it.rotation * Math.PI) / 180;
-      itemMesh.castShadow = true;
-      itemMesh.receiveShadow = true;
-      scene.add(itemMesh);
-      activeItemMeshes.set(it.id, itemMesh);
-
-      if (selectedIds.has(it.id)) {
-        const highlightGeo: THREE.BufferGeometry = isCircle
+        // A circular preset (round table, round rug, vase, ...) gets a unit
+        // cylinder scaled to its width/length/height footprint instead of a
+        // box -- purely visual, matching the 2D canvas's inscribed-ellipse
+        // treatment. Collision never considers shape (see planner-math.ts),
+        // so this has no effect beyond how the item looks in 3D.
+        const itemGeo: THREE.BufferGeometry = isCircle
           ? new THREE.CylinderGeometry(0.5, 0.5, 1, 32)
-          : new THREE.BoxGeometry(it.width + 1.5, itHeight + 1.5, it.length + 1.5);
+          : new THREE.BoxGeometry(it.width, itHeight, it.length);
         if (isCircle) {
-          (highlightGeo as THREE.CylinderGeometry).scale(
-            it.width + 1.5,
-            itHeight + 1.5,
-            it.length + 1.5,
-          );
+          (itemGeo as THREE.CylinderGeometry).scale(it.width, itHeight, it.length);
         }
-        const highlightMat = new THREE.MeshBasicMaterial({
-          color: "#a855f7",
-          wireframe: true,
-          transparent: true,
-          opacity: 0.6,
+
+        let textureType: "wood" | "fabric" | "plant" | "rug" | null = null;
+        let metalness = 0.1;
+        let roughness = 0.5;
+
+        const lowerIcon = (it.icon || "").toLowerCase();
+        const lowerName = it.name.toLowerCase();
+
+        if (
+          lowerIcon.includes("fridge") ||
+          lowerIcon.includes("sink") ||
+          lowerIcon.includes("stove") ||
+          lowerName.includes("kühlschrank") ||
+          lowerName.includes("spüle") ||
+          lowerName.includes("herd")
+        ) {
+          metalness = 0.85;
+          roughness = 0.2;
+        } else if (
+          lowerIcon.includes("desk") ||
+          lowerIcon.includes("table") ||
+          lowerIcon.includes("bookshelf") ||
+          lowerIcon.includes("wardrobe") ||
+          lowerIcon.includes("cabinet") ||
+          lowerName.includes("tisch") ||
+          lowerName.includes("regal") ||
+          lowerName.includes("schrank") ||
+          lowerName.includes("desk") ||
+          lowerName.includes("table") ||
+          lowerName.includes("shelf") ||
+          lowerName.includes("wardrobe")
+        ) {
+          if (
+            !(
+              lowerIcon.includes("filing") &&
+              (it.color === "#9aa0a6" || it.color.toLowerCase() === "#gray")
+            )
+          ) {
+            textureType = "wood";
+            roughness = 0.7;
+          } else {
+            metalness = 0.5;
+            roughness = 0.35;
+          }
+        } else if (
+          lowerIcon.includes("chair") ||
+          lowerIcon.includes("sofa") ||
+          lowerIcon.includes("armchair") ||
+          lowerIcon.includes("bed") ||
+          lowerName.includes("stuhl") ||
+          lowerName.includes("sofa") ||
+          lowerName.includes("sessel") ||
+          lowerName.includes("bett") ||
+          lowerName.includes("chair") ||
+          lowerName.includes("couch") ||
+          lowerName.includes("bed")
+        ) {
+          textureType = "fabric";
+          roughness = 0.95;
+        } else if (
+          lowerIcon.includes("plant") ||
+          lowerName.includes("pflanze") ||
+          lowerName.includes("plant")
+        ) {
+          textureType = "plant";
+          roughness = 0.6;
+        } else if (
+          lowerIcon.includes("rug") ||
+          lowerName.includes("teppich") ||
+          lowerName.includes("rug")
+        ) {
+          textureType = "rug";
+          roughness = 0.95;
+        }
+
+        // Base side material
+        const sideMat = new THREE.MeshStandardMaterial({
+          color: it.color,
+          roughness: roughness,
+          metalness: metalness,
         });
-        const highlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
-        itemMesh.add(highlightMesh);
+
+        if (textureType) {
+          const tex = createProceduralTexture(textureType, it.color);
+          sideMat.map = tex;
+          tex.repeat.set(it.width / 40, it.length / 40);
+        }
+
+        // Top face material -- a canvas-textured material carrying the
+        // item's color, procedural detail, selection border and name/dims
+        // label. Built once and then dropped into the right material slot
+        // for whichever geometry this item uses: index 2 of 6 for a box
+        // (+x,-x,+y,-y,+z,-z groups), or index 1 of 3 for a cylinder
+        // (side, top, bottom groups) -- see THREE.CylinderGeometry's default
+        // material grouping.
+        const textCol = readableText(it.color);
+        const topMat = new THREE.MeshStandardMaterial({
+          roughness: roughness,
+          metalness: metalness,
+        });
+
+        // Calculate ideal aspect-ratio canvas dimensions to prevent texture squishing/stretching
+        const aspect = it.width / it.length;
+        let canvasW = 512;
+        let canvasH = 512;
+        if (aspect > 1) {
+          canvasH = Math.round(512 / aspect);
+        } else {
+          canvasW = Math.round(512 * aspect);
+        }
+
+        // Ensure a minimum canvas size for sharp rendering
+        canvasW = Math.max(128, canvasW);
+        canvasH = Math.max(128, canvasH);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = canvasW;
+        canvas.height = canvasH;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          // Draw background color
+          ctx.fillStyle = it.color;
+          ctx.fillRect(0, 0, canvasW, canvasH);
+
+          // Draw procedural details
+          if (textureType === "wood") {
+            ctx.strokeStyle = darkenColor(it.color, 0.12);
+            ctx.lineWidth = Math.max(1, canvasW * 0.008);
+            for (let j = -20; j < canvasW + 20; j += 16) {
+              ctx.beginPath();
+              for (let y = 0; y <= canvasH; y += 8) {
+                const wave = Math.sin(y * 0.04 + j * 0.05) * 4 + Math.cos(y * 0.01) * 2;
+                const x = j + wave;
+                if (y === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+              }
+              ctx.stroke();
+            }
+          } else if (textureType === "fabric") {
+            ctx.strokeStyle = darkenColor(it.color, 0.08);
+            ctx.lineWidth = 0.8;
+            for (let j = 0; j < Math.max(canvasW, canvasH); j += 8) {
+              if (j < canvasH) {
+                ctx.beginPath();
+                ctx.moveTo(0, j);
+                ctx.lineTo(canvasW, j);
+                ctx.stroke();
+              }
+              if (j < canvasW) {
+                ctx.beginPath();
+                ctx.moveTo(j, 0);
+                ctx.lineTo(j, canvasH);
+                ctx.stroke();
+              }
+            }
+          } else if (textureType === "plant") {
+            ctx.fillStyle = darkenColor(it.color, 0.15);
+            for (let j = 0; j < 50; j++) {
+              const rx = Math.random() * canvasW;
+              const ry = Math.random() * canvasH;
+              const rSize = 3 + Math.random() * 8;
+              ctx.beginPath();
+              ctx.ellipse(rx, ry, rSize, rSize / 2, Math.random() * Math.PI, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else if (textureType === "rug") {
+            for (let j = 0; j < 2000; j++) {
+              const rx = Math.random() * canvasW;
+              const ry = Math.random() * canvasH;
+              ctx.fillStyle =
+                Math.random() > 0.5 ? darkenColor(it.color, 0.07) : lightenColor(it.color, 0.07);
+              ctx.fillRect(rx, ry, 2, 2);
+            }
+          }
+
+          // Draw selection border if selected
+          if (selectedIds.has(it.id)) {
+            ctx.strokeStyle = "#a855f7";
+            ctx.lineWidth = Math.max(4, Math.min(canvasW, canvasH) * 0.04);
+            ctx.strokeRect(0, 0, canvasW, canvasH);
+          }
+
+          // Draw text labels if enabled
+          if (showNames) {
+            ctx.fillStyle = textCol;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            const minDim = Math.min(canvasW, canvasH);
+            const titleSize = Math.max(12, Math.round(minDim * 0.11));
+            const subSize = Math.max(9, Math.round(minDim * 0.08));
+
+            ctx.font = `bold ${titleSize}px sans-serif`;
+            const nameY = canvasH * 0.42;
+            const dimY = canvasH * 0.62;
+
+            ctx.fillText(it.name, canvasW / 2, nameY);
+
+            ctx.font = `500 ${subSize}px sans-serif`;
+            ctx.fillStyle =
+              textCol === "#fff" ? "rgba(255, 255, 255, 0.75)" : "rgba(17, 17, 17, 0.7)";
+            ctx.fillText(`${it.width} × ${it.length}`, canvasW / 2, dimY);
+          }
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        topMat.map = tex;
+
+        // Box groups: [+x, -x, +y(top), -y(bottom), +z, -z].
+        // Cylinder groups: [side, top, bottom].
+        const faceMats: THREE.Material[] = isCircle
+          ? [sideMat, topMat, sideMat]
+          : [sideMat, sideMat, topMat, sideMat, sideMat, sideMat];
+
+        const itemMesh = new THREE.Mesh(itemGeo, faceMats);
+        itemMesh.position.x = room.x + it.x + it.width / 2 - centerX;
+        itemMesh.position.z = room.y + it.y + it.length / 2 - centerZ;
+        itemMesh.position.y = itElev + itHeight / 2;
+
+        itemMesh.rotation.y = -(it.rotation * Math.PI) / 180;
+        itemMesh.castShadow = true;
+        itemMesh.receiveShadow = true;
+        scene.add(itemMesh);
+        activeItemMeshes.set(it.id, itemMesh);
+
+        if (selectedIds.has(it.id)) {
+          const highlightGeo: THREE.BufferGeometry = isCircle
+            ? new THREE.CylinderGeometry(0.5, 0.5, 1, 32)
+            : new THREE.BoxGeometry(it.width + 1.5, itHeight + 1.5, it.length + 1.5);
+          if (isCircle) {
+            (highlightGeo as THREE.CylinderGeometry).scale(
+              it.width + 1.5,
+              itHeight + 1.5,
+              it.length + 1.5,
+            );
+          }
+          const highlightMat = new THREE.MeshBasicMaterial({
+            color: "#a855f7",
+            wireframe: true,
+            transparent: true,
+            opacity: 0.6,
+          });
+          const highlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
+          itemMesh.add(highlightMesh);
+        }
       }
     }
 
@@ -985,25 +1057,15 @@ export function ThreeDView({
       for (const w of walls) {
         let targetOpacity = 1.0;
 
-        // Determine if camera is outside this wall looking in
-        let isBlocking = false;
-        if (w.side === "top" && camZ < -roomL * 0.1) {
-          isBlocking = true;
-        } else if (w.side === "bottom" && camZ > roomL * 0.1) {
-          isBlocking = true;
-        } else if (w.side === "left" && camX < -roomW * 0.1) {
-          isBlocking = true;
-        } else if (w.side === "right" && camX > roomW * 0.1) {
-          isBlocking = true;
-        } else if (typeof w.side === "number" && w.normal && w.mid) {
-          // Generic version of the same test for a polygon (hallway) room's
-          // walls, which aren't axis-aligned so "top/bottom/left/right"
-          // doesn't apply: blocking if the camera sits on the outward side
-          // of this wall's own plane, past a margin scaled to the room.
-          const threshold = Math.max(roomW, roomL) * 0.1;
-          const dot = (camX - w.mid.x) * w.normal.x + (camZ - w.mid.z) * w.normal.z;
-          if (dot > threshold) isBlocking = true;
-        }
+        // Blocking if the camera sits on the outward side of this wall's
+        // own plane, past a margin scaled to that wall's own room instance
+        // -- a single generic test that works for an axis-aligned
+        // rectangular room's walls exactly as well as an L/T polygon
+        // hallway's, and (unlike the old top/bottom/left/right string
+        // heuristic this replaces) also generalizes correctly to any
+        // number of rooms placed anywhere in the shared scene.
+        const dot = (camX - w.mid.x) * w.normal.x + (camZ - w.mid.z) * w.normal.z;
+        const isBlocking = dot > w.fadeThreshold;
 
         if (isBlocking) {
           targetOpacity = THREE.MathUtils.lerp(1.0, wallFadeOpacityRef.current, fadeFactor);
@@ -1072,7 +1134,7 @@ export function ThreeDView({
       controlsRef.current = null;
       cameraRef.current = null;
     };
-  }, [roomW, roomL, items, openings, selectedIds, showNames, corners, wallColors, isDark, openWalls]);
+  }, [rooms, selectedIds, showNames, isDark, sceneBounds, sunlightAngle, sunlightEnabled]);
 
   // Is German language active?
   const isDe = t.title === "Raumplaner";

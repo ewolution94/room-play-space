@@ -343,3 +343,156 @@ export function closedSubIntervals(
   if (cursor < length) closed.push({ start: cursor, end: length });
   return closed;
 }
+
+/**
+ * Whether two rooms have a genuine, walkable connection: their walls must
+ * actually touch (segmentOverlap, both directions -- the same geometric
+ * test computeAutoOpenIntervals uses) AND, on *both* sides of that specific
+ * touching span, the wall must be effectively open there (not force-closed
+ * via wallOverrides -- see resolveEffectiveOpenIntervals). A wall forced
+ * open with no real neighbor never reaches here at all, since there's no
+ * touching segment to test in the first place; a wall forced *closed* on
+ * either side correctly kills the connection even though the rooms are
+ * still physically flush.
+ */
+function roomsConnectedAt(
+  roomA: RoomLayout,
+  roomB: RoomLayout,
+  effectiveA: Map<string, WallOpenInterval[]>,
+  effectiveB: Map<string, WallOpenInterval[]>,
+): boolean {
+  const cornersA = globalCorners(roomA);
+  const cornersB = globalCorners(roomB);
+  const segsA = wallSegments(cornersA);
+  const segsB = wallSegments(cornersB);
+
+  for (const segA of segsA) {
+    for (const segB of segsB) {
+      const overlapA = segmentOverlap(segA, segB);
+      if (!overlapA) continue;
+      const overlapB = segmentOverlap(segB, segA);
+      if (!overlapB) continue;
+
+      const keyA = wallColorKey(segA.index, cornersA.length);
+      const keyB = wallColorKey(segB.index, cornersB.length);
+      const openA = effectiveA.get(keyA) ?? [];
+      const openB = effectiveB.get(keyB) ?? [];
+
+      const throughA = openA.some((iv) => intersectInterval(iv, overlapA) !== null);
+      if (!throughA) continue;
+      const throughB = openB.some((iv) => intersectInterval(iv, overlapB) !== null);
+      if (throughB) return true;
+    }
+  }
+  return false;
+}
+
+/** A room's own local corners (synthesized rectangle fallback, same
+ * convention as globalCorners/resolveEffectiveOpenIntervals callers
+ * throughout the codebase). */
+function localCorners(room: RoomLayout): Point[] {
+  return room.corners && room.corners.length >= 3
+    ? room.corners
+    : [
+        { x: 0, y: 0 },
+        { x: room.width, y: 0 },
+        { x: room.width, y: room.length },
+        { x: 0, y: room.length },
+      ];
+}
+
+export interface RoomConnectivityResult {
+  // True when every room/hallway is reachable from every other one through
+  // a chain of genuinely open (not force-closed) touching walls -- i.e. the
+  // whole floor plan forms exactly one connected "apartment", with no
+  // isolated room or isolated cluster sitting off on its own. Vacuously
+  // true for an empty or single-room floor plan (nothing to be disconnected
+  // *from*).
+  isFullyConnected: boolean;
+  // Number of separate connected clusters. 0 for an empty floor plan, 1
+  // when isFullyConnected is true, >1 otherwise.
+  componentCount: number;
+  // Ids of rooms with zero genuine connections to any other room -- the
+  // most actionable subset to surface in a "these aren't connected yet"
+  // message (a room that's merely in a *different* component than the
+  // biggest one, but still connected to some other isolated room, isn't
+  // included here even though the layout as a whole still isn't fully
+  // connected).
+  isolatedRoomIds: string[];
+}
+
+/**
+ * Decides whether the whole floor plan (every room and hallway in the
+ * multi-room overview) forms a single connected structure, for gating the
+ * whole-apartment 3D view: it should only ever be offered once there's no
+ * room floating in isolation with no way to walk to it from the rest of the
+ * layout. "Connected" reuses the exact same touching-wall detection the
+ * "0-4 walls" auto-open feature already relies on (see
+ * computeAutoOpenIntervals/resolveEffectiveOpenIntervals above) -- two
+ * rooms count as connected only where an actual open span exists between
+ * them (an archway or a door), not merely wherever they happen to be
+ * pushed flush with a wall manually forced closed there.
+ */
+export function computeRoomConnectivity(rooms: RoomLayout[]): RoomConnectivityResult {
+  if (rooms.length <= 1) {
+    return {
+      isFullyConnected: true,
+      componentCount: rooms.length,
+      isolatedRoomIds: [],
+    };
+  }
+
+  const autoOpen = computeAutoOpenIntervals(rooms);
+  const effectiveByRoom = new Map<string, Map<string, WallOpenInterval[]>>();
+  for (const room of rooms) {
+    effectiveByRoom.set(
+      room.id,
+      resolveEffectiveOpenIntervals(room, localCorners(room), autoOpen.get(room.id) ?? new Map()),
+    );
+  }
+
+  // Union-find over room ids to track connected components.
+  const parent = new Map<string, string>();
+  for (const room of rooms) parent.set(room.id, room.id);
+  const find = (id: string): string => {
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    let cur = id;
+    while (parent.get(cur) !== root) {
+      const next = parent.get(cur)!;
+      parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  };
+  const union = (a: string, b: string) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+
+  const hasAnyConnection = new Set<string>();
+
+  for (let i = 0; i < rooms.length; i++) {
+    for (let j = i + 1; j < rooms.length; j++) {
+      const roomA = rooms[i];
+      const roomB = rooms[j];
+      const effectiveA = effectiveByRoom.get(roomA.id)!;
+      const effectiveB = effectiveByRoom.get(roomB.id)!;
+      if (roomsConnectedAt(roomA, roomB, effectiveA, effectiveB)) {
+        union(roomA.id, roomB.id);
+        hasAnyConnection.add(roomA.id);
+        hasAnyConnection.add(roomB.id);
+      }
+    }
+  }
+
+  const componentRoots = new Set(rooms.map((r) => find(r.id)));
+  const isolatedRoomIds = rooms.filter((r) => !hasAnyConnection.has(r.id)).map((r) => r.id);
+
+  return {
+    isFullyConnected: componentRoots.size === 1,
+    componentCount: componentRoots.size,
+    isolatedRoomIds,
+  };
+}

@@ -80,6 +80,11 @@ function MultiRoomOverview() {
   // the single-room planner); when on, empty-canvas drag draws a marquee box
   // to select multiple rooms at once instead.
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  // Whole-apartment 3D view -- gated inside MultiRoomCanvas on every room
+  // forming one connected structure (see computeRoomConnectivity in
+  // room-adjacency.ts). Mirrors the single-room planner's own threeDActive
+  // toggle (see use-room-planner.ts).
+  const [threeDActive, setThreeDActive] = useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -360,6 +365,8 @@ function MultiRoomOverview() {
           setShowLabels={setShowLabels}
           multiSelectMode={multiSelectMode}
           setMultiSelectMode={setMultiSelectMode}
+          threeDActive={threeDActive}
+          setThreeDActive={setThreeDActive}
         />
       </div>
     </div>

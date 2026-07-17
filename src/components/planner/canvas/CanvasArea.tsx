@@ -7,7 +7,7 @@ import {
   wallOutwardNormal,
 } from "@/lib/hallway-shapes";
 import { closedSubIntervals } from "@/lib/room-adjacency";
-import { ThreeDView } from "../ThreeDView";
+import { ThreeDView, type RoomInstance3D } from "../ThreeDView";
 import { HintBanner } from "./HintBanner";
 import { RoomDimensionBadge } from "./RoomDimensionBadge";
 import { CanvasOpenings } from "./CanvasOpenings";
@@ -98,6 +98,33 @@ export function CanvasArea({
     return openings.find((o) => o.id === selectedOpeningId) || null;
   }, [selectedOpeningId, openings]);
 
+  // ThreeDView now renders a *list* of room instances (so it can also serve
+  // the whole-apartment 3D view -- see MultiRoomCanvas.tsx), each with its
+  // own x/y offset into a shared coordinate space. A standalone single room
+  // is just a one-element list at x=0, y=0, which makes every position
+  // calculation inside ThreeDView collapse back to exactly this room's own
+  // frame. Memoized (rather than built inline in the JSX below) so its
+  // reference only changes when one of this room's own fields actually
+  // does -- otherwise ThreeDView's scene-rebuilding effect would tear down
+  // and rebuild the whole Three.js scene on every unrelated re-render.
+  const threeDRooms = useMemo<RoomInstance3D[]>(
+    () => [
+      {
+        id: "single-room",
+        x: 0,
+        y: 0,
+        width: roomW,
+        length: roomL,
+        corners,
+        items,
+        openings,
+        wallColors,
+        openWalls,
+      },
+    ],
+    [roomW, roomL, corners, items, openings, wallColors, openWalls],
+  );
+
   // Auto-expand inspector when selection changes
   useEffect(() => {
     if (selectedIds.size > 0 || selectedOpeningId) {
@@ -112,81 +139,86 @@ export function CanvasArea({
   }, [inspectorPos]);
 
   // Drag handler for floating inspector header
-  const onInspectorHeaderPointerDown = useCallback((e: React.PointerEvent) => {
-    // Don't start drag on button clicks (collapse toggle)
-    if ((e.target as HTMLElement).closest('button')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const target = e.currentTarget as HTMLElement;
-    const panel = inspectorRef.current;
-    if (!panel) return;
+  const onInspectorHeaderPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      // Don't start drag on button clicks (collapse toggle)
+      if ((e.target as HTMLElement).closest("button")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const target = e.currentTarget as HTMLElement;
+      const panel = inspectorRef.current;
+      if (!panel) return;
 
-    try {
-      target.setPointerCapture(e.pointerId);
-    } catch {}
+      try {
+        target.setPointerCapture(e.pointerId);
+      } catch {}
 
-    // Disable CSS transitions during drag and apply global grabbing styles
-    panel.style.transition = "none";
-    document.body.style.cursor = "grabbing";
-    document.body.style.userSelect = "none";
+      // Disable CSS transitions during drag and apply global grabbing styles
+      panel.style.transition = "none";
+      document.body.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startPosX = inspectorPosRef.current.x;
-    const startPosY = inspectorPosRef.current.y;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startPosX = inspectorPosRef.current.x;
+      const startPosY = inspectorPosRef.current.y;
 
-    let currentX = startPosX;
-    let currentY = startPosY;
-    let rafId: number | null = null;
+      let currentX = startPosX;
+      let currentY = startPosY;
+      let rafId: number | null = null;
 
-    const move = (ev: PointerEvent) => {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
+      const move = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
 
-      const container = stageRef.current;
-      if (!container) {
-        currentX = startPosX + dx;
-        currentY = startPosY + dy;
-      } else {
-        const bounds = container.getBoundingClientRect();
-        const panelW = panel.offsetWidth;
-        const panelH = panel.offsetHeight;
-        currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
-        currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
-      }
+        const container = stageRef.current;
+        if (!container) {
+          currentX = startPosX + dx;
+          currentY = startPosY + dy;
+        } else {
+          const bounds = container.getBoundingClientRect();
+          const panelW = panel.offsetWidth;
+          const panelH = panel.offsetHeight;
+          currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
+          currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
+        }
 
-      if (rafId === null) {
-        rafId = requestAnimationFrame(() => {
-          panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+        if (rafId === null) {
+          rafId = requestAnimationFrame(() => {
+            panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+            rafId = null;
+          });
+        }
+      };
+
+      const up = (ev: PointerEvent) => {
+        try {
+          target.releasePointerCapture(ev.pointerId);
+        } catch {}
+        window.removeEventListener("pointermove", move, { capture: true });
+        window.removeEventListener("pointerup", up, { capture: true });
+        window.removeEventListener("pointercancel", up, { capture: true });
+
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
           rafId = null;
-        });
-      }
-    };
+        }
 
-    const up = (ev: PointerEvent) => {
-      try { target.releasePointerCapture(ev.pointerId); } catch {}
-      window.removeEventListener('pointermove', move, { capture: true });
-      window.removeEventListener('pointerup', up, { capture: true });
-      window.removeEventListener('pointercancel', up, { capture: true });
+        // Restore style states
+        panel.style.transition = "";
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
 
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
+        // Sync final position to state on release
+        setInspectorPos({ x: currentX, y: currentY });
+      };
 
-      // Restore style states
-      panel.style.transition = "";
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-
-      // Sync final position to state on release
-      setInspectorPos({ x: currentX, y: currentY });
-    };
-
-    window.addEventListener('pointermove', move, { capture: true });
-    window.addEventListener('pointerup', up, { capture: true });
-    window.addEventListener('pointercancel', up, { capture: true });
-  }, [stageRef]);
+      window.addEventListener("pointermove", move, { capture: true });
+      window.addEventListener("pointerup", up, { capture: true });
+      window.addEventListener("pointercancel", up, { capture: true });
+    },
+    [stageRef],
+  );
 
   const selectedLabel = selectedIds.size > 0 ? t.selectedCount(selectedIds.size) : undefined;
   const lang = t.title === "Raumplaner" ? "de" : "en";
@@ -224,7 +256,7 @@ export function CanvasArea({
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - startMouseX) / scale;
       const dy = (ev.clientY - startMouseY) / scale;
-      
+
       let newX = Math.round(startCornerX + dx);
       let newY = Math.round(startCornerY + dy);
 
@@ -263,18 +295,13 @@ export function CanvasArea({
         const clampedPos = Math.min(maxPos, Math.max(0, o.position));
         if (clampedPos === o.position) return o;
         return { ...o, position: clampedPos };
-      })
+      }),
     );
   };
 
   return (
     <main className="min-w-0 lg:h-full lg:min-h-0 flex flex-col gap-2">
-      <HintBanner
-        t={t}
-        scale={scale}
-        rulerMode={rulerMode}
-        threeDActive={threeDActive}
-      />
+      <HintBanner t={t} scale={scale} rulerMode={rulerMode} threeDActive={threeDActive} />
       <div
         ref={stageRef}
         id="tour-canvas"
@@ -287,34 +314,19 @@ export function CanvasArea({
           cursor: threeDActive
             ? undefined
             : rulerMode
-            ? "crosshair"
-            : !multiSelectMode
-            ? isPanning
-              ? "grabbing"
-              : "grab"
-            : undefined,
+              ? "crosshair"
+              : !multiSelectMode
+                ? isPanning
+                  ? "grabbing"
+                  : "grab"
+                : undefined,
         }}
       >
         {/* Room dimensions label (top-left of canvas) */}
-        <RoomDimensionBadge
-          roomW={roomW}
-          roomL={roomL}
-          selectedLabel={selectedLabel}
-        />
+        <RoomDimensionBadge roomW={roomW} roomL={roomL} selectedLabel={selectedLabel} />
 
         {threeDActive ? (
-          <ThreeDView
-            t={t}
-            roomW={roomW}
-            roomL={roomL}
-            items={items}
-            openings={openings}
-            selectedIds={selectedIds}
-            corners={corners}
-            wallColors={wallColors}
-            isDark={isDark}
-            openWalls={openWalls}
-          />
+          <ThreeDView t={t} rooms={threeDRooms} selectedIds={selectedIds} isDark={isDark} />
         ) : (
           scale > 0 && (
             <>
@@ -327,69 +339,69 @@ export function CanvasArea({
                   height: roomPxL,
                 }}
               >
-              {/* Floor and Walls SVG */}
-              <svg
-                className="absolute pointer-events-none inset-0 overflow-visible"
-                style={{ zIndex: 0 }}
-              >
-                <defs>
-                  <pattern
-                    id={`canvasGridPattern-${scaleKey}`}
-                    width={cm(50)}
-                    height={cm(50)}
-                    patternUnits="userSpaceOnUse"
-                  >
-                    <circle
-                      cx={1.5}
-                      cy={1.5}
-                      r={1.5}
-                      className="fill-foreground/10 dark:fill-foreground/15"
-                    />
-                  </pattern>
-                  <pattern
-                    id={`canvasLineGridPattern-${scaleKey}`}
-                    width={cm(50)}
-                    height={cm(50)}
-                    patternUnits="userSpaceOnUse"
-                  >
-                    <path
-                      d={`M ${cm(50)} 0 L 0 0 L 0 ${cm(50)}`}
-                      fill="none"
-                      strokeWidth="1"
-                      className="stroke-foreground/10 dark:stroke-foreground/15"
-                    />
-                  </pattern>
-                </defs>
+                {/* Floor and Walls SVG */}
+                <svg
+                  className="absolute pointer-events-none inset-0 overflow-visible"
+                  style={{ zIndex: 0 }}
+                >
+                  <defs>
+                    <pattern
+                      id={`canvasGridPattern-${scaleKey}`}
+                      width={cm(50)}
+                      height={cm(50)}
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <circle
+                        cx={1.5}
+                        cy={1.5}
+                        r={1.5}
+                        className="fill-foreground/10 dark:fill-foreground/15"
+                      />
+                    </pattern>
+                    <pattern
+                      id={`canvasLineGridPattern-${scaleKey}`}
+                      width={cm(50)}
+                      height={cm(50)}
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <path
+                        d={`M ${cm(50)} 0 L 0 0 L 0 ${cm(50)}`}
+                        fill="none"
+                        strokeWidth="1"
+                        className="stroke-foreground/10 dark:stroke-foreground/15"
+                      />
+                    </pattern>
+                  </defs>
 
-                {/* Polygonal Floor plane shadow & background */}
-                <polygon
-                  points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
-                  className="fill-background stroke-none"
-                  style={{
-                    filter: "drop-shadow(0px 4px 16px rgba(0,0,0,0.06))",
-                  }}
-                />
+                  {/* Polygonal Floor plane shadow & background */}
+                  <polygon
+                    points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
+                    className="fill-background stroke-none"
+                    style={{
+                      filter: "drop-shadow(0px 4px 16px rgba(0,0,0,0.06))",
+                    }}
+                  />
 
-                {/* Floor grid dot texture */}
-                <polygon
-                  points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
-                  fill={`url(#canvasGridPattern-${scaleKey})`}
-                  className="stroke-none"
-                />
-
-                {/* Background Grid Lines (Symmetrical Mesh) */}
-                {showGrid2D && (
-                  <rect
-                    x={cm(-2000)}
-                    y={cm(-2000)}
-                    width={cm(6000)}
-                    height={cm(6000)}
-                    fill={`url(#canvasLineGridPattern-${scaleKey})`}
+                  {/* Floor grid dot texture */}
+                  <polygon
+                    points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
+                    fill={`url(#canvasGridPattern-${scaleKey})`}
                     className="stroke-none"
                   />
-                )}
 
-                {/* --- Wall segments in 2D with inner color highlighting ---
+                  {/* Background Grid Lines (Symmetrical Mesh) */}
+                  {showGrid2D && (
+                    <rect
+                      x={cm(-2000)}
+                      y={cm(-2000)}
+                      width={cm(6000)}
+                      height={cm(6000)}
+                      fill={`url(#canvasLineGridPattern-${scaleKey})`}
+                      className="stroke-none"
+                    />
+                  )}
+
+                  {/* --- Wall segments in 2D with inner color highlighting ---
                     Looped over every edge of the room's polygon (4 for a
                     plain rectangle, 6-8 for an L/T-shaped hallway) instead
                     of 4 hardcoded named segments. A <line>'s visual result
@@ -403,43 +415,43 @@ export function CanvasArea({
                     an actual gap in the floor plan, not a wide doorway,
                     and only over the span that's actually open rather than
                     the whole wall vanishing next to a shorter neighbor. */}
-                {wallSegments(corners).flatMap((seg) => {
-                  const colorKey = wallColorKey(seg.index, corners.length);
-                  const openIntervals = openWalls.get(colorKey) ?? [];
-                  const closed = closedSubIntervals(seg.length, openIntervals);
-                  const ux = (seg.b.x - seg.a.x) / (seg.length || 1);
-                  const uy = (seg.b.y - seg.a.y) / (seg.length || 1);
-                  return closed.map((c, i) => {
-                    const ax = seg.a.x + ux * c.start;
-                    const ay = seg.a.y + uy * c.start;
-                    const bx = seg.a.x + ux * c.end;
-                    const by = seg.a.y + uy * c.end;
-                    return (
-                      <React.Fragment key={`${seg.index}-${i}`}>
-                        <line
-                          x1={cm(ax)}
-                          y1={cm(ay)}
-                          x2={cm(bx)}
-                          y2={cm(by)}
-                          className="stroke-slate-700 dark:stroke-slate-400"
-                          strokeWidth={cm(6)}
-                          strokeLinecap="round"
-                        />
-                        <line
-                          x1={cm(ax)}
-                          y1={cm(ay)}
-                          x2={cm(bx)}
-                          y2={cm(by)}
-                          stroke={wallColors[colorKey] || "#f1f5f9"}
-                          strokeWidth={cm(4)}
-                          strokeLinecap="round"
-                        />
-                      </React.Fragment>
-                    );
-                  });
-                })}
+                  {wallSegments(corners).flatMap((seg) => {
+                    const colorKey = wallColorKey(seg.index, corners.length);
+                    const openIntervals = openWalls.get(colorKey) ?? [];
+                    const closed = closedSubIntervals(seg.length, openIntervals);
+                    const ux = (seg.b.x - seg.a.x) / (seg.length || 1);
+                    const uy = (seg.b.y - seg.a.y) / (seg.length || 1);
+                    return closed.map((c, i) => {
+                      const ax = seg.a.x + ux * c.start;
+                      const ay = seg.a.y + uy * c.start;
+                      const bx = seg.a.x + ux * c.end;
+                      const by = seg.a.y + uy * c.end;
+                      return (
+                        <React.Fragment key={`${seg.index}-${i}`}>
+                          <line
+                            x1={cm(ax)}
+                            y1={cm(ay)}
+                            x2={cm(bx)}
+                            y2={cm(by)}
+                            className="stroke-slate-700 dark:stroke-slate-400"
+                            strokeWidth={cm(6)}
+                            strokeLinecap="round"
+                          />
+                          <line
+                            x1={cm(ax)}
+                            y1={cm(ay)}
+                            x2={cm(bx)}
+                            y2={cm(by)}
+                            stroke={wallColors[colorKey] || "#f1f5f9"}
+                            strokeWidth={cm(4)}
+                            strokeLinecap="round"
+                          />
+                        </React.Fragment>
+                      );
+                    });
+                  })}
 
-                {/* Wall id/number labels -- opt-in debug overlay so users can
+                  {/* Wall id/number labels -- opt-in debug overlay so users can
                     tell which wall is which when picking one in the
                     Add Door/Window dialog (which uses this exact same
                     named-for-rectangles / 1-based-index-for-polygons
@@ -453,116 +465,117 @@ export function CanvasArea({
                     narrow "3" badge would, otherwise a wide badge's near
                     edge ends up hugging the wall even though its center is
                     the same distance away. */}
-                {showWallIds &&
-                  wallSegments(corners).map((seg) => {
-                    const colorKey = wallColorKey(seg.index, corners.length);
-                    const isFullyOpen =
-                      closedSubIntervals(seg.length, openWalls.get(colorKey) ?? []).length === 0;
-                    if (isFullyOpen) return null;
-                    const midX = cm((seg.a.x + seg.b.x) / 2);
-                    const midY = cm((seg.a.y + seg.b.y) / 2);
-                    const n = wallOutwardNormal(seg.a, seg.b);
-                    const label =
-                      corners.length === 4
-                        ? t[wallColorKey(seg.index, 4) as "top" | "right" | "bottom" | "left"]
-                        : String(seg.index + 1);
-                    // Badge width scales with label length (named walls like
-                    // "Bottom" need noticeably more room than a 1-2 digit
-                    // wall number) with generous horizontal padding so the
-                    // text never crowds the badge edges.
-                    const padX = 10;
-                    const charW = 6.5;
-                    const boxW = Math.max(22, Math.round(label.length * charW + padX * 2));
-                    const boxH = 20;
-                    const wallGap = 12; // visible gap between the wall and the badge's near edge
-                    const halfExtent = Math.abs(n.x) * (boxW / 2) + Math.abs(n.y) * (boxH / 2);
-                    const labelOffset = wallGap + halfExtent;
-                    const lx = midX + n.x * labelOffset;
-                    const ly = midY + n.y * labelOffset;
-                    return (
-                      <g key={`wall-id-${seg.index}`}>
-                        <rect
-                          x={lx - boxW / 2}
-                          y={ly - boxH / 2}
-                          width={boxW}
-                          height={boxH}
-                          rx={5}
-                          className="fill-primary stroke-none"
-                        />
-                        <text
-                          x={lx}
-                          y={ly}
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          className="fill-primary-foreground"
-                          style={{ fontSize: 11, fontWeight: 600 }}
-                        >
-                          {label}
-                        </text>
-                      </g>
-                    );
-                  })}
-              </svg>
+                  {showWallIds &&
+                    wallSegments(corners).map((seg) => {
+                      const colorKey = wallColorKey(seg.index, corners.length);
+                      const isFullyOpen =
+                        closedSubIntervals(seg.length, openWalls.get(colorKey) ?? []).length === 0;
+                      if (isFullyOpen) return null;
+                      const midX = cm((seg.a.x + seg.b.x) / 2);
+                      const midY = cm((seg.a.y + seg.b.y) / 2);
+                      const n = wallOutwardNormal(seg.a, seg.b);
+                      const label =
+                        corners.length === 4
+                          ? t[wallColorKey(seg.index, 4) as "top" | "right" | "bottom" | "left"]
+                          : String(seg.index + 1);
+                      // Badge width scales with label length (named walls like
+                      // "Bottom" need noticeably more room than a 1-2 digit
+                      // wall number) with generous horizontal padding so the
+                      // text never crowds the badge edges.
+                      const padX = 10;
+                      const charW = 6.5;
+                      const boxW = Math.max(22, Math.round(label.length * charW + padX * 2));
+                      const boxH = 20;
+                      const wallGap = 12; // visible gap between the wall and the badge's near edge
+                      const halfExtent = Math.abs(n.x) * (boxW / 2) + Math.abs(n.y) * (boxH / 2);
+                      const labelOffset = wallGap + halfExtent;
+                      const lx = midX + n.x * labelOffset;
+                      const ly = midY + n.y * labelOffset;
+                      return (
+                        <g key={`wall-id-${seg.index}`}>
+                          <rect
+                            x={lx - boxW / 2}
+                            y={ly - boxH / 2}
+                            width={boxW}
+                            height={boxH}
+                            rx={5}
+                            className="fill-primary stroke-none"
+                          />
+                          <text
+                            x={lx}
+                            y={ly}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            className="fill-primary-foreground"
+                            style={{ fontSize: 11, fontWeight: 600 }}
+                          >
+                            {label}
+                          </text>
+                        </g>
+                      );
+                    })}
+                </svg>
 
-              {/* openings */}
-              <CanvasOpenings
-                openings={openings}
-                setOpenings={setOpenings}
-                corners={corners}
-                scale={scale}
-                cm={cm}
-                pushHistory={pushHistory}
-                lang={lang}
-                selectedOpeningId={selectedOpeningId}
-                setSelectedOpeningId={setSelectedOpeningId}
-                openWalls={openWalls}
-              />
+                {/* openings */}
+                <CanvasOpenings
+                  openings={openings}
+                  setOpenings={setOpenings}
+                  corners={corners}
+                  scale={scale}
+                  cm={cm}
+                  pushHistory={pushHistory}
+                  lang={lang}
+                  selectedOpeningId={selectedOpeningId}
+                  setSelectedOpeningId={setSelectedOpeningId}
+                  openWalls={openWalls}
+                />
 
-              {/* items */}
-              <CanvasItems
-                items={items}
-                selectedIds={selectedIds}
-                cm={cm}
-                onItemPointerDown={onItemPointerDown}
-                onRotateHandleDown={onRotateHandleDown}
-                dragToRotateLabel={t.dragToRotate}
-              />
+                {/* items */}
+                <CanvasItems
+                  items={items}
+                  selectedIds={selectedIds}
+                  cm={cm}
+                  onItemPointerDown={onItemPointerDown}
+                  onRotateHandleDown={onRotateHandleDown}
+                  dragToRotateLabel={t.dragToRotate}
+                />
 
-              {/* marquee */}
-              <CanvasMarquee marqueeRect={marqueeRect} cm={cm} />
+                {/* marquee */}
+                <CanvasMarquee marqueeRect={marqueeRect} cm={cm} />
 
-              {/* ruler overlay */}
-              <CanvasRuler
-                rulerMode={rulerMode}
-                rulerStart={rulerStart}
-                rulerEnd={rulerEnd}
-                rulerHover={rulerHover}
-                cm={cm}
-                roomPxW={roomPxW}
-                roomPxL={roomPxL}
-              />
+                {/* ruler overlay */}
+                <CanvasRuler
+                  rulerMode={rulerMode}
+                  rulerStart={rulerStart}
+                  rulerEnd={rulerEnd}
+                  rulerHover={rulerHover}
+                  cm={cm}
+                  roomPxW={roomPxW}
+                  roomPxL={roomPxL}
+                />
 
-              {/* Draggable Corner Handles */}
-              {enableCornerDrag && corners.map((c, idx) => (
-                <div
-                  key={idx}
-                  onPointerDown={(e) => onCornerPointerDown(e, idx)}
-                  className="absolute w-3.5 h-3.5 -ml-[7px] -mt-[7px] rounded-full border border-primary bg-background shadow-md hover:scale-125 cursor-move active:bg-primary transition-[transform,background-color] duration-150 flex items-center justify-center group"
-                  style={{
-                    left: cm(c.x),
-                    top: cm(c.y),
-                    touchAction: "none",
-                    zIndex: 20,
-                  }}
-                  title={lang === "de" ? "Wandecke anpassen" : "Adjust corner"}
-                >
-                  <span className="w-1 h-1 rounded-full bg-primary group-active:bg-background group-hover:bg-primary/80 transition-colors" />
-                </div>
-              ))}
+                {/* Draggable Corner Handles */}
+                {enableCornerDrag &&
+                  corners.map((c, idx) => (
+                    <div
+                      key={idx}
+                      onPointerDown={(e) => onCornerPointerDown(e, idx)}
+                      className="absolute w-3.5 h-3.5 -ml-[7px] -mt-[7px] rounded-full border border-primary bg-background shadow-md hover:scale-125 cursor-move active:bg-primary transition-[transform,background-color] duration-150 flex items-center justify-center group"
+                      style={{
+                        left: cm(c.x),
+                        top: cm(c.y),
+                        touchAction: "none",
+                        zIndex: 20,
+                      }}
+                      title={lang === "de" ? "Wandecke anpassen" : "Adjust corner"}
+                    >
+                      <span className="w-1 h-1 rounded-full bg-primary group-active:bg-background group-hover:bg-primary/80 transition-colors" />
+                    </div>
+                  ))}
               </div>
 
               {/* 2D Control Panel Overlay */}
-              <div 
+              <div
                 onPointerDown={(e) => e.stopPropagation()}
                 onPointerMove={(e) => e.stopPropagation()}
                 onPointerUp={(e) => e.stopPropagation()}
@@ -585,7 +598,7 @@ export function CanvasArea({
                     />
                     <span>{lang === "de" ? "Raster anzeigen" : "Show Grid Lines"}</span>
                   </label>
-                  
+
                   <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
                     <input
                       type="checkbox"
@@ -595,13 +608,15 @@ export function CanvasArea({
                     />
                     <span className="flex items-center gap-1">
                       {lang === "de" ? "Ecken verschieben" : "Enable Corner Dragging"}
-                      <span 
-                        title={lang === "de" ? "Experimentelle Funktion: Ermöglicht das freie Ziehen der Raumecken zur Erstellung unregelmäßiger Grundrisse." : "Experimental Feature: Allows dragging room corners to shape custom non-rectangular layouts."}
+                      <span
+                        title={
+                          lang === "de"
+                            ? "Experimentelle Funktion: Ermöglicht das freie Ziehen der Raumecken zur Erstellung unregelmäßiger Grundrisse."
+                            : "Experimental Feature: Allows dragging room corners to shape custom non-rectangular layouts."
+                        }
                         className="cursor-help inline-flex items-center"
                       >
-                        <HelpCircle 
-                          className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" 
-                        />
+                        <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
                       </span>
                     </span>
                   </label>
@@ -616,7 +631,11 @@ export function CanvasArea({
                     <span className="flex items-center gap-1">
                       {lang === "de" ? "Wandnummern anzeigen" : "Show Wall Numbers"}
                       <span
-                        title={lang === "de" ? "Zeigt die Wand-ID neben jeder Wand an -- praktisch, um die richtige Wand im Tür-/Fenster-Dialog auszuwählen." : "Shows each wall's id next to it on the canvas -- handy for picking the right wall in the Add Door/Window dialog."}
+                        title={
+                          lang === "de"
+                            ? "Zeigt die Wand-ID neben jeder Wand an -- praktisch, um die richtige Wand im Tür-/Fenster-Dialog auszuwählen."
+                            : "Shows each wall's id next to it on the canvas -- handy for picking the right wall in the Add Door/Window dialog."
+                        }
                         className="cursor-help inline-flex items-center"
                       >
                         <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
@@ -644,7 +663,11 @@ export function CanvasArea({
                     <span className="flex items-center gap-1">
                       {lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}
                       <span
-                        title={lang === "de" ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf." : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead."}
+                        title={
+                          lang === "de"
+                            ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf."
+                            : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead."
+                        }
                         className="cursor-help inline-flex items-center"
                       >
                         <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
@@ -657,11 +680,15 @@ export function CanvasArea({
                 <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
                   <div className="flex items-center justify-between font-medium text-[10.5px]">
                     <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
-                    <span className="font-semibold text-primary">{Math.round(zoomFactor * 100)}%</span>
+                    <span className="font-semibold text-primary">
+                      {Math.round(zoomFactor * 100)}%
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <button
-                      onClick={() => setZoomFactor((z) => Math.max(0.1, Math.round((z - 0.1) * 10) / 10))}
+                      onClick={() =>
+                        setZoomFactor((z) => Math.max(0.1, Math.round((z - 0.1) * 10) / 10))
+                      }
                       className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
                       title={lang === "de" ? "Herauszoomen" : "Zoom out"}
                     >
@@ -677,7 +704,9 @@ export function CanvasArea({
                       className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
                     />
                     <button
-                      onClick={() => setZoomFactor((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))}
+                      onClick={() =>
+                        setZoomFactor((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))
+                      }
                       className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
                       title={lang === "de" ? "Hineinzoomen" : "Zoom in"}
                     >
@@ -687,8 +716,8 @@ export function CanvasArea({
                 </div>
               </div>
             </>
-        )
-      )}
+          )
+        )}
 
         {/* Floating bottom toolbar */}
         <ToolbarOverlay
@@ -705,7 +734,9 @@ export function CanvasArea({
         {/* 2D Map-style Scale Bar Indicator */}
         {!threeDActive && scale > 0 && (
           <div className="absolute bottom-4 right-4 z-20 pointer-events-none flex flex-col items-center select-none font-mono text-[9px] font-semibold text-muted-foreground bg-background/60 backdrop-blur-sm px-2 py-1 rounded border border-border/20 shadow-sm animate-in fade-in duration-200">
-            <span className="mb-0.5">{scaleCm >= 100 ? `${scaleCm / 100} m` : `${scaleCm} cm`}</span>
+            <span className="mb-0.5">
+              {scaleCm >= 100 ? `${scaleCm / 100} m` : `${scaleCm} cm`}
+            </span>
             <div className="relative flex items-center justify-between" style={{ width: scalePx }}>
               {/* Left tick */}
               <div className="w-[1.5px] h-2 bg-muted-foreground" />

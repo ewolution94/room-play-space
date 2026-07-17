@@ -5,6 +5,7 @@ import {
   resolveEffectiveOpenIntervals,
   closedSubIntervals,
   projectPointToFrame,
+  computeRoomConnectivity,
 } from "@/lib/room-adjacency";
 import { buildLHallwayCorners, insetRectilinearPolygon, wallSegments } from "@/lib/hallway-shapes";
 import type { RoomLayout } from "@/types/planner";
@@ -444,5 +445,101 @@ describe("closedSubIntervals", () => {
         { start: 250, end: 300 },
       ],
     );
+  });
+});
+
+describe("computeRoomConnectivity", () => {
+  test("an empty floor plan is trivially connected", () => {
+    const result = computeRoomConnectivity([]);
+    assert.equal(result.isFullyConnected, true);
+    assert.equal(result.componentCount, 0);
+    assert.deepEqual(result.isolatedRoomIds, []);
+  });
+
+  test("a single room is trivially connected", () => {
+    const result = computeRoomConnectivity([room({ id: "a" })]);
+    assert.equal(result.isFullyConnected, true);
+    assert.equal(result.componentCount, 1);
+    assert.deepEqual(result.isolatedRoomIds, []);
+  });
+
+  test("two rooms placed exactly flush (auto-open touching wall) are connected", () => {
+    const a = room({ id: "a", x: 0, y: 0, width: 300, length: 200 });
+    const b = room({ id: "b", x: 300, y: 0, width: 250, length: 200 });
+    const result = computeRoomConnectivity([a, b]);
+    assert.equal(result.isFullyConnected, true);
+    assert.equal(result.componentCount, 1);
+    assert.deepEqual(result.isolatedRoomIds, []);
+  });
+
+  test("two rooms with a real gap between them are not connected", () => {
+    const a = room({ id: "a", x: 0, y: 0, width: 300, length: 200 });
+    const b = room({ id: "b", x: 310, y: 0, width: 250, length: 200 }); // 10cm gap
+    const result = computeRoomConnectivity([a, b]);
+    assert.equal(result.isFullyConnected, false);
+    assert.equal(result.componentCount, 2);
+    assert.deepEqual(new Set(result.isolatedRoomIds), new Set(["a", "b"]));
+  });
+
+  test("three rooms in a chain (a-b touching, b-c touching) are all connected", () => {
+    const a = room({ id: "a", x: 0, y: 0, width: 300, length: 200 });
+    const b = room({ id: "b", x: 300, y: 0, width: 250, length: 200 });
+    const c = room({ id: "c", x: 550, y: 0, width: 200, length: 200 });
+    const result = computeRoomConnectivity([a, b, c]);
+    assert.equal(result.isFullyConnected, true);
+    assert.equal(result.componentCount, 1);
+    assert.deepEqual(result.isolatedRoomIds, []);
+  });
+
+  test("an isolated room off on its own breaks full connectivity, even though the rest is connected", () => {
+    const a = room({ id: "a", x: 0, y: 0, width: 300, length: 200 });
+    const b = room({ id: "b", x: 300, y: 0, width: 250, length: 200 });
+    const isolated = room({ id: "c", x: 2000, y: 2000, width: 200, length: 200 });
+    const result = computeRoomConnectivity([a, b, isolated]);
+    assert.equal(result.isFullyConnected, false);
+    assert.equal(result.componentCount, 2);
+    assert.deepEqual(result.isolatedRoomIds, ["c"]);
+  });
+
+  test("forcing the shared wall closed on one side (wallOverrides: false) breaks the connection", () => {
+    const a = room({
+      id: "a",
+      x: 0,
+      y: 0,
+      width: 300,
+      length: 200,
+      wallOverrides: { right: false },
+    });
+    const b = room({ id: "b", x: 300, y: 0, width: 250, length: 200 });
+    const result = computeRoomConnectivity([a, b]);
+    assert.equal(result.isFullyConnected, false);
+    assert.equal(result.componentCount, 2);
+    assert.deepEqual(new Set(result.isolatedRoomIds), new Set(["a", "b"]));
+  });
+
+  test("forcing a non-touching wall open (wallOverrides: true) with no real neighbor doesn't fabricate a connection", () => {
+    const a = room({
+      id: "a",
+      x: 0,
+      y: 0,
+      width: 300,
+      length: 200,
+      wallOverrides: { right: true },
+    });
+    const b = room({ id: "b", x: 1000, y: 1000, width: 250, length: 200 });
+    const result = computeRoomConnectivity([a, b]);
+    assert.equal(result.isFullyConnected, false);
+    assert.equal(result.componentCount, 2);
+  });
+
+  test("two disjoint connected pairs (a-b and c-d) yield two components, no isolated rooms", () => {
+    const a = room({ id: "a", x: 0, y: 0, width: 300, length: 200 });
+    const b = room({ id: "b", x: 300, y: 0, width: 250, length: 200 });
+    const c = room({ id: "c", x: 2000, y: 2000, width: 300, length: 200 });
+    const d = room({ id: "d", x: 2300, y: 2000, width: 250, length: 200 });
+    const result = computeRoomConnectivity([a, b, c, d]);
+    assert.equal(result.isFullyConnected, false);
+    assert.equal(result.componentCount, 2);
+    assert.deepEqual(result.isolatedRoomIds, []);
   });
 });

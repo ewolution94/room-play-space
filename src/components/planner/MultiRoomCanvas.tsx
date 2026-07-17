@@ -19,6 +19,7 @@ import {
   closedSubIntervals,
   projectPointToFrame,
   globalCorners,
+  computeRoomConnectivity,
 } from "@/lib/room-adjacency";
 import {
   FLOOR_W,
@@ -28,9 +29,10 @@ import {
   removeRoomLayout,
   clampRoomResize,
 } from "@/lib/multi-room-actions";
-import { HelpCircle, FolderOpen } from "lucide-react";
+import { HelpCircle, FolderOpen, Box } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { MultiRoomInspector } from "./MultiRoomInspector";
+import { ThreeDView, type RoomInstance3D } from "./ThreeDView";
 
 interface MultiRoomCanvasProps {
   t: TranslationStrings;
@@ -54,6 +56,8 @@ interface MultiRoomCanvasProps {
   setShowLabels: (show: boolean) => void;
   multiSelectMode: boolean;
   setMultiSelectMode: (enabled: boolean) => void;
+  threeDActive: boolean;
+  setThreeDActive: (active: boolean) => void;
 }
 
 export function MultiRoomCanvas({
@@ -78,6 +82,8 @@ export function MultiRoomCanvas({
   setShowLabels,
   multiSelectMode,
   setMultiSelectMode,
+  threeDActive,
+  setThreeDActive,
 }: MultiRoomCanvasProps) {
   const navigate = useNavigate();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -91,6 +97,71 @@ export function MultiRoomCanvas({
   // Recomputed whenever the room list changes (drag, resize, add/remove);
   // O(rooms^2) but floor plans here run to tens of rooms, not thousands.
   const autoOpenWalls = useMemo(() => computeAutoOpenIntervals(rooms), [rooms]);
+
+  // Whole-apartment 3D view: only ever offered once every room/hallway is
+  // reachable from every other one through a genuinely open connection --
+  // no room left floating on its own (see computeRoomConnectivity in
+  // room-adjacency.ts, which reuses the exact same touching-wall detection
+  // as the auto-open-wall suggestion above). Recomputed alongside
+  // autoOpenWalls whenever the room list changes.
+  const connectivity = useMemo(() => computeRoomConnectivity(rooms), [rooms]);
+  const isolatedRoomNames = connectivity.isolatedRoomIds
+    .map((id) => rooms.find((r) => r.id === id)?.name)
+    .filter((n): n is string => !!n);
+  const threeDEnabled = rooms.length > 0 && connectivity.isFullyConnected;
+  const threeDDisabledReason =
+    rooms.length === 0
+      ? lang === "de"
+        ? "Füge zuerst Räume hinzu."
+        : "Add some rooms first."
+      : !connectivity.isFullyConnected
+        ? isolatedRoomNames.length > 0
+          ? lang === "de"
+            ? `Noch nicht verbunden: ${isolatedRoomNames.join(", ")}`
+            : `Not yet connected: ${isolatedRoomNames.join(", ")}`
+          : lang === "de"
+            ? "Die Räume bilden noch getrennte Gruppen. Verbinde sie, um die 3D-Ansicht freizuschalten."
+            : "Your rooms form separate groups. Connect them to unlock the 3D view."
+        : null;
+
+  // Every room/hallway's geometry translated into the shared-scene instance
+  // shape ThreeDView.tsx now renders (see RoomInstance3D there) -- reusing
+  // exactly the same local-corners fallback and effective-open-wall
+  // resolution the 2D thumbnail below already computes per room, just
+  // gathered up front for every room at once instead of per-render inside
+  // the .map() below.
+  const roomInstances = useMemo<RoomInstance3D[]>(
+    () =>
+      rooms.map((room) => {
+        const instanceCorners =
+          room.corners && room.corners.length >= 3
+            ? room.corners
+            : [
+                { x: 0, y: 0 },
+                { x: room.width, y: 0 },
+                { x: room.width, y: room.length },
+                { x: 0, y: room.length },
+              ];
+        const effectiveOpenWalls = resolveEffectiveOpenIntervals(
+          room,
+          instanceCorners,
+          autoOpenWalls.get(room.id) ?? new Map(),
+        );
+        return {
+          id: room.id,
+          x: room.x,
+          y: room.y,
+          width: room.width,
+          length: room.length,
+          corners: instanceCorners,
+          items: room.items,
+          openings: room.openings,
+          wallColors: room.wallColors ?? {},
+          openWalls: effectiveOpenWalls,
+        };
+      }),
+    [rooms, autoOpenWalls],
+  );
 
   // Floating draggable inspector state -- mirrors the single-room planner's
   // floating Inspector panel in CanvasArea.tsx exactly, so editing a room's
@@ -669,11 +740,11 @@ export function MultiRoomCanvas({
       <div
         ref={stageRef}
         className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 overflow-hidden select-none transition-colors duration-150
-          ${multiSelectMode ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+          ${threeDActive ? "" : multiSelectMode ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         style={{ touchAction: "none" }}
-        onPointerDown={onStagePointerDown}
-        onPointerMove={onStagePointerMove}
-        onPointerUp={onStagePointerUp}
+        onPointerDown={threeDActive ? undefined : onStagePointerDown}
+        onPointerMove={threeDActive ? undefined : onStagePointerMove}
+        onPointerUp={threeDActive ? undefined : onStagePointerUp}
       >
         {/* Dimensions label for the floor layout */}
         <div
@@ -689,116 +760,165 @@ export function MultiRoomCanvas({
           </span>
         </div>
 
-        {/* 2D control options overlay */}
+        {/* 3D View toggle -- mirrors the single-room planner's ToolbarOverlay
+            3D toggle exactly (see ToolbarOverlay.tsx), gated on every room
+            forming one connected structure (see computeRoomConnectivity in
+            room-adjacency.ts). Always rendered (even while active) so it
+            also serves as the way back to the 2D layout. */}
         <div
+          className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/80 backdrop-blur-md px-3.5 py-1.5 shadow-lg select-none"
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute top-3 right-3 z-20 w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md text-[11px]"
         >
-          <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
-            <span>{lang === "de" ? "Layout Optionen" : "Layout Options"}</span>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-            <input
-              type="checkbox"
-              checked={collisionEnabled}
-              onChange={(e) => setCollisionEnabled(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-            />
-            <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-            <input
-              type="checkbox"
-              checked={showFurniture}
-              onChange={(e) => setShowFurniture(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-            />
-            <span>{lang === "de" ? "Möbel anzeigen" : "Show Furniture"}</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-            <input
-              type="checkbox"
-              checked={showDimensions}
-              onChange={(e) => setShowDimensions(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-            />
-            <span>{lang === "de" ? "Maße anzeigen" : "Show Dimensions"}</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-            <input
-              type="checkbox"
-              checked={showLabels}
-              onChange={(e) => setShowLabels(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-            />
-            <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-            <input
-              type="checkbox"
-              checked={multiSelectMode}
-              onChange={(e) => setMultiSelectMode(e.target.checked)}
-              className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-            />
-            <span>{lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}</span>
-          </label>
-
-          {/* Zoom controls */}
-          <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
-            <div className="flex items-center justify-between font-medium text-[10.5px]">
-              <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
-              <span className="font-semibold text-primary">{Math.round(zoomFactor * 100)}%</span>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <button
-                onClick={() =>
-                  setZoomFactor(Math.max(0.2, Math.round((zoomFactor - 0.1) * 10) / 10))
-                }
-                className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
-              >
-                -
-              </button>
-              <input
-                type="range"
-                min="0.2"
-                max="2.0"
-                step="0.05"
-                value={zoomFactor}
-                onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
-                className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <button
-                onClick={() =>
-                  setZoomFactor(Math.min(2.0, Math.round((zoomFactor + 0.1) * 10) / 10))
-                }
-                className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          {/* Reset View Button */}
-          <div className="border-t border-border/20 pt-2">
-            <button
-              onClick={() => {
-                setPanX(0);
-                setPanY(0);
-                setZoomFactor(0.85);
-              }}
-              className="w-full h-7 rounded border border-border bg-background hover:bg-accent text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors text-muted-foreground hover:text-foreground"
-            >
-              <span>{lang === "de" ? "Ansicht zurücksetzen" : "Reset View"}</span>
-            </button>
-          </div>
+          <button
+            onClick={() => threeDEnabled && setThreeDActive(!threeDActive)}
+            disabled={!threeDEnabled}
+            title={
+              threeDDisabledReason ??
+              (lang === "de" ? "3D-Ansicht der gesamten Wohnung" : "3D view of the whole apartment")
+            }
+            className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium flex items-center transition-colors ${
+              !threeDEnabled
+                ? "text-muted-foreground/40 cursor-not-allowed"
+                : threeDActive
+                  ? "text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
+                  : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Box className="h-3.5 w-3.5" />
+            {threeDActive
+              ? lang === "de"
+                ? "2D-Modus"
+                : "2D Mode"
+              : lang === "de"
+                ? "3D-Ansicht"
+                : "3D View"}
+          </button>
         </div>
 
+        {/* Whole-apartment 3D view -- every room/hallway (walls, doors,
+            windows, furniture) rendered together in one shared scene, using
+            the exact same per-room geometry/opening data the 2D thumbnail
+            below uses (see roomInstances above). Reuses the single-room 3D
+            view's own renderer entirely (see ThreeDView.tsx's RoomInstance3D
+            generalization) rather than a separate implementation. */}
+        {threeDActive && (
+          <div className="absolute inset-0 z-10">
+            <ThreeDView t={t} rooms={roomInstances} selectedIds={new Set()} isDark={isDark} />
+          </div>
+        )}
+
+        {/* 2D control options overlay */}
+        {!threeDActive && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute top-3 right-3 z-20 w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md text-[11px]"
+          >
+            <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
+              <span>{lang === "de" ? "Layout Optionen" : "Layout Options"}</span>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+              <input
+                type="checkbox"
+                checked={collisionEnabled}
+                onChange={(e) => setCollisionEnabled(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+              />
+              <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+              <input
+                type="checkbox"
+                checked={showFurniture}
+                onChange={(e) => setShowFurniture(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+              />
+              <span>{lang === "de" ? "Möbel anzeigen" : "Show Furniture"}</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+              <input
+                type="checkbox"
+                checked={showDimensions}
+                onChange={(e) => setShowDimensions(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+              />
+              <span>{lang === "de" ? "Maße anzeigen" : "Show Dimensions"}</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+              <input
+                type="checkbox"
+                checked={showLabels}
+                onChange={(e) => setShowLabels(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+              />
+              <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+              <input
+                type="checkbox"
+                checked={multiSelectMode}
+                onChange={(e) => setMultiSelectMode(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+              />
+              <span>{lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}</span>
+            </label>
+
+            {/* Zoom controls */}
+            <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
+              <div className="flex items-center justify-between font-medium text-[10.5px]">
+                <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
+                <span className="font-semibold text-primary">{Math.round(zoomFactor * 100)}%</span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <button
+                  onClick={() =>
+                    setZoomFactor(Math.max(0.2, Math.round((zoomFactor - 0.1) * 10) / 10))
+                  }
+                  className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="0.2"
+                  max="2.0"
+                  step="0.05"
+                  value={zoomFactor}
+                  onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
+                  className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                />
+                <button
+                  onClick={() =>
+                    setZoomFactor(Math.min(2.0, Math.round((zoomFactor + 0.1) * 10) / 10))
+                  }
+                  className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Reset View Button */}
+            <div className="border-t border-border/20 pt-2">
+              <button
+                onClick={() => {
+                  setPanX(0);
+                  setPanY(0);
+                  setZoomFactor(0.85);
+                }}
+                className="w-full h-7 rounded border border-border bg-background hover:bg-accent text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <span>{lang === "de" ? "Ansicht zurücksetzen" : "Reset View"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Scaled Floor Area */}
-        {scale > 0 && (
+        {!threeDActive && scale > 0 && (
           <div
             className="absolute box-content border border-dashed border-border/40 shadow-sm"
             style={{
@@ -1399,7 +1519,7 @@ export function MultiRoomCanvas({
         )}
 
         {/* Floating Draggable Inspector Panel -- mirrors CanvasArea.tsx's single-room inspector */}
-        {(selectedRoomId || selectedRoomIds.size > 0) && (
+        {!threeDActive && (selectedRoomId || selectedRoomIds.size > 0) && (
           <div
             ref={inspectorRef}
             className="absolute z-40 w-72 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
