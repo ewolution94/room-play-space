@@ -24,7 +24,7 @@ import {
   computeOnTopElevation,
 } from "@/lib/planner-math";
 import { importSchema } from "@/lib/planner-schema";
-import { getDefaultHeight } from "@/lib/planner-presets";
+import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
 import {
   computeAutoOpenIntervals,
   resolveEffectiveOpenIntervals,
@@ -48,6 +48,96 @@ const ON_TOP_DEFAULT_ELEVATION = 75;
 // wall-mounted item keeps whatever height it's given here (or its own
 // Preset.elevation) no matter what furniture ends up underneath it.
 const WALL_MOUNT_DEFAULT_ELEVATION = 150;
+
+// Default room size + furniture for the standalone single-room planner (no
+// roomId, i.e. not a room inside the /rooms apartment) -- a fully-furnished
+// home office showcasing the real Kenney kit models and procedural
+// fallback shapes (see kit-models.ts / procedural-models.ts) rather than a
+// handful of flat boxes. Every item's width/length/color is pulled straight
+// from its preset's own default (see defaultOfficeItem below) so it exactly
+// matches the size resolveRenderMode (kit-models.ts) expects, guaranteeing
+// every kitModel-mapped piece here renders as the real 3D model.
+export const DEFAULT_ROOM_W = 500;
+export const DEFAULT_ROOM_L = 400;
+
+let defaultItemIdCounter = 0;
+function defaultOfficeItem(
+  key: string,
+  x: number,
+  y: number,
+  opts: { rotation?: number; elevation?: number; swapDims?: boolean } = {},
+): Item {
+  const preset = PRESET_BY_KEY[key];
+  if (!preset) throw new Error(`use-room-planner.ts default office: unknown preset key "${key}"`);
+  defaultItemIdCounter += 1;
+  // swapDims: this item has no kitModel/proceduralModel (a plain flat box,
+  // e.g. the cork board), so there's no 3D mesh to distort -- swapping
+  // which of the preset's own w/l becomes width/length is a safe, cheap way
+  // to lay it out rotated 90 degrees (hugging a side wall instead of the
+  // back wall) without needing an actual THREE.js rotation.
+  const width = opts.swapDims ? preset.l : preset.w;
+  const length = opts.swapDims ? preset.w : preset.l;
+  const item: Item = {
+    id: `default-${key}-${defaultItemIdCounter}`,
+    name: preset.nameEn,
+    width,
+    length,
+    color: preset.color,
+    x,
+    y,
+    rotation: opts.rotation ?? 0,
+    kind: "furniture",
+    icon: key,
+  };
+  if (preset.layer) item.layer = preset.layer;
+  if (preset.shape) item.shape = preset.shape;
+  if (opts.elevation !== undefined) item.elevation = opts.elevation;
+  else if (preset.layer === "wall")
+    item.elevation = preset.elevation ?? WALL_MOUNT_DEFAULT_ELEVATION;
+  return item;
+}
+
+export function buildDefaultOfficeOpenings(): Opening[] {
+  return [
+    {
+      id: "default-door-1",
+      wall: "bottom",
+      position: 300,
+      width: 90,
+      kind: "door",
+      hinge: "start",
+      swing: "in",
+    },
+    { id: "default-window-1", wall: "top", position: 190, width: 140, kind: "window" },
+    { id: "default-window-2", wall: "right", position: 130, width: 100, kind: "window" },
+  ];
+}
+
+export function buildDefaultOfficeItems(): Item[] {
+  defaultItemIdCounter = 0;
+  return [
+    // Main layer -- desk + seating area, storage along the walls.
+    defaultOfficeItem("desk", 170, 15),
+    defaultOfficeItem("chair-office", 220, 100),
+    defaultOfficeItem("bookshelf", 20, 15),
+    defaultOfficeItem("office-credenza", 365, 210),
+    defaultOfficeItem("filing-cabinet", 20, 280),
+    defaultOfficeItem("guest-chair", 105, 300),
+    defaultOfficeItem("side-table", 170, 310),
+    defaultOfficeItem("floor-lamp", 440, 130),
+    defaultOfficeItem("plant", 430, 310),
+    // Under layer -- rug beneath the desk + chair.
+    defaultOfficeItem("rug", 150, 80),
+    // On-top layer -- desk surface + side-table surface.
+    defaultOfficeItem("monitor", 195, 25, { elevation: 75 }),
+    defaultOfficeItem("desk-lamp", 270, 25, { elevation: 75 }),
+    defaultOfficeItem("books-stack", 195, 55, { elevation: 75 }),
+    defaultOfficeItem("plant-small", 175, 325, { elevation: 55 }),
+    // Wall layer -- overhead light + a cork board for the "office" feel.
+    defaultOfficeItem("pendant-light", 235, 185, { elevation: 175 }),
+    defaultOfficeItem("corkboard", 485, 140, { swapDims: true, elevation: 140 }),
+  ];
+}
 
 // Real-world height of an item, used to figure out where an "on-top" item's
 // surface lands when something is auto-elevated onto it (see
@@ -107,10 +197,10 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     return resolveEffectiveOpenIntervals(initialRoom, roomCorners, autoOpen);
   });
 
-  const [roomW, setRoomW] = useState(() => initialRoom?.width ?? 480);
-  const [roomL, setRoomL] = useState(() => initialRoom?.length ?? 360);
-  const [draftW, setDraftW] = useState(() => String(initialRoom?.width ?? 480));
-  const [draftL, setDraftL] = useState(() => String(initialRoom?.length ?? 360));
+  const [roomW, setRoomW] = useState(() => initialRoom?.width ?? DEFAULT_ROOM_W);
+  const [roomL, setRoomL] = useState(() => initialRoom?.length ?? DEFAULT_ROOM_L);
+  const [draftW, setDraftW] = useState(() => String(initialRoom?.width ?? DEFAULT_ROOM_W));
+  const [draftL, setDraftL] = useState(() => String(initialRoom?.length ?? DEFAULT_ROOM_L));
   const dirty = draftW !== String(roomW) || draftL !== String(roomL);
   const [threeDActive, setThreeDActive] = useState(false);
   const [zoomFactor, setZoomFactor] = useState(1);
@@ -118,9 +208,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     () =>
       initialRoom?.corners ?? [
         { x: 0, y: 0 },
-        { x: initialRoom?.width ?? 480, y: 0 },
-        { x: initialRoom?.width ?? 480, y: initialRoom?.length ?? 360 },
-        { x: 0, y: initialRoom?.length ?? 360 },
+        { x: initialRoom?.width ?? DEFAULT_ROOM_W, y: 0 },
+        { x: initialRoom?.width ?? DEFAULT_ROOM_W, y: initialRoom?.length ?? DEFAULT_ROOM_L },
+        { x: 0, y: initialRoom?.length ?? DEFAULT_ROOM_L },
       ],
   );
   const [wallColors, setWallColors] = useState<Record<string, string>>(
@@ -134,88 +224,13 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   );
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
-  // Cozy living-room + work-nook default. Door is on the bottom wall near the
-  // bottom-left corner with its swing arc landing on clear floor space.
-  const [items, setItems] = useState<Item[]>(
-    () =>
-      initialRoom?.items ?? [
-        {
-          id: "default-desk",
-          name: "Desk",
-          width: 160,
-          length: 75,
-          color: "#c28a5e",
-          x: 160,
-          y: 15,
-          rotation: 0,
-          kind: "furniture",
-          icon: "desk",
-        },
-        {
-          id: "default-chair",
-          name: "Office chair",
-          width: 60,
-          length: 60,
-          color: "#556270",
-          x: 210,
-          y: 100,
-          rotation: 0,
-          kind: "chair",
-          icon: "chair-office",
-        },
-        {
-          id: "default-bookshelf",
-          name: "Bookshelf",
-          width: 30,
-          length: 200,
-          color: "#a07855",
-          x: 440,
-          y: 130,
-          rotation: 0,
-          kind: "furniture",
-          icon: "bookshelf",
-        },
-        {
-          id: "default-cabinet",
-          name: "Filing cabinet",
-          width: 60,
-          length: 45,
-          color: "#cfd8dc",
-          x: 340,
-          y: 15,
-          rotation: 0,
-          kind: "furniture",
-          icon: "filing-cabinet",
-        },
-        {
-          id: "default-plant",
-          name: "Plant",
-          width: 50,
-          length: 50,
-          color: "#4ade80",
-          x: 20,
-          y: 20,
-          rotation: 0,
-          kind: "furniture",
-          icon: "plant",
-        },
-      ],
-  );
+  // Fully-furnished home office default -- see buildDefaultOfficeItems above.
+  // Door is on the bottom wall, off-center so its swing arc lands on clear
+  // floor space between the side-table/guest-chair reading nook and the
+  // plant in the corner.
+  const [items, setItems] = useState<Item[]>(() => initialRoom?.items ?? buildDefaultOfficeItems());
   const [openings, setOpenings] = useState<Opening[]>(
-    () =>
-      initialRoom?.openings ?? [
-        {
-          id: "default-door-1",
-          wall: "bottom",
-          position: 65,
-          width: 90,
-          kind: "door",
-          hinge: "start",
-          swing: "in",
-        },
-        { id: "default-window-1", wall: "top", position: 60, width: 120, kind: "window" },
-        { id: "default-window-2", wall: "right", position: 30, width: 80, kind: "window" },
-      ],
+    () => initialRoom?.openings ?? buildDefaultOfficeOpenings(),
   );
 
   // Sync changes back to localStorage under planner-multi-rooms

@@ -5,7 +5,7 @@ import { STRINGS } from "@/lib/planner-translations";
 import type { RoomLayout, Lang } from "@/types/planner";
 import { MultiRoomCanvas } from "@/components/planner/MultiRoomCanvas";
 import { MultiRoomSidebar } from "@/components/planner/MultiRoomSidebar";
-import { generateRandomRoomLayout } from "@/lib/multi-room-actions";
+import { generateDefaultApartmentLayout } from "@/lib/default-apartment";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,8 +34,9 @@ export const Route = createFileRoute("/rooms/")({
   component: MultiRoomOverview,
 });
 
-// Tracks whether this browser tab has already generated a random layout this
-// session. Module-level (not component state) so it survives SPA navigation
+// Tracks whether this browser tab has already generated the default
+// apartment layout this session. Module-level (not component state) so it
+// survives SPA navigation
 // between /rooms and /rooms/$roomId -- it only resets on an actual page
 // reload, which is what "on startup" should mean. Without this, navigating
 // back to /rooms after editing a room inside /rooms/$roomId would regenerate
@@ -89,17 +90,19 @@ function MultiRoomOverview() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Load rooms initial state. On true app startup (first mount this session)
-  // we always generate a fresh randomized layout rather than reloading
-  // whatever was left over from last time, so collision/drag testing always
-  // starts from clean, non-overlapping positions. Returning to this route
-  // later in the same session (e.g. back from /rooms/$roomId) just reloads
-  // from localStorage as normal, preserving whatever you were just editing.
+  // we always generate the default fully-furnished 6-room apartment (see
+  // default-apartment.ts) rather than reloading whatever was left over from
+  // last time, so every session starts from the same deliberate showcase
+  // layout instead of accumulating leftover test edits. Returning to this
+  // route later in the same session (e.g. back from /rooms/$roomId) just
+  // reloads from localStorage as normal, preserving whatever you were just
+  // editing.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     if (!hasGeneratedRoomsThisSession) {
       hasGeneratedRoomsThisSession = true;
-      const fresh = generateRandomRoomLayout(lang);
+      const fresh = generateDefaultApartmentLayout(lang);
       setRooms(fresh);
       window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
       return;
@@ -111,12 +114,12 @@ function MultiRoomOverview() {
         setRooms(JSON.parse(saved));
       } catch (e) {
         console.error("Failed to parse saved rooms, generating a fresh layout", e);
-        const fresh = generateRandomRoomLayout(lang);
+        const fresh = generateDefaultApartmentLayout(lang);
         setRooms(fresh);
         window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
       }
     } else {
-      const fresh = generateRandomRoomLayout(lang);
+      const fresh = generateDefaultApartmentLayout(lang);
       setRooms(fresh);
       window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
     }
