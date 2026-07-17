@@ -46,7 +46,7 @@ let hasGeneratedRoomsThisSession = false;
 
 function MultiRoomOverview() {
   const { theme, toggleTheme, isDark } = useTheme();
-  const { isMobileViewOnly } = useMobileViewOnly();
+  const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
 
   // Language management
   const [lang, setLang] = useState<Lang>("en");
@@ -217,25 +217,32 @@ function MultiRoomOverview() {
                   : "Create and arrange your rooms in a master plan."}
               </p>
             </div>
-            <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 hidden md:flex">
-              <Link to="/">
-                <Sparkles className="h-4 w-4 text-amber-500" />
-                <span>{lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}</span>
-              </Link>
-            </Button>
+            {!isPortrait && (
+              <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 shrink-0">
+                <Link to="/">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  <span>{lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}</span>
+                </Link>
+              </Button>
+            )}
           </div>
 
           {/* Mobile view-only mode: every editing action below (export/
               import/clear) is meaningless with no sidebar or tools to act
               on -- keep just navigation + theme/language, mirroring the
-              single-room Header's own viewOnly treatment. */}
+              single-room Header's own viewOnly treatment. The Single Room
+              Planner link itself is decided by isPortrait, not viewOnly --
+              see the matching comment in Header.tsx -- so it's consistent
+              whether or not the rest of the toolbar is stripped down. */}
           {isMobileViewOnly ? (
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
-                <Link to="/" title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                </Link>
-              </Button>
+              {isPortrait && (
+                <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
+                  <Link to="/" title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                  </Link>
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -269,17 +276,19 @@ function MultiRoomOverview() {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-                className="md:hidden h-9 w-9 p-0"
-                title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}
-              >
-                <Link to="/">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                </Link>
-              </Button>
+              {isPortrait && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="h-9 w-9 p-0"
+                  title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}
+                >
+                  <Link to="/">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                  </Link>
+                </Button>
+              )}
 
               <input
                 ref={fileInputRef}

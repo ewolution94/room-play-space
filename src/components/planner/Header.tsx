@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
 import { Link } from "@tanstack/react-router";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 
 export function Header({
   t,
@@ -47,6 +48,18 @@ export function Header({
   roomsUrl,
   viewOnly,
 }: HeaderProps) {
+  // Drives the roomsUrl cross-navigation link below: a wide labeled button
+  // when there's enough room (landscape, at any width -- including
+  // desktop), an icon-only button on the right when there isn't (portrait).
+  // Previously this was decided by two independent, mismatched thresholds
+  // (a `hidden md:flex` CSS breakpoint at 768px for the wide button, and
+  // the JS-driven `viewOnly` prop, itself gated at 1024px) which could both
+  // evaluate true at once -- e.g. a landscape phone at ~900px wide is under
+  // 1024 (so viewOnly's icon button rendered) but over 768 (so the wide
+  // button's CSS also matched), showing both simultaneously. Using a
+  // single `isPortrait` boolean for both instead guarantees exactly one
+  // ever renders.
+  const { isPortrait } = useMobileViewOnly();
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
@@ -73,8 +86,8 @@ export function Header({
             </h1>
             <p className="hidden sm:block truncate text-xs text-muted-foreground">{t.subtitle}</p>
           </div>
-          {roomsUrl && !viewOnly && (
-            <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 hidden md:flex">
+          {roomsUrl && !isPortrait && (
+            <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 shrink-0">
               <Link to={roomsUrl}>
                 <LayoutGrid className="h-4 w-4" />
                 <span>{lang === "de" ? "Grundrisse" : "Floor Plans"}</span>
@@ -87,7 +100,7 @@ export function Header({
             tools to act on -- keep just navigation + theme/language. */}
         {viewOnly ? (
           <div className="flex items-center gap-2">
-            {roomsUrl && (
+            {roomsUrl && isPortrait && (
               <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
                 <Link to={roomsUrl} title={lang === "de" ? "Grundrisse" : "Floor Plans"}>
                   <LayoutGrid className="h-4 w-4" />
@@ -127,8 +140,8 @@ export function Header({
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
-            {roomsUrl && (
-              <Button variant="outline" size="sm" asChild className="md:hidden h-9 w-9 p-0">
+            {roomsUrl && isPortrait && (
+              <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
                 <Link to={roomsUrl} title={lang === "de" ? "Grundrisse" : "Floor Plans"}>
                   <LayoutGrid className="h-4 w-4" />
                 </Link>
