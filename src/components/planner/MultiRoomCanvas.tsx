@@ -12,6 +12,7 @@ import {
   computeAutoOpenIntervals,
   resolveEffectiveOpenIntervals,
   closedSubIntervals,
+  projectPointToFrame,
 } from "@/lib/room-adjacency";
 import {
   FLOOR_W,
@@ -923,25 +924,62 @@ export function MultiRoomCanvas({
                           height-8 rect (verified in hallway-shapes.test.ts),
                           so a fully-closed room renders pixel-identical to
                           before. */}
-                      {wallSegments(insetRectilinearPolygon(roomCorners, 4)).flatMap((seg) => {
-                        const key = wallColorKey(seg.index, roomCorners.length);
-                        const openIntervals = effectiveOpenWalls.get(key) ?? [];
-                        const closed = closedSubIntervals(seg.length, openIntervals);
-                        const ux = (seg.b.x - seg.a.x) / (seg.length || 1);
-                        const uy = (seg.b.y - seg.a.y) / (seg.length || 1);
-                        return closed.map((c, i) => (
-                          <line
-                            key={`${seg.index}-${i}`}
-                            x1={seg.a.x + ux * c.start}
-                            y1={seg.a.y + uy * c.start}
-                            x2={seg.a.x + ux * c.end}
-                            y2={seg.a.y + uy * c.end}
-                            className="stroke-zinc-800 dark:stroke-zinc-300"
-                            strokeWidth={8}
-                            strokeLinecap="round"
-                          />
-                        ));
-                      })}
+                      {(() => {
+                        // Open/closed intervals (effectiveOpenWalls, via
+                        // room-adjacency.ts) are computed against each
+                        // wall's TRUE, un-inset geometry -- t=0 is the
+                        // actual corner point. But this thumbnail draws a
+                        // "thick wall" by mitring every wall inward via
+                        // insetRectilinearPolygon, which retracts each
+                        // wall's own t=0 origin and shortens its length.
+                        // Drawing the interval numbers directly against
+                        // that shifted frame (as this used to do) silently
+                        // moves every gap by the inset amount -- and since
+                        // two touching rooms' walls face opposite
+                        // directions, one room's gap drifts one way and the
+                        // neighbor's drifts the other, so a shared door
+                        // looked slightly offset between the two rooms.
+                        // Fix: project each interval boundary's real
+                        // physical point (from the true wall) onto the
+                        // inset wall's own frame before drawing, so the
+                        // rendered gap always lands on the same physical
+                        // spot no matter how much a given wall got mitred.
+                        const origSegs = wallSegments(roomCorners);
+                        const insetSegs = wallSegments(insetRectilinearPolygon(roomCorners, 4));
+                        return origSegs.flatMap((origSeg, idx) => {
+                          const insetSeg = insetSegs[idx];
+                          const key = wallColorKey(origSeg.index, roomCorners.length);
+                          const openIntervals = effectiveOpenWalls.get(key) ?? [];
+                          const closed = closedSubIntervals(origSeg.length, openIntervals);
+                          const origUx = (origSeg.b.x - origSeg.a.x) / (origSeg.length || 1);
+                          const origUy = (origSeg.b.y - origSeg.a.y) / (origSeg.length || 1);
+                          const insetUx = (insetSeg.b.x - insetSeg.a.x) / (insetSeg.length || 1);
+                          const insetUy = (insetSeg.b.y - insetSeg.a.y) / (insetSeg.length || 1);
+                          const project = (t: number) => {
+                            const physical = {
+                              x: origSeg.a.x + origUx * t,
+                              y: origSeg.a.y + origUy * t,
+                            };
+                            return projectPointToFrame(physical, insetSeg);
+                          };
+                          return closed.map((c, i) => {
+                            const start = project(c.start);
+                            const end = project(c.end);
+                            return (
+                              <line
+                                key={`${origSeg.index}-${i}`}
+                                x1={insetSeg.a.x + insetUx * start}
+                                y1={insetSeg.a.y + insetUy * start}
+                                x2={insetSeg.a.x + insetUx * end}
+                                y2={insetSeg.a.y + insetUy * end}
+                                className="stroke-zinc-800 dark:stroke-zinc-300"
+                                strokeWidth={8}
+                                strokeLinecap="round"
+                              />
+                            );
+                          });
+                        });
+                      })()}
 
                       {/* CAD Dimension lines inside the room */}
                       {/* Width Dimension */}
@@ -1083,7 +1121,10 @@ export function MultiRoomCanvas({
                           const inX = -uy;
                           const inY = ux;
                           const gapThick = 8;
-                          const p1 = { x: seg.a.x + ux * op.position, y: seg.a.y + uy * op.position };
+                          const p1 = {
+                            x: seg.a.x + ux * op.position,
+                            y: seg.a.y + uy * op.position,
+                          };
                           const p2 = {
                             x: seg.a.x + ux * (op.position + op.width),
                             y: seg.a.y + uy * (op.position + op.width),

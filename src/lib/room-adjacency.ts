@@ -157,8 +157,17 @@ function intersectInterval(a: WallOpenInterval, b: WallOpenInterval): WallOpenIn
 /** Projects an arbitrary point onto `seg`'s own local 0..seg.length scalar
  * coordinate (not clamped -- the caller is responsible for that, since a
  * projected point from a touching-but-not-identical-length wall can
- * legitimately fall slightly outside 0..length). */
-function projectPointToFrame(p: Point, seg: WallSegment): number {
+ * legitimately fall slightly outside 0..length). Exported for reuse by any
+ * renderer that draws a wall's open/closed intervals against a DIFFERENT
+ * line than the one they were computed against -- e.g. the multi-room
+ * thumbnail draws a "thick wall" by offsetting/mitring each wall inward via
+ * insetRectilinearPolygon, which shifts where a wall's own t=0 origin sits
+ * relative to the true (un-inset) wall those intervals were computed
+ * against; re-projecting each interval boundary through this function onto
+ * the inset wall keeps the drawn gap pinned to the correct physical point,
+ * so two touching rooms' rendered door gaps land on the exact same spot
+ * instead of drifting apart by the inset amount (see MultiRoomCanvas.tsx). */
+export function projectPointToFrame(p: Point, seg: WallSegment): number {
   const dir = unitDir(seg);
   return (p.x - seg.a.x) * dir.x + (p.y - seg.a.y) * dir.y;
 }

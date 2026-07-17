@@ -4,8 +4,9 @@ import {
   computeAutoOpenIntervals,
   resolveEffectiveOpenIntervals,
   closedSubIntervals,
+  projectPointToFrame,
 } from "@/lib/room-adjacency";
-import { buildLHallwayCorners } from "@/lib/hallway-shapes";
+import { buildLHallwayCorners, insetRectilinearPolygon, wallSegments } from "@/lib/hallway-shapes";
 import type { RoomLayout } from "@/types/planner";
 
 function room(overrides: Partial<RoomLayout> & { id: string }): RoomLayout {
@@ -186,6 +187,117 @@ describe("computeAutoOpenIntervals: existing door clips the auto-open span", () 
     const result = computeAutoOpenIntervals([a, b]);
     assert.deepEqual(result.get("a")?.get("right"), [{ start: 0, end: 100 }]);
     assert.deepEqual(result.get("b")?.get("left"), [{ start: 0, end: 100 }]);
+  });
+});
+
+describe("multi-room thumbnail wall-inset re-projection (door alignment)", () => {
+  // Regression coverage for the "doors don't line up between the two
+  // rooms" bug: the multi-room thumbnail draws each wall as a mitred,
+  // inward-inset line (insetRectilinearPolygon, 4cm) for a "thick wall"
+  // look, but open/closed intervals are computed against each wall's TRUE,
+  // un-inset geometry. Drawing an interval's raw start/end numbers directly
+  // against the inset wall's own (retracted, shorter) frame silently shifts
+  // the rendered gap -- and since two touching rooms' walls face opposite
+  // directions, the shift moves one room's gap one way and the other
+  // room's the opposite way, so a single shared door visibly drifted
+  // apart between the two renderings. The fix re-projects each interval
+  // boundary's real physical point through projectPointToFrame onto the
+  // inset wall before drawing.
+  const a = room({ id: "a", x: 0, y: 0, width: 300, length: 200 });
+  const b = room({ id: "b", x: 300, y: 0, width: 250, length: 200 });
+  const cornersA = [
+    { x: 0, y: 0 },
+    { x: 300, y: 0 },
+    { x: 300, y: 200 },
+    { x: 0, y: 200 },
+  ];
+  const cornersB = [
+    { x: 300, y: 0 },
+    { x: 550, y: 0 },
+    { x: 550, y: 200 },
+    { x: 300, y: 200 },
+  ];
+  // A door on a's right wall, local span [80,170] -- physically global
+  // y in [80,170] along the shared x=300 boundary.
+  const doorSpan = { start: 80, end: 170 };
+
+  const origSegA = wallSegments(cornersA)[1]; // a's "right" wall
+  const insetSegA = wallSegments(insetRectilinearPolygon(cornersA, 4))[1];
+  const origSegB = wallSegments(cornersB)[3]; // b's "left" wall
+  const insetSegB = wallSegments(insetRectilinearPolygon(cornersB, 4))[3];
+
+  function physicalY(origSeg: typeof origSegA, t: number): number {
+    const dir = {
+      x: (origSeg.b.x - origSeg.a.x) / origSeg.length,
+      y: (origSeg.b.y - origSeg.a.y) / origSeg.length,
+    };
+    return origSeg.a.y + dir.y * t;
+  }
+
+  // What used to be drawn: the raw interval number plotted straight
+  // against the inset wall's own frame, ignoring that its origin/length
+  // differ from the true wall's.
+  function buggyDrawnY(origSeg: typeof origSegA, insetSeg: typeof origSegA, t: number): number {
+    const dir = {
+      x: (insetSeg.b.x - insetSeg.a.x) / insetSeg.length,
+      y: (insetSeg.b.y - insetSeg.a.y) / insetSeg.length,
+    };
+    return insetSeg.a.y + dir.y * t;
+  }
+
+  // The fix: re-project the boundary's true physical point onto the inset
+  // wall's own frame first.
+  function fixedDrawnY(origSeg: typeof origSegA, insetSeg: typeof origSegA, t: number): number {
+    const origDir = {
+      x: (origSeg.b.x - origSeg.a.x) / origSeg.length,
+      y: (origSeg.b.y - origSeg.a.y) / origSeg.length,
+    };
+    const physical = { x: origSeg.a.x + origDir.x * t, y: origSeg.a.y + origDir.y * t };
+    const insetT = projectPointToFrame(physical, insetSeg);
+    const insetDir = {
+      x: (insetSeg.b.x - insetSeg.a.x) / insetSeg.length,
+      y: (insetSeg.b.y - insetSeg.a.y) / insetSeg.length,
+    };
+    return insetSeg.a.y + insetDir.y * insetT;
+  }
+
+  test("sanity: the door's true physical span is [80,170] on the un-inset wall", () => {
+    assert.equal(physicalY(origSegA, doorSpan.start), 80);
+    assert.equal(physicalY(origSegA, doorSpan.end), 170);
+  });
+
+  test("the old approach (drawing raw interval numbers against the inset frame) mismatches by the inset amount", () => {
+    const buggyStart = buggyDrawnY(origSegA, insetSegA, doorSpan.start);
+    const buggyEnd = buggyDrawnY(origSegA, insetSegA, doorSpan.end);
+    // Confirms the reported bug: the rendered gap drifts +4cm from the
+    // true physical door position.
+    assert.equal(buggyStart, 84);
+    assert.equal(buggyEnd, 174);
+    assert.notEqual(buggyStart, 80);
+  });
+
+  test("the fix (re-projecting through projectPointToFrame) draws the gap at the true physical position on wall a's inset line", () => {
+    assert.equal(fixedDrawnY(origSegA, insetSegA, doorSpan.start), 80);
+    assert.equal(fixedDrawnY(origSegA, insetSegA, doorSpan.end), 170);
+  });
+
+  test("wall b's own (independently converted) span, once fixed, lands on the exact same physical y-range as wall a's -- the two rooms' doors are now perfectly flush", () => {
+    const autoOpen = computeAutoOpenIntervals([
+      { ...a, openings: [{ id: "d1", wall: "right", position: 80, width: 90, kind: "door" }] },
+      b,
+    ]);
+    const bSpan = autoOpen.get("b")?.get("left")?.[0];
+    assert.ok(bSpan);
+    const fixedBStart = fixedDrawnY(origSegB, insetSegB, bSpan!.start);
+    const fixedBEnd = fixedDrawnY(origSegB, insetSegB, bSpan!.end);
+    // b's wall runs the opposite direction, so its own [start,end] maps to
+    // [end,start] in global y -- compare as a set, not by position.
+    const aRange = [
+      fixedDrawnY(origSegA, insetSegA, doorSpan.start),
+      fixedDrawnY(origSegA, insetSegA, doorSpan.end),
+    ].sort((x, y) => x - y);
+    const bRange = [fixedBStart, fixedBEnd].sort((x, y) => x - y);
+    assert.deepEqual(bRange, aRange);
   });
 });
 
