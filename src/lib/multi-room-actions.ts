@@ -1,5 +1,6 @@
 import type { Lang, Opening, Point, RoomLayout } from "@/types/planner";
-import { obbOverlap } from "@/lib/planner-math";
+import { rectCorners, rectilinearPolygonsOverlap } from "@/lib/planner-math";
+import { globalCorners } from "@/lib/room-adjacency";
 import {
   rotatePolygonCorners,
   polygonBoundingBox,
@@ -19,27 +20,23 @@ import {
 export const FLOOR_W = 2000; // cm, virtual master-plan workspace width
 export const FLOOR_L = 1500; // cm, virtual master-plan workspace length
 
-type OBB = { x: number; y: number; width: number; length: number; rotation: number };
-
-// A room is never actually drawn with an angular CSS/SVG rotation -- the
-// overview always renders it as a plain axis-aligned width x length box
-// (see MultiRoomCanvas.tsx's room <div>, which has no transform tied to
-// room.rotation at all). rotateRoomLayout's 90 degree "Rotate" action
-// already bakes the rotation into the room by swapping width/length (and
-// rebuilding corners) -- room.rotation past that point is bookkeeping
-// only, not a pending transform still waiting to be applied. Feeding it
-// into obbCorners here anyway used to double-rotate the room for
-// collision purposes: after one 90 degree rotation, the box was already
-// visually swapped, and then obbCorners rotated *that* swapped box by
-// another 90 degrees, which for a rectangle flips the bounding box back to
-// the pre-rotation dimensions -- so collision kept using the room's
-// original (pre-rotation) footprint forever after its first rotation. Every
-// room-vs-room OBB in this file uses rotation: 0 for exactly this reason;
-// item-vs-item collision (planner-math.ts) is unrelated and correctly still
-// uses the item's real rotation, since items *are* visually CSS-rotated in
-// place.
-function toOBB(r: Pick<RoomLayout, "x" | "y" | "width" | "length" | "rotation">): OBB {
-  return { x: r.x, y: r.y, width: r.width, length: r.length, rotation: 0 };
+// Room-vs-room collision uses each room's REAL shape (globalCorners --
+// local `corners` translated by x/y, with rotation already baked in via
+// rotateRoomLayout's width/length swap + corner rebuild, never re-applied
+// as an angular transform here) fed through rectilinearPolygonsOverlap, so
+// an L/T-shaped hallway's collision footprint matches its visual silhouette
+// exactly instead of its rectangular bounding box -- a plain room can now
+// be placed directly into the notch/leg of an L or T shape. A plain
+// rectangular room's globalCorners already IS its bounding box, so this is
+// behavior-identical to the old OBB-based check for every non-hallway room.
+// (Item-vs-item collision in planner-math.ts is unrelated and still
+// correctly uses each item's real rotation, since items *are* visually
+// CSS-rotated in place, unlike rooms.)
+function roomOverlap(
+  a: Pick<RoomLayout, "x" | "y" | "width" | "length" | "corners">,
+  b: Pick<RoomLayout, "x" | "y" | "width" | "length" | "corners">,
+): boolean {
+  return rectilinearPolygonsOverlap(globalCorners(a), globalCorners(b));
 }
 
 /**
@@ -71,8 +68,20 @@ export function rotateRoomLayout(
     let nextCorners: Point[];
 
     if (isPolygon) {
-      nextCorners = rotatePolygonCorners(r.corners!);
-      const bb = polygonBoundingBox(nextCorners);
+      const rotated = rotatePolygonCorners(r.corners!);
+      const bb = polygonBoundingBox(rotated);
+      // rotatePolygonCorners deliberately preserves the shape's bounding-box
+      // CENTER (a rigid rotation about its own middle), not its top-left --
+      // so the raw result's bounding box generally does NOT start back at
+      // (0,0) in local room space (e.g. it can come out as x:[20,280]
+      // instead of [0,260]). Every other consumer of a room's `corners`
+      // (single-room rendering's viewBox, this same function's own
+      // width/height fields below, and globalCorners()'s room-vs-room
+      // collision math) assumes local corners span exactly [0,width] x
+      // [0,length] -- so the rotated shape must be re-anchored to (0,0)
+      // here, the same way the plain-rectangle branch below always rebuilds
+      // its corners fresh at (0,0).
+      nextCorners = rotated.map((c) => ({ x: c.x - bb.minX, y: c.y - bb.minY }));
       nextW = bb.width;
       nextL = bb.height;
       // Openings are untouched: numeric wall index + position stay valid
@@ -135,8 +144,7 @@ export function rotateRoomLayout(
     };
 
     const hasCollision =
-      collisionEnabled &&
-      rooms.some((other) => other.id !== r.id && obbOverlap(toOBB(candidate), toOBB(other)));
+      collisionEnabled && rooms.some((other) => other.id !== r.id && roomOverlap(candidate, other));
 
     return hasCollision ? r : candidate;
   });
@@ -152,8 +160,16 @@ function findFreeRoomSpot(
   const margin = 30; // cm gap kept between rooms
 
   const overlapsAny = (x: number, y: number) => {
-    const padded = { x: x - margin, y: y - margin, width: width + margin * 2, length: length + margin * 2, rotation: 0 };
-    return rooms.some((other) => obbOverlap(padded, toOBB(other)));
+    // Padded box uses the OTHER room's real shape (globalCorners), so a new
+    // room can be auto-placed right into an existing hallway's notch
+    // instead of being pushed away from its rectangular bounding box.
+    const padded = rectCorners({
+      x: x - margin,
+      y: y - margin,
+      width: width + margin * 2,
+      length: length + margin * 2,
+    });
+    return rooms.some((other) => rectilinearPolygonsOverlap(padded, globalCorners(other)));
   };
 
   if (preferred && preferred.x + width <= FLOOR_W - 50 && preferred.y + length <= FLOOR_L - 50) {
@@ -175,7 +191,11 @@ function findFreeRoomSpot(
 }
 
 /** Builds a duplicate of the given room placed in the nearest free spot, or null if the room doesn't exist. */
-export function duplicateRoomLayout(rooms: RoomLayout[], roomId: string, lang: Lang): RoomLayout | null {
+export function duplicateRoomLayout(
+  rooms: RoomLayout[],
+  roomId: string,
+  lang: Lang,
+): RoomLayout | null {
   const source = rooms.find((r) => r.id === roomId);
   if (!source) return null;
 
@@ -197,9 +217,10 @@ export function createRoomLayout(
   rooms: RoomLayout[],
   opts: { name: string; width: number; length: number; color: string; x?: number; y?: number },
 ): RoomLayout {
-  const spot = opts.x !== undefined && opts.y !== undefined
-    ? { x: opts.x, y: opts.y }
-    : findFreeRoomSpot(rooms, opts.width, opts.length);
+  const spot =
+    opts.x !== undefined && opts.y !== undefined
+      ? { x: opts.x, y: opts.y }
+      : findFreeRoomSpot(rooms, opts.width, opts.length);
 
   return {
     id: crypto.randomUUID(),
@@ -327,13 +348,69 @@ export function createHallwayLayout(
   };
 }
 
-const RANDOM_ROOM_TEMPLATES: { nameEn: string; nameDe: string; color: string; minW: number; maxW: number; minL: number; maxL: number }[] = [
-  { nameEn: "Living Room", nameDe: "Wohnzimmer", color: "#3b82f6", minW: 380, maxW: 550, minL: 320, maxL: 420 },
-  { nameEn: "Home Office", nameDe: "Home-Office", color: "#14b8a6", minW: 280, maxW: 400, minL: 250, maxL: 340 },
-  { nameEn: "Bedroom", nameDe: "Schlafzimmer", color: "#8b5cf6", minW: 300, maxW: 420, minL: 280, maxL: 380 },
-  { nameEn: "Kitchen", nameDe: "Küche", color: "#f59e0b", minW: 260, maxW: 380, minL: 240, maxL: 320 },
-  { nameEn: "Bathroom", nameDe: "Badezimmer", color: "#06b6d4", minW: 180, maxW: 260, minL: 200, maxL: 280 },
-  { nameEn: "Dining Room", nameDe: "Esszimmer", color: "#ef4444", minW: 320, maxW: 440, minL: 280, maxL: 360 },
+const RANDOM_ROOM_TEMPLATES: {
+  nameEn: string;
+  nameDe: string;
+  color: string;
+  minW: number;
+  maxW: number;
+  minL: number;
+  maxL: number;
+}[] = [
+  {
+    nameEn: "Living Room",
+    nameDe: "Wohnzimmer",
+    color: "#3b82f6",
+    minW: 380,
+    maxW: 550,
+    minL: 320,
+    maxL: 420,
+  },
+  {
+    nameEn: "Home Office",
+    nameDe: "Home-Office",
+    color: "#14b8a6",
+    minW: 280,
+    maxW: 400,
+    minL: 250,
+    maxL: 340,
+  },
+  {
+    nameEn: "Bedroom",
+    nameDe: "Schlafzimmer",
+    color: "#8b5cf6",
+    minW: 300,
+    maxW: 420,
+    minL: 280,
+    maxL: 380,
+  },
+  {
+    nameEn: "Kitchen",
+    nameDe: "Küche",
+    color: "#f59e0b",
+    minW: 260,
+    maxW: 380,
+    minL: 240,
+    maxL: 320,
+  },
+  {
+    nameEn: "Bathroom",
+    nameDe: "Badezimmer",
+    color: "#06b6d4",
+    minW: 180,
+    maxW: 260,
+    minL: 200,
+    maxL: 280,
+  },
+  {
+    nameEn: "Dining Room",
+    nameDe: "Esszimmer",
+    color: "#ef4444",
+    minW: 320,
+    maxW: 440,
+    minL: 280,
+    maxL: 360,
+  },
 ];
 
 function randomInt(min: number, max: number): number {
@@ -345,11 +422,20 @@ function randomInt(min: number, max: number): number {
  * don't always land back on the same deterministic top-left grid cell), and
  * only falls back to the deterministic scan if nothing random panned out.
  */
-function findRandomFreeSpot(rooms: RoomLayout[], width: number, length: number): { x: number; y: number } {
+function findRandomFreeSpot(
+  rooms: RoomLayout[],
+  width: number,
+  length: number,
+): { x: number; y: number } {
   const margin = 30;
   const overlapsAny = (x: number, y: number) => {
-    const padded = { x: x - margin, y: y - margin, width: width + margin * 2, length: length + margin * 2, rotation: 0 };
-    return rooms.some((other) => obbOverlap(padded, toOBB(other)));
+    const padded = rectCorners({
+      x: x - margin,
+      y: y - margin,
+      width: width + margin * 2,
+      length: length + margin * 2,
+    });
+    return rooms.some((other) => rectilinearPolygonsOverlap(padded, globalCorners(other)));
   };
 
   const maxX = Math.max(50, FLOOR_W - width - 50);
@@ -419,9 +505,17 @@ export function clampRoomResize(
     otherRooms.some(
       (other) =>
         other.id !== room.id &&
-        // rotation: 0 -- see toOBB's comment above; a room's footprint is
-        // never actually angularly rotated for collision purposes.
-        obbOverlap({ x: room.x, y: room.y, width, length, rotation: 0 }, toOBB(other)),
+        // Width/length resizing only ever reaches a plain rectangular room
+        // (the Inspector hides/guards these fields for a polygon hallway --
+        // see updateSelectedRoom in MultiRoomCanvas.tsx), so the room being
+        // resized is correctly a synthesized rectangle here; the other room
+        // uses its real shape (globalCorners), so growing up to the edge of
+        // a hallway's actual notch is allowed instead of being blocked by
+        // its rectangular bounding box.
+        rectilinearPolygonsOverlap(
+          rectCorners({ x: room.x, y: room.y, width, length }),
+          globalCorners(other),
+        ),
     );
 
   if (!collidesAt(requestedWidth, requestedLength)) {

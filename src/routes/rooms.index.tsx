@@ -67,6 +67,15 @@ function MultiRoomOverview() {
   const [collisionEnabled, setCollisionEnabled] = useState(true);
   const [zoomFactor, setZoomFactor] = useState(0.85);
   const [showFurniture, setShowFurniture] = useState(false);
+  // On by default -- the CAD-style dimension lines/ticks for plain
+  // (non-hallway) rooms; deliberately never shown for L/T hallways
+  // regardless of this toggle (their bounding box isn't their real shape,
+  // so a line-to-line measurement across it doesn't read correctly -- see
+  // MultiRoomCanvas.tsx).
+  const [showDimensions, setShowDimensions] = useState(true);
+  // On by default -- room name + (for hallways only) the plain "W x L cm"
+  // text, independent of showDimensions above.
+  const [showLabels, setShowLabels] = useState(true);
   // Off by default so dragging on empty canvas pans the view (consistent with
   // the single-room planner); when on, empty-canvas drag draws a marquee box
   // to select multiple rooms at once instead.
@@ -345,6 +354,10 @@ function MultiRoomOverview() {
           isDark={isDark}
           showFurniture={showFurniture}
           setShowFurniture={setShowFurniture}
+          showDimensions={showDimensions}
+          setShowDimensions={setShowDimensions}
+          showLabels={showLabels}
+          setShowLabels={setShowLabels}
           multiSelectMode={multiSelectMode}
           setMultiSelectMode={setMultiSelectMode}
         />

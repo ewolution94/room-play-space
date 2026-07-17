@@ -208,6 +208,64 @@ describe("rotateRoomLayout", () => {
     assert.equal(unchanged.width, 300);
     assert.equal(unchanged.length, 260);
   });
+
+  test("a rotated polygon room's corners are re-anchored so their bounding box starts back at (0,0)", () => {
+    // Regression test: rotatePolygonCorners deliberately preserves the
+    // shape's bounding-box CENTER (a pure rigid rotation), not its
+    // top-left, so its raw output generally does NOT start at (0,0) in
+    // local room space. rotateRoomLayout must re-anchor it -- otherwise
+    // single-room rendering (which assumes corners span [0,width] x
+    // [0,length] via its viewBox) and room-vs-room collision (globalCorners
+    // = local corners + room x/y) both silently misplace the shape.
+    const { corners } = buildLHallwayCorners(120, 300, 260, false);
+    const room = makeRoom({ id: "r1", width: 300, length: 260, corners });
+    const result = rotateRoomLayout([room], "r1", true);
+    const rotated = result.find((r) => r.id === "r1")!;
+    const xs = rotated.corners!.map((c) => c.x);
+    const ys = rotated.corners!.map((c) => c.y);
+    assert.equal(Math.min(...xs), 0);
+    assert.equal(Math.min(...ys), 0);
+    assert.equal(Math.max(...xs), rotated.width);
+    assert.equal(Math.max(...ys), rotated.length);
+  });
+
+  test("a plain room can now be placed directly in an L-shaped hallway's notch, and rotating it there is allowed", () => {
+    // The whole point of exact (rather than bounding-box) room-vs-room
+    // collision: a room sitting in the notch of an L-shaped hallway isn't
+    // touching the hallway's real material at all, even though their
+    // bounding boxes overlap heavily.
+    const { corners: lCorners } = buildLHallwayCorners(120, 300, 260, false);
+    const hallway = makeRoom({
+      id: "hallway",
+      x: 0,
+      y: 0,
+      width: 300,
+      length: 260,
+      corners: lCorners,
+    });
+    // Notch is x:[120,300], y:[0,140] in hallway-local (== global, hallway
+    // is at 0,0) space. This 100x80 room sits well inside it.
+    const nook = makeRoom({ id: "nook", x: 150, y: 20, width: 100, length: 80 });
+
+    // Sanity check: under the OLD bounding-box model this placement would
+    // have been rejected outright (the hallway's 300x260 bbox and the
+    // room's own box obviously overlap).
+    assert.equal(
+      obbOverlap(
+        { x: hallway.x, y: hallway.y, width: hallway.width, length: hallway.length, rotation: 0 },
+        { x: nook.x, y: nook.y, width: nook.width, length: nook.length, rotation: 0 },
+      ),
+      true,
+    );
+
+    // Rotating the nook room (80x100 after rotating, same top-left anchor)
+    // still fits inside the notch and shouldn't be blocked.
+    const result = rotateRoomLayout([hallway, nook], "nook", true);
+    const rotatedNook = result.find((r) => r.id === "nook")!;
+    assert.equal(rotatedNook.rotation, 90);
+    assert.equal(rotatedNook.width, 80);
+    assert.equal(rotatedNook.length, 100);
+  });
 });
 
 describe("createHallwayLayout", () => {
@@ -226,10 +284,7 @@ describe("createHallwayLayout", () => {
     assert.equal(hallway.roomKind, "hallway");
     assert.equal(hallway.openings.length, 2);
     assert.ok(hallway.openings.every((o) => o.kind === "door"));
-    assert.deepEqual(
-      hallway.openings.map((o) => o.wall).sort(),
-      ["left", "right"],
-    );
+    assert.deepEqual(hallway.openings.map((o) => o.wall).sort(), ["left", "right"]);
   });
 
   test("an L-shaped hallway has 6 corners and a door on each of the two end walls", () => {
@@ -243,10 +298,7 @@ describe("createHallwayLayout", () => {
     });
     assert.equal(hallway.corners!.length, 6);
     assert.equal(hallway.openings.length, 2);
-    assert.deepEqual(
-      hallway.openings.map((o) => o.wall).sort(),
-      [0, 3],
-    );
+    assert.deepEqual(hallway.openings.map((o) => o.wall).sort(), [0, 3]);
     // Each door should actually fit within its (armWidth-long) wall.
     for (const o of hallway.openings) {
       assert.ok(o.width <= 120);
@@ -266,10 +318,7 @@ describe("createHallwayLayout", () => {
     });
     assert.equal(hallway.corners!.length, 8);
     assert.equal(hallway.openings.length, 3);
-    assert.deepEqual(
-      hallway.openings.map((o) => o.wall).sort(),
-      [1, 4, 7],
-    );
+    assert.deepEqual(hallway.openings.map((o) => o.wall).sort(), [1, 4, 7]);
   });
 
   test("l-mirrored produces a different (but same-size) shape than l", () => {
@@ -306,7 +355,13 @@ describe("createHallwayLayout", () => {
     });
     assert.equal(
       obbOverlap(
-        { x: existing.x, y: existing.y, width: existing.width, length: existing.length, rotation: 0 },
+        {
+          x: existing.x,
+          y: existing.y,
+          width: existing.width,
+          length: existing.length,
+          rotation: 0,
+        },
         { x: hallway.x, y: hallway.y, width: hallway.width, length: hallway.length, rotation: 0 },
       ),
       false,

@@ -32,8 +32,17 @@ export interface WallOpenInterval {
  * its current width/length/orientation -- only a translation by the room's
  * own (x, y) is needed to place them on the shared floor plan. Falls back
  * to a synthesized rectangle for any room saved before `corners` existed.
+ * Exported for reuse by the exact room-vs-room polygon collision check
+ * (rectilinearPolygonsOverlap in planner-math.ts) -- collision needs each
+ * room's real placed shape in the exact same coordinate space this module
+ * already uses for wall-touching detection. Takes just the fields it needs
+ * (rather than a full RoomLayout) so callers that only have a partial/
+ * candidate room object -- e.g. a not-yet-committed drag or resize target --
+ * don't need to fabricate an entire RoomLayout just to compute a shape.
  */
-function globalCorners(room: RoomLayout): Point[] {
+export function globalCorners(
+  room: Pick<RoomLayout, "x" | "y" | "width" | "length" | "corners">,
+): Point[] {
   const local =
     room.corners && room.corners.length >= 3
       ? room.corners

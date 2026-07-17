@@ -12,7 +12,12 @@ import {
   resolveSweptMove,
   findOnTopHost,
   computeOnTopElevation,
+  rectCorners,
+  pointInPolygon,
+  rectilinearPolygonRects,
+  rectilinearPolygonsOverlap,
 } from "@/lib/planner-math";
+import { buildLHallwayCorners, buildTHallwayCorners } from "@/lib/hallway-shapes";
 import type { Item } from "@/types/planner";
 
 function makeItem(overrides: Partial<Item> = {}): Item {
@@ -112,6 +117,123 @@ describe("obbOverlap", () => {
     const a = { x: 0, y: 0, width: 100, length: 20, rotation: 45 };
     const b = { x: 200, y: 0, width: 100, length: 20, rotation: 45 };
     assert.equal(obbOverlap(a, b), false);
+  });
+});
+
+describe("pointInPolygon", () => {
+  test("points inside a plain rectangle are inside", () => {
+    assert.equal(
+      pointInPolygon({ x: 50, y: 50 }, rectCorners({ x: 0, y: 0, width: 100, length: 100 })),
+      true,
+    );
+  });
+
+  test("points outside a plain rectangle are outside", () => {
+    assert.equal(
+      pointInPolygon({ x: 150, y: 50 }, rectCorners({ x: 0, y: 0, width: 100, length: 100 })),
+      false,
+    );
+  });
+
+  test("a point in an L-shape's notch is outside, even though it's within the bounding box", () => {
+    const { corners } = buildLHallwayCorners(120, 300, 260, false);
+    // The notch is the top-right region excluded from the L, x:[120,300], y:[0,140].
+    assert.equal(pointInPolygon({ x: 200, y: 50 }, corners), false);
+    // A point on the actual L material (the vertical arm) is inside.
+    assert.equal(pointInPolygon({ x: 60, y: 50 }, corners), true);
+    // A point on the horizontal arm is also inside.
+    assert.equal(pointInPolygon({ x: 200, y: 200 }, corners), true);
+  });
+});
+
+describe("rectilinearPolygonRects", () => {
+  test("a plain rectangle decomposes into exactly one rect matching its own bounds", () => {
+    const rects = rectilinearPolygonRects(rectCorners({ x: 10, y: 20, width: 100, length: 50 }));
+    assert.deepEqual(rects, [{ x: 10, y: 20, width: 100, height: 50 }]);
+  });
+
+  test("an L-shape decomposes into grid cells whose combined area equals the L's own area (notch excluded)", () => {
+    // The grid technique partitions by every distinct x/y among the
+    // corners, so the L's uniform vertical arm ends up split into two
+    // stacked cells (inheriting the horizontal arm's y=140 grid line) --
+    // 3 filled cells total (of the 2x2 grid), not the "obvious" 2-rectangle
+    // arm decomposition. What matters for collision correctness is that
+    // the union's area (and shape) is exactly right, not the cell count.
+    const { corners } = buildLHallwayCorners(120, 300, 260, false);
+    const rects = rectilinearPolygonRects(corners);
+    assert.equal(rects.length, 3);
+    const totalArea = rects.reduce((sum, r) => sum + r.width * r.height, 0);
+    // L area = bounding box (300*260) minus the notch (180*140).
+    assert.equal(totalArea, 300 * 260 - 180 * 140);
+  });
+
+  test("a T-shape decomposes into grid cells whose combined area equals the T's own area", () => {
+    // Similarly, the stem's inner x-boundaries (120, 240) fall within the
+    // bar's own y-range, splitting the bar into 3 cells; plus 1 stem cell
+    // = 4 filled cells total (of the 3x2 grid), not a naive "bar + stem" 2.
+    const tpl = buildTHallwayCorners(120, 360, 200);
+    const rects = rectilinearPolygonRects(tpl.corners);
+    assert.equal(rects.length, 4);
+    const totalArea = rects.reduce((sum, r) => sum + r.width * r.height, 0);
+    // Bar (360x120) + stem (120x200).
+    assert.equal(totalArea, 360 * 120 + 120 * 200);
+  });
+});
+
+describe("rectilinearPolygonsOverlap", () => {
+  test("two far-apart rectangles do not overlap", () => {
+    const a = rectCorners({ x: 0, y: 0, width: 100, length: 100 });
+    const b = rectCorners({ x: 500, y: 500, width: 100, length: 100 });
+    assert.equal(rectilinearPolygonsOverlap(a, b), false);
+  });
+
+  test("two coincident rectangles overlap", () => {
+    const a = rectCorners({ x: 0, y: 0, width: 100, length: 100 });
+    const b = rectCorners({ x: 0, y: 0, width: 100, length: 100 });
+    assert.equal(rectilinearPolygonsOverlap(a, b), true);
+  });
+
+  test("two rectangles exactly edge-to-edge (flush, not overlapping) do not overlap -- matches obbOverlap's tolerance", () => {
+    const a = rectCorners({ x: 0, y: 0, width: 100, length: 100 });
+    const b = rectCorners({ x: 100, y: 0, width: 100, length: 100 });
+    assert.equal(rectilinearPolygonsOverlap(a, b), false);
+  });
+
+  test("a small room placed in an L-shaped hallway's notch does not collide -- the whole point of exact collision", () => {
+    const { corners: lCorners } = buildLHallwayCorners(120, 300, 260, false);
+    // Notch is x:[120,300], y:[0,140] -- place a 100x100 room centered in it.
+    const room = rectCorners({ x: 150, y: 20, width: 100, length: 100 });
+    assert.equal(rectilinearPolygonsOverlap(lCorners, room), false);
+  });
+
+  test("a room overlapping the L-shape's actual material (not just its bounding box) does collide", () => {
+    const { corners: lCorners } = buildLHallwayCorners(120, 300, 260, false);
+    // This sits on the L's horizontal arm (x:[120,300], y:[140,260]).
+    const room = rectCorners({ x: 150, y: 150, width: 100, length: 50 });
+    assert.equal(rectilinearPolygonsOverlap(lCorners, room), true);
+  });
+
+  test("a room straddling the L-shape's inner corner (partly notch, partly material) still collides", () => {
+    const { corners: lCorners } = buildLHallwayCorners(120, 300, 260, false);
+    // Spans x:[100,200], y:[100,200] -- partly in the notch, partly on the
+    // vertical arm's lower portion and the horizontal arm's upper portion.
+    const room = rectCorners({ x: 100, y: 100, width: 100, length: 100 });
+    assert.equal(rectilinearPolygonsOverlap(lCorners, room), true);
+  });
+
+  test("a room in a T-shape's excluded corner (outside the bar and the stem) does not collide", () => {
+    const tpl = buildTHallwayCorners(120, 360, 200);
+    // Bar occupies y:[0,120] across the full width; stem occupies
+    // x:[120,240], y:[120,320] (armWidth=120, sx=(360-120)/2=120). A room at
+    // the bottom-left corner (x:[0,100], y:[150,300]) is outside both.
+    const room = rectCorners({ x: 0, y: 150, width: 100, length: 150 });
+    assert.equal(rectilinearPolygonsOverlap(tpl.corners, room), false);
+  });
+
+  test("a room on the T-shape's stem does collide", () => {
+    const tpl = buildTHallwayCorners(120, 360, 200);
+    const room = rectCorners({ x: 150, y: 150, width: 50, length: 50 });
+    assert.equal(rectilinearPolygonsOverlap(tpl.corners, room), true);
   });
 });
 

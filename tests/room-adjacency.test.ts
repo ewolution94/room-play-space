@@ -246,8 +246,35 @@ describe("multi-room thumbnail wall-inset re-projection (door alignment)", () =>
   }
 
   // The fix: re-project the boundary's true physical point onto the inset
-  // wall's own frame first.
+  // wall's own frame first, clamped to the inset wall's own valid range.
+  // The clamp matters whenever a boundary sits at the wall's own true
+  // endpoint (a closed run touching the room's outer corner, or a door
+  // that reaches all the way to the edge, as with a hallway's end wall) --
+  // without it, the raw projection overshoots past the mitred corner by
+  // exactly the inset amount (see the "corner mitre" tests below), which is
+  // what caused the reported "overhanging"/non-flush hallway wall joints.
   function fixedDrawnY(origSeg: typeof origSegA, insetSeg: typeof origSegA, t: number): number {
+    const origDir = {
+      x: (origSeg.b.x - origSeg.a.x) / origSeg.length,
+      y: (origSeg.b.y - origSeg.a.y) / origSeg.length,
+    };
+    const physical = { x: origSeg.a.x + origDir.x * t, y: origSeg.a.y + origDir.y * t };
+    const insetT = Math.max(0, Math.min(insetSeg.length, projectPointToFrame(physical, insetSeg)));
+    const insetDir = {
+      x: (insetSeg.b.x - insetSeg.a.x) / insetSeg.length,
+      y: (insetSeg.b.y - insetSeg.a.y) / insetSeg.length,
+    };
+    return insetSeg.a.y + insetDir.y * insetT;
+  }
+
+  // Unclamped variant, used only to document what the intermediate (buggy)
+  // "always re-project" approach would have done to the wall's own true
+  // endpoints, before the clamp was added.
+  function unclampedFixedDrawnY(
+    origSeg: typeof origSegA,
+    insetSeg: typeof origSegA,
+    t: number,
+  ): number {
     const origDir = {
       x: (origSeg.b.x - origSeg.a.x) / origSeg.length,
       y: (origSeg.b.y - origSeg.a.y) / origSeg.length,
@@ -298,6 +325,43 @@ describe("multi-room thumbnail wall-inset re-projection (door alignment)", () =>
     ].sort((x, y) => x - y);
     const bRange = [fixedBStart, fixedBEnd].sort((x, y) => x - y);
     assert.deepEqual(bRange, aRange);
+  });
+
+  // Regression coverage for the "hallway wall ends overhang / aren't
+  // joint-on-joint anymore" bug: a's right wall is length 300, but only
+  // touches a shorter neighbor over [0,100], so the closed (solid) run is
+  // [100,300] -- and 300 is a's own true corner, not a real door edge.
+  const cornersALong = [
+    { x: 0, y: 0 },
+    { x: 200, y: 0 },
+    { x: 200, y: 300 },
+    { x: 0, y: 300 },
+  ];
+  const origSegALong = wallSegments(cornersALong)[1];
+  const insetSegALong = wallSegments(insetRectilinearPolygon(cornersALong, 4))[1];
+  const closedRun = { start: 100, end: 300 };
+
+  test("without the clamp, projecting the wall's own true corner overshoots past the mitred corner by the inset amount", () => {
+    // This is exactly the regression: re-projecting t=300 (a's own true
+    // end, not a door) lands past insetSeg's own endpoint instead of
+    // exactly on it.
+    const unclampedEnd = unclampedFixedDrawnY(origSegALong, insetSegALong, closedRun.end);
+    assert.equal(unclampedEnd, insetSegALong.a.y + insetSegALong.length + 4);
+    assert.notEqual(unclampedEnd, insetSegALong.a.y + insetSegALong.length);
+  });
+
+  test("with the clamp, a closed run touching the wall's own end lands exactly on the mitred corner -- joint-on-joint, no overhang", () => {
+    const clampedEnd = fixedDrawnY(origSegALong, insetSegALong, closedRun.end);
+    // insetSeg.b.y is the true mitred corner's own y-coordinate.
+    assert.equal(clampedEnd, insetSegALong.b.y);
+  });
+
+  test("with the clamp, the interior boundary (the real touching-neighbor edge, not a corner) is unaffected and still correctly re-projected", () => {
+    const clampedStart = fixedDrawnY(origSegALong, insetSegALong, closedRun.start);
+    const unclampedStart = unclampedFixedDrawnY(origSegALong, insetSegALong, closedRun.start);
+    // t=100 is comfortably interior (nowhere near either end), so the clamp
+    // is a no-op here -- clamped and unclamped values match.
+    assert.equal(clampedStart, unclampedStart);
   });
 });
 

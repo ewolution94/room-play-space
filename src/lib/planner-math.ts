@@ -145,6 +145,98 @@ export function obbOverlapDepth(
   return minDepth;
 }
 
+/** The four corners of a plain axis-aligned rectangle, as a closed polygon
+ * point list -- a convenience for feeding a simple {x,y,width,length} box
+ * into the polygon-based room collision helpers below. */
+export function rectCorners(r: { x: number; y: number; width: number; length: number }): Point[] {
+  return [
+    { x: r.x, y: r.y },
+    { x: r.x + r.width, y: r.y },
+    { x: r.x + r.width, y: r.y + r.length },
+    { x: r.x, y: r.y + r.length },
+  ];
+}
+
+/** Standard ray-casting point-in-polygon test. Works for both convex and
+ * concave simple polygons regardless of winding order. A point exactly on
+ * the boundary may return either result (as with any ray-casting
+ * implementation) -- callers that care about that edge case should test at
+ * a point guaranteed to be strictly interior, as rectilinearPolygonRects
+ * below does (it only ever tests grid-cell midpoints, which can never sit
+ * exactly on an edge of a rectilinear polygon). */
+export function pointInPolygon(p: Point, poly: Point[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x,
+      yi = poly[i].y;
+    const xj = poly[j].x,
+      yj = poly[j].y;
+    const intersect = yi > p.y !== yj > p.y && p.x < ((xj - xi) * (p.y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Decomposes an axis-aligned rectilinear polygon (every corner a 90 or 270
+ * degree turn -- true of every room shape in this app: plain rectangles and
+ * every L/T hallway template in hallway-shapes.ts) into a set of
+ * axis-aligned rectangles whose union exactly equals the polygon's
+ * interior. This is what makes exact room-vs-room collision for an L/T
+ * hallway tractable: rather than a general (and, for concave shapes,
+ * fiddly) polygon-vs-polygon intersection routine, two rectilinear
+ * polygons overlap if and only if some rectangle from one's decomposition
+ * overlaps some rectangle from the other's -- ordinary axis-aligned
+ * rectangle overlap, which is simple and already well-tested (see
+ * rectilinearPolygonsOverlap below).
+ *
+ * Standard "grid cell" technique: every distinct x and y coordinate among
+ * the polygon's corners partitions the plane into a small grid (at most
+ * ~4x4 for a T-shape), and a cell belongs to the polygon iff its own
+ * midpoint tests as interior. A plain rectangle reduces to exactly one
+ * cell -- itself -- so this is pixel/behavior-identical to a simple
+ * rectangle for every existing (non-hallway) room.
+ */
+export function rectilinearPolygonRects(
+  poly: Point[],
+): { x: number; y: number; width: number; height: number }[] {
+  const xs = Array.from(new Set(poly.map((p) => p.x))).sort((a, b) => a - b);
+  const ys = Array.from(new Set(poly.map((p) => p.y))).sort((a, b) => a - b);
+  const rects: { x: number; y: number; width: number; height: number }[] = [];
+  for (let i = 0; i < xs.length - 1; i++) {
+    for (let j = 0; j < ys.length - 1; j++) {
+      const midX = (xs[i] + xs[i + 1]) / 2;
+      const midY = (ys[j] + ys[j + 1]) / 2;
+      if (pointInPolygon({ x: midX, y: midY }, poly)) {
+        rects.push({ x: xs[i], y: ys[j], width: xs[i + 1] - xs[i], height: ys[j + 1] - ys[j] });
+      }
+    }
+  }
+  return rects;
+}
+
+/**
+ * Exact overlap test between two axis-aligned rectilinear polygons (see
+ * rectilinearPolygonRects above) -- the room-vs-room analog of obbOverlap,
+ * used so an L/T-shaped hallway's collision footprint matches its visual
+ * silhouette exactly rather than its rectangular bounding box, allowing
+ * another room to be placed directly into the notch/leg of an L or T shape.
+ * `eps` mirrors obbOverlap's tolerance: two rectangles exactly flush
+ * (zero-gap touching, the common "0-4 walls" flush-room workflow) are not
+ * considered overlapping.
+ */
+export function rectilinearPolygonsOverlap(polyA: Point[], polyB: Point[], eps = 0.5): boolean {
+  const rectsA = rectilinearPolygonRects(polyA);
+  const rectsB = rectilinearPolygonRects(polyB);
+  return rectsA.some((ra) =>
+    rectsB.some((rb) => {
+      const noOverlapX = ra.x + ra.width - eps <= rb.x || rb.x + rb.width - eps <= ra.x;
+      const noOverlapY = ra.y + ra.height - eps <= rb.y || rb.y + rb.height - eps <= ra.y;
+      return !noOverlapX && !noOverlapY;
+    }),
+  );
+}
+
 export function collidesWithOthers(
   candidate: Item,
   others: Item[],

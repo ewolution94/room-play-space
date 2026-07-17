@@ -11,6 +11,7 @@ import {
   buildStraightHallwayCorners,
   buildLHallwayCorners,
   buildTHallwayCorners,
+  polygonClipPathPercent,
 } from "@/lib/hallway-shapes";
 import type { Point } from "@/types/planner";
 
@@ -197,6 +198,33 @@ describe("insetRectilinearPolygon", () => {
     // toward the void, i.e. away from the vertical arm's solid interior:
     // x decreases (out of the arm), y increases (further into the notch).
     assert.deepEqual(inset[2], { x: 116, y: 184 });
+  });
+});
+
+describe("polygonClipPathPercent", () => {
+  test("a plain rectangle traces its own 4 corners at 0%/100% -- a visual no-op clip", () => {
+    const result = polygonClipPathPercent(rect(300, 200), 300, 200);
+    assert.equal(
+      result,
+      "polygon(0.000% 0.000%, 100.000% 0.000%, 100.000% 100.000%, 0.000% 100.000%)",
+    );
+  });
+
+  test("an L-shape's notch corner lands at the correct interior percentage, not 0/100", () => {
+    const { corners } = buildLHallwayCorners(120, 300, 260, false);
+    const result = polygonClipPathPercent(corners, 300, 260);
+    // corners: (0,0) (120,0) (120,140) (300,140) (300,260) (0,260) against a
+    // 300x260 box -- e.g. (120,140) should be 40%/~53.846%.
+    assert.ok(result.startsWith("polygon("));
+    assert.ok(result.includes("40.000% 0.000%")); // (120,0)
+    assert.ok(result.includes("40.000% 53.846%")); // (120,140)
+    assert.ok(result.includes("100.000% 53.846%")); // (300,140)
+  });
+
+  test("degenerate zero width/length doesn't divide by zero (falls back to treating it as 1)", () => {
+    const result = polygonClipPathPercent(rect(0, 0), 0, 0);
+    assert.ok(result.startsWith("polygon("));
+    assert.ok(Number.isFinite(Number(result.match(/[\d.]+/)?.[0] ?? "NaN")));
   });
 });
 

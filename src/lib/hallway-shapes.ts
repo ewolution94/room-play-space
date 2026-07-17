@@ -106,6 +106,27 @@ export function wallColorKey(index: number, cornersLen: number): string {
   return String(index);
 }
 
+/**
+ * Builds a CSS `clip-path: polygon(...)` value that traces `corners`
+ * exactly, expressed as percentages of `width`/`length` so it applies
+ * correctly to an element regardless of its current on-screen scale.
+ * Used by the multi-room overview to clip a room card's background/
+ * border/ring/shadow chrome to an L/T hallway's real silhouette instead of
+ * its rectangular bounding box -- for a plain 4-corner rectangle this
+ * traces the same 4 points a normal rectangle already has, so it's a
+ * visual no-op there (callers still skip applying it for a plain rectangle
+ * so its rounded corners aren't clipped away).
+ */
+export function polygonClipPathPercent(corners: Point[], width: number, length: number): string {
+  const points = corners
+    .map(
+      (c) =>
+        `${((c.x / (width || 1)) * 100).toFixed(3)}% ${((c.y / (length || 1)) * 100).toFixed(3)}%`,
+    )
+    .join(", ");
+  return `polygon(${points})`;
+}
+
 export function polygonBoundingBox(corners: Point[]): {
   minX: number;
   minY: number;
