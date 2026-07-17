@@ -1,6 +1,6 @@
-import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import React, { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import type { RoomLayout, Point } from "@/types/planner";
+import type { RoomLayout, Point, Floor } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import {
   resolveSweptMove,
@@ -36,6 +36,8 @@ import { MultiRoomInspector } from "./MultiRoomInspector";
 import { ThreeDView, type RoomInstance3D } from "./ThreeDView";
 import { RotateHint } from "./RotateHint";
 import { MobileZoomButtons } from "./canvas/MobileZoomButtons";
+import { FloorSwitcher } from "./FloorSwitcher";
+import { CanvasLoadingOverlay } from "./canvas/CanvasLoadingOverlay";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import {
   Drawer,
@@ -69,6 +71,19 @@ interface MultiRoomCanvasProps {
   setMultiSelectMode: (enabled: boolean) => void;
   threeDActive: boolean;
   setThreeDActive: (active: boolean) => void;
+  // Multi-floor building state (see Floor in types/planner.ts) -- `rooms`
+  // above is already scoped to whichever floor is active; these are only
+  // needed for the floor-switcher pill bar itself and its switch-direction
+  // transition animation (see FloorSwitcher.tsx and the keyed wrapper
+  // around the room-rendering block below).
+  floors: Floor[];
+  activeFloorId: string;
+  floorSwitchDirection: "up" | "down";
+  onSelectFloor: (id: string) => void;
+  onAddFloor: () => void;
+  onRenameFloor: (id: string, name: string) => void;
+  onDeleteFloor: (id: string) => void;
+  onReorderFloors: (orderedIds: string[]) => void;
 }
 
 export function MultiRoomCanvas({
@@ -95,10 +110,27 @@ export function MultiRoomCanvas({
   setMultiSelectMode,
   threeDActive,
   setThreeDActive,
+  floors,
+  activeFloorId,
+  floorSwitchDirection,
+  onSelectFloor,
+  onAddFloor,
+  onRenameFloor,
+  onDeleteFloor,
+  onReorderFloors,
 }: MultiRoomCanvasProps) {
   const navigate = useNavigate();
   const stageRef = useRef<HTMLDivElement>(null);
+  // 800x600 is only ever a placeholder for the very first render, before
+  // the container has a real measured size -- see stageReady below.
   const [stageSize, setStageSize] = useState({ w: 800, h: 600 });
+  // False until the stage has been measured at least once with a real,
+  // non-zero size. Gates CanvasLoadingOverlay below, masking the moment
+  // where offsetX/offsetY/scale would otherwise still be based on the
+  // 800x600 guess above (visibly shoving every room into the top-left
+  // corner, mis-scaled, for a beat) -- see the matching stageReady in
+  // use-room-planner.ts for the single-room planner's equivalent fix.
+  const [stageReady, setStageReady] = useState(false);
 
   // Mobile "view only" mode (see useMobileViewOnly): room drag/select is
   // disabled (onRoomPointerDown below becomes a no-op) and the always-
@@ -211,12 +243,25 @@ export function MultiRoomCanvas({
     }
   }, [selectedRoomId, selectedRoomIds]);
 
+  // Measures synchronously, before the browser paints, so the very first
+  // frame the user could possibly see already uses the real container size
+  // instead of the 800x600 placeholder above -- useLayoutEffect (not
+  // useEffect) is what makes this happen before paint rather than after.
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
+    setStageSize({ w: el.clientWidth, h: el.clientHeight });
+    setStageReady(true);
+  }, []);
+
   // Monitor stage size changes
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
+      if (el.clientWidth === 0 || el.clientHeight === 0) return;
       setStageSize({ w: el.clientWidth, h: el.clientHeight });
+      setStageReady(true);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -257,6 +302,22 @@ export function MultiRoomCanvas({
   const offsetY = baseOffsetY + panY;
 
   const scaleKey = Math.round(scale * 1000);
+
+  // Floor-switch transition (see the keyed wrapper around "Render Rooms"
+  // below): rising to a higher floor feels like the new content is
+  // arriving from below, so it slides in from the bottom; dropping to a
+  // lower floor slides in from the top instead. Purely presentational --
+  // the underlying room positions/math are completely unaffected, this
+  // just re-triggers a CSS enter animation (tw-animate-css, already used
+  // throughout this app's Radix-based dialogs/menus) each time
+  // activeFloorId changes via the `key` below. Written out as two full
+  // literal class strings (not built via template-literal concatenation)
+  // since Tailwind's build-time scanner needs to see each complete
+  // class name verbatim in the source to generate its CSS.
+  const floorTransitionClasses =
+    floorSwitchDirection === "up"
+      ? "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-6 duration-300 ease-out"
+      : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-6 duration-300 ease-out";
 
   // Marquee multi-select state (only active when multiSelectMode is on --
   // otherwise dragging on empty canvas pans, see onStagePointerDown below).
@@ -789,6 +850,13 @@ export function MultiRoomCanvas({
         onPointerMove={threeDActive ? undefined : onStagePointerMove}
         onPointerUp={threeDActive ? undefined : onStagePointerUp}
       >
+        {/* Masks the moment before the stage has a real measured size --
+            see stageReady's doc comment above and CanvasLoadingOverlay's
+            own doc comment for why this exists. Also covers route-switch
+            transitions for free, since navigating here fully remounts
+            this component. */}
+        <CanvasLoadingOverlay ready={stageReady} />
+
         {/* Dimensions label for the floor layout */}
         <div
           onPointerDown={(e) => e.stopPropagation()}
@@ -802,6 +870,29 @@ export function MultiRoomCanvas({
             {floorW} x {floorL} cm ({Math.round(floorW / 100)}m x {Math.round(floorL / 100)}m)
           </span>
         </div>
+
+        {/* Floor switcher -- top-center, clear of the dimensions badge
+            (top-left) and the Layout Options trigger/panel (top-right). Not
+            shown in 3D mode: the whole-apartment 3D view is intentionally
+            single-floor-scoped for now (see Floor's doc comment in
+            types/planner.ts), so switching floors there wouldn't do
+            anything meaningful with the 3D scene still on screen. Also
+            hidden in mobile portrait, where the RotateHint below occupies
+            this exact same top-center spot -- floor switching waits for
+            landscape/desktop rather than stacking two pills in an already
+            tight portrait viewport. */}
+        {!threeDActive && !(isMobileViewOnly && isPortrait) && (
+          <FloorSwitcher
+            floors={floors}
+            activeFloorId={activeFloorId}
+            lang={lang}
+            onSelectFloor={onSelectFloor}
+            onAddFloor={onAddFloor}
+            onRenameFloor={onRenameFloor}
+            onDeleteFloor={onDeleteFloor}
+            onReorderFloors={onReorderFloors}
+          />
+        )}
 
         {/* Rotate-to-landscape hint -- mobile view-only mode only, and only
             in portrait (see useMobileViewOnly): rotating never exits
@@ -845,8 +936,8 @@ export function MultiRoomCanvas({
               !threeDEnabled || (!threeDActive && isMobileViewOnly && isPortrait)
                 ? "text-muted-foreground/40 cursor-not-allowed"
                 : threeDActive
-                  ? "text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "cursor-pointer text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
+                  : "cursor-pointer text-muted-foreground hover:text-foreground"
             }`}
           >
             <Box className="h-3.5 w-3.5" />
@@ -1145,84 +1236,91 @@ export function MultiRoomCanvas({
               />
             )}
 
-            {/* Render Rooms */}
-            {rooms.map((room) => {
-              const rx = cm(room.x);
-              const ry = cm(room.y);
-              const rw = cm(room.width);
-              const rl = cm(room.length);
-              const isSelected = selectedRoomId === room.id || selectedRoomIds.has(room.id);
-              const isDragging = activeDragIds.has(room.id);
-              const isBlocked = blockedRoomIds.has(room.id);
+            {/* Render Rooms -- keyed on the active floor so switching
+                floors remounts this layer with a fresh enter animation
+                (see floorTransitionClasses above) instead of the room
+                cards just silently swapping in place. `absolute inset-0`
+                exactly matches the parent "Scaled Floor Area" box (no
+                offset of its own), so every room's own left/top math
+                below is completely unaffected by this wrapper. */}
+            <div key={activeFloorId} className={`absolute inset-0 ${floorTransitionClasses}`}>
+              {rooms.map((room) => {
+                const rx = cm(room.x);
+                const ry = cm(room.y);
+                const rw = cm(room.width);
+                const rl = cm(room.length);
+                const isSelected = selectedRoomId === room.id || selectedRoomIds.has(room.id);
+                const isDragging = activeDragIds.has(room.id);
+                const isBlocked = blockedRoomIds.has(room.id);
 
-              // The room's own polygon, defaulting to a plain rectangle for
-              // any room saved before `corners` existed. The thumbnail
-              // below renders this shape directly (a true L/T outline for
-              // a hallway instead of a plain rect) -- the outer card itself
-              // stays a simple rounded-rectangle selection frame either way
-              // (matches every other room card; the thumbnail is what
-              // actually communicates the floor shape).
-              const roomCorners =
-                room.corners && room.corners.length >= 4
-                  ? room.corners
-                  : [
-                      { x: 0, y: 0 },
-                      { x: room.width, y: 0 },
-                      { x: room.width, y: room.length },
-                      { x: 0, y: room.length },
-                    ];
-              const isPolygonRoom = roomCorners.length !== 4;
+                // The room's own polygon, defaulting to a plain rectangle for
+                // any room saved before `corners` existed. The thumbnail
+                // below renders this shape directly (a true L/T outline for
+                // a hallway instead of a plain rect) -- the outer card itself
+                // stays a simple rounded-rectangle selection frame either way
+                // (matches every other room card; the thumbnail is what
+                // actually communicates the floor shape).
+                const roomCorners =
+                  room.corners && room.corners.length >= 4
+                    ? room.corners
+                    : [
+                        { x: 0, y: 0 },
+                        { x: room.width, y: 0 },
+                        { x: room.width, y: room.length },
+                        { x: 0, y: room.length },
+                      ];
+                const isPolygonRoom = roomCorners.length !== 4;
 
-              // For an L/T-shaped hallway, the card's own background/
-              // border/ring/shadow chrome is clipped to the room's exact
-              // silhouette (percentages of the card's own box, so this
-              // works regardless of the current zoom scale) instead of
-              // staying a plain rectangle -- otherwise hovering/selecting a
-              // hallway showed a rectangular highlight box bleeding into
-              // its notch even though no wall was ever drawn there. A
-              // plain rectangular room gets no clip-path at all (undefined)
-              // so its normal rounded corners are unaffected.
-              const polygonClipPath = isPolygonRoom
-                ? polygonClipPathPercent(roomCorners, room.width, room.length)
-                : undefined;
+                // For an L/T-shaped hallway, the card's own background/
+                // border/ring/shadow chrome is clipped to the room's exact
+                // silhouette (percentages of the card's own box, so this
+                // works regardless of the current zoom scale) instead of
+                // staying a plain rectangle -- otherwise hovering/selecting a
+                // hallway showed a rectangular highlight box bleeding into
+                // its notch even though no wall was ever drawn there. A
+                // plain rectangular room gets no clip-path at all (undefined)
+                // so its normal rounded corners are unaffected.
+                const polygonClipPath = isPolygonRoom
+                  ? polygonClipPathPercent(roomCorners, room.width, room.length)
+                  : undefined;
 
-              // Dimension labels and the room name used to be positioned
-              // against the room's full bounding box (room.width/2,
-              // room.length/2, etc.) -- fine for a plain rectangle, but for
-              // an L/T hallway that center/corner can fall in the notch,
-              // outside the shape entirely. Anchoring them instead to the
-              // largest axis-aligned rectangle in the shape's own
-              // decomposition (see rectilinearPolygonRects/
-              // rectilinearPolygonsOverlap in planner-math.ts, the same
-              // exact-collision machinery) keeps them on real floor space.
-              // For a plain rectangle this decomposition is just the room's
-              // own full bounds, so this is a no-op there.
-              const dimRects = rectilinearPolygonRects(roomCorners);
-              const primaryRect = dimRects.reduce(
-                (best, r) => (r.width * r.height > best.width * best.height ? r : best),
-                dimRects[0],
-              ) ?? { x: 0, y: 0, width: room.width, height: room.length };
+                // Dimension labels and the room name used to be positioned
+                // against the room's full bounding box (room.width/2,
+                // room.length/2, etc.) -- fine for a plain rectangle, but for
+                // an L/T hallway that center/corner can fall in the notch,
+                // outside the shape entirely. Anchoring them instead to the
+                // largest axis-aligned rectangle in the shape's own
+                // decomposition (see rectilinearPolygonRects/
+                // rectilinearPolygonsOverlap in planner-math.ts, the same
+                // exact-collision machinery) keeps them on real floor space.
+                // For a plain rectangle this decomposition is just the room's
+                // own full bounds, so this is a no-op there.
+                const dimRects = rectilinearPolygonRects(roomCorners);
+                const primaryRect = dimRects.reduce(
+                  (best, r) => (r.width * r.height > best.width * best.height ? r : best),
+                  dimRects[0],
+                ) ?? { x: 0, y: 0, width: room.width, height: room.length };
 
-              // Merges this room's manual wallOverrides on top of the
-              // auto-detected touching-neighbor spans above -- see
-              // room-adjacency.ts. Each wall's open interval(s) get no
-              // outline drawn over them below (an actual gap), while the
-              // rest of that same wall still renders normally -- so a long
-              // wall next to a short neighbor only opens the matching span
-              // instead of vanishing entirely.
-              const effectiveOpenWalls = resolveEffectiveOpenIntervals(
-                room,
-                roomCorners,
-                autoOpenWalls.get(room.id) ?? new Map(),
-              );
+                // Merges this room's manual wallOverrides on top of the
+                // auto-detected touching-neighbor spans above -- see
+                // room-adjacency.ts. Each wall's open interval(s) get no
+                // outline drawn over them below (an actual gap), while the
+                // rest of that same wall still renders normally -- so a long
+                // wall next to a short neighbor only opens the matching span
+                // instead of vanishing entirely.
+                const effectiveOpenWalls = resolveEffectiveOpenIntervals(
+                  room,
+                  roomCorners,
+                  autoOpenWalls.get(room.id) ?? new Map(),
+                );
 
-              return (
-                <div
-                  key={room.id}
-                  onPointerDown={(e) => onRoomPointerDown(e, room)}
-                  onPointerMove={onRoomPointerMove}
-                  onPointerUp={onRoomPointerUp}
-                  className={`absolute rounded-lg border-2 shadow-sm transition-shadow cursor-all-scroll select-none flex flex-col items-center justify-center overflow-hidden
+                return (
+                  <div
+                    key={room.id}
+                    onPointerDown={(e) => onRoomPointerDown(e, room)}
+                    onPointerMove={onRoomPointerMove}
+                    onPointerUp={onRoomPointerUp}
+                    className={`absolute rounded-lg border-2 shadow-sm transition-shadow cursor-all-scroll select-none flex flex-col items-center justify-center overflow-hidden
                     ${isDragging ? "shadow-2xl scale-[1.015] transition-none" : "transition-transform duration-150"}
                     ${
                       isBlocked
@@ -1231,41 +1329,41 @@ export function MultiRoomCanvas({
                           ? "border-primary bg-card shadow-lg ring-1 ring-primary"
                           : "border-border/80 hover:border-primary/50 bg-card hover:shadow-md"
                     }`}
-                  style={{
-                    left: rx,
-                    top: ry,
-                    width: rw,
-                    height: rl,
-                    transformOrigin: "center center",
-                    touchAction: "none",
-                    zIndex: isDragging ? 15 : isSelected ? 10 : 5,
-                    // Clips the card's own background/border/ring/shadow --
-                    // AND, just as importantly, its hit-test area -- to the
-                    // room's exact polygon silhouette for an L/T hallway
-                    // (undefined for a plain rectangle, leaving its rounded
-                    // corners and full-box hit area untouched). clip-path
-                    // excludes the clipped-away region from pointer hit
-                    // testing, so hovering/clicking/dragging in a hallway's
-                    // notch now falls through to whatever's actually there
-                    // (the floor plan, or another room placed in the
-                    // notch) instead of grabbing the hallway by accident.
-                    ...(polygonClipPath ? { clipPath: polygonClipPath } : {}),
-                  }}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    navigate({ to: "/rooms/$roomId", params: { roomId: room.id } });
-                  }}
-                >
-                  {/* Miniature Inside preview (scaled SVG Blueprint style) */}
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-0">
-                    <svg
-                      width="100%"
-                      height="100%"
-                      viewBox={`0 0 ${room.width} ${room.length}`}
-                      preserveAspectRatio="none"
-                      className="w-full h-full"
-                    >
-                      {/* Floor background, shaped to the room's exact
+                    style={{
+                      left: rx,
+                      top: ry,
+                      width: rw,
+                      height: rl,
+                      transformOrigin: "center center",
+                      touchAction: "none",
+                      zIndex: isDragging ? 15 : isSelected ? 10 : 5,
+                      // Clips the card's own background/border/ring/shadow --
+                      // AND, just as importantly, its hit-test area -- to the
+                      // room's exact polygon silhouette for an L/T hallway
+                      // (undefined for a plain rectangle, leaving its rounded
+                      // corners and full-box hit area untouched). clip-path
+                      // excludes the clipped-away region from pointer hit
+                      // testing, so hovering/clicking/dragging in a hallway's
+                      // notch now falls through to whatever's actually there
+                      // (the floor plan, or another room placed in the
+                      // notch) instead of grabbing the hallway by accident.
+                      ...(polygonClipPath ? { clipPath: polygonClipPath } : {}),
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      navigate({ to: "/rooms/$roomId", params: { roomId: room.id } });
+                    }}
+                  >
+                    {/* Miniature Inside preview (scaled SVG Blueprint style) */}
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-0">
+                      <svg
+                        width="100%"
+                        height="100%"
+                        viewBox={`0 0 ${room.width} ${room.length}`}
+                        preserveAspectRatio="none"
+                        className="w-full h-full"
+                      >
+                        {/* Floor background, shaped to the room's exact
                           silhouette (a polygon for an L/T hallway, matching
                           roomCorners exactly) rather than a plain rect --
                           otherwise this would repaint a rectangular floor
@@ -1274,12 +1372,12 @@ export function MultiRoomCanvas({
                           identical to the old <rect> for a plain
                           rectangular room, since its polygon points ARE its
                           4 rect corners. */}
-                      <polygon
-                        points={roomCorners.map((c) => `${c.x},${c.y}`).join(" ")}
-                        className="fill-card"
-                      />
+                        <polygon
+                          points={roomCorners.map((c) => `${c.x},${c.y}`).join(" ")}
+                          className="fill-card"
+                        />
 
-                      {/* Thick CAD outer walls (8cm thickness), drawn as
+                        {/* Thick CAD outer walls (8cm thickness), drawn as
                           independent per-wall segments (rather than one
                           closed outline), each further split into its
                           closed sub-run(s) around any open interval(s) --
@@ -1291,83 +1389,83 @@ export function MultiRoomCanvas({
                           height-8 rect (verified in hallway-shapes.test.ts),
                           so a fully-closed room renders pixel-identical to
                           before. */}
-                      {(() => {
-                        // Open/closed intervals (effectiveOpenWalls, via
-                        // room-adjacency.ts) are computed against each
-                        // wall's TRUE, un-inset geometry -- t=0 is the
-                        // actual corner point. But this thumbnail draws a
-                        // "thick wall" by mitring every wall inward via
-                        // insetRectilinearPolygon, which retracts each
-                        // wall's own t=0 origin and shortens its length.
-                        // Drawing the interval numbers directly against
-                        // that shifted frame (as this used to do) silently
-                        // moves every gap by the inset amount -- and since
-                        // two touching rooms' walls face opposite
-                        // directions, one room's gap drifts one way and the
-                        // neighbor's drifts the other, so a shared door
-                        // looked slightly offset between the two rooms.
-                        // Fix: project each interval boundary's real
-                        // physical point (from the true wall) onto the
-                        // inset wall's own frame before drawing, so the
-                        // rendered gap always lands on the same physical
-                        // spot no matter how much a given wall got mitred.
-                        //
-                        // One subtlety: the wall's own two endpoints (t=0,
-                        // t=origSeg.length) are the room's outer silhouette
-                        // corners, not real door edges -- projecting *those*
-                        // through the same formula overshoots past the
-                        // mitred corner by exactly `inset` in each direction
-                        // (the mitre retracts the inset wall's own frame by
-                        // `inset` at both ends, which the physical-point
-                        // projection doesn't know about), which is exactly
-                        // what caused the "overhanging"/non-flush corners
-                        // reported for hallway end-walls whose door reaches
-                        // the very edge. Clamping the projected value to the
-                        // inset wall's own valid range recovers the exact
-                        // mitred corner whenever a boundary touches the
-                        // wall's own end (closed runs, edge-flush doors),
-                        // while leaving true interior door edges untouched.
-                        const origSegs = wallSegments(roomCorners);
-                        const insetSegs = wallSegments(insetRectilinearPolygon(roomCorners, 4));
-                        return origSegs.flatMap((origSeg, idx) => {
-                          const insetSeg = insetSegs[idx];
-                          const key = wallColorKey(origSeg.index, roomCorners.length);
-                          const openIntervals = effectiveOpenWalls.get(key) ?? [];
-                          const closed = closedSubIntervals(origSeg.length, openIntervals);
-                          const origUx = (origSeg.b.x - origSeg.a.x) / (origSeg.length || 1);
-                          const origUy = (origSeg.b.y - origSeg.a.y) / (origSeg.length || 1);
-                          const insetUx = (insetSeg.b.x - insetSeg.a.x) / (insetSeg.length || 1);
-                          const insetUy = (insetSeg.b.y - insetSeg.a.y) / (insetSeg.length || 1);
-                          const project = (t: number) => {
-                            const physical = {
-                              x: origSeg.a.x + origUx * t,
-                              y: origSeg.a.y + origUy * t,
+                        {(() => {
+                          // Open/closed intervals (effectiveOpenWalls, via
+                          // room-adjacency.ts) are computed against each
+                          // wall's TRUE, un-inset geometry -- t=0 is the
+                          // actual corner point. But this thumbnail draws a
+                          // "thick wall" by mitring every wall inward via
+                          // insetRectilinearPolygon, which retracts each
+                          // wall's own t=0 origin and shortens its length.
+                          // Drawing the interval numbers directly against
+                          // that shifted frame (as this used to do) silently
+                          // moves every gap by the inset amount -- and since
+                          // two touching rooms' walls face opposite
+                          // directions, one room's gap drifts one way and the
+                          // neighbor's drifts the other, so a shared door
+                          // looked slightly offset between the two rooms.
+                          // Fix: project each interval boundary's real
+                          // physical point (from the true wall) onto the
+                          // inset wall's own frame before drawing, so the
+                          // rendered gap always lands on the same physical
+                          // spot no matter how much a given wall got mitred.
+                          //
+                          // One subtlety: the wall's own two endpoints (t=0,
+                          // t=origSeg.length) are the room's outer silhouette
+                          // corners, not real door edges -- projecting *those*
+                          // through the same formula overshoots past the
+                          // mitred corner by exactly `inset` in each direction
+                          // (the mitre retracts the inset wall's own frame by
+                          // `inset` at both ends, which the physical-point
+                          // projection doesn't know about), which is exactly
+                          // what caused the "overhanging"/non-flush corners
+                          // reported for hallway end-walls whose door reaches
+                          // the very edge. Clamping the projected value to the
+                          // inset wall's own valid range recovers the exact
+                          // mitred corner whenever a boundary touches the
+                          // wall's own end (closed runs, edge-flush doors),
+                          // while leaving true interior door edges untouched.
+                          const origSegs = wallSegments(roomCorners);
+                          const insetSegs = wallSegments(insetRectilinearPolygon(roomCorners, 4));
+                          return origSegs.flatMap((origSeg, idx) => {
+                            const insetSeg = insetSegs[idx];
+                            const key = wallColorKey(origSeg.index, roomCorners.length);
+                            const openIntervals = effectiveOpenWalls.get(key) ?? [];
+                            const closed = closedSubIntervals(origSeg.length, openIntervals);
+                            const origUx = (origSeg.b.x - origSeg.a.x) / (origSeg.length || 1);
+                            const origUy = (origSeg.b.y - origSeg.a.y) / (origSeg.length || 1);
+                            const insetUx = (insetSeg.b.x - insetSeg.a.x) / (insetSeg.length || 1);
+                            const insetUy = (insetSeg.b.y - insetSeg.a.y) / (insetSeg.length || 1);
+                            const project = (t: number) => {
+                              const physical = {
+                                x: origSeg.a.x + origUx * t,
+                                y: origSeg.a.y + origUy * t,
+                              };
+                              return Math.max(
+                                0,
+                                Math.min(insetSeg.length, projectPointToFrame(physical, insetSeg)),
+                              );
                             };
-                            return Math.max(
-                              0,
-                              Math.min(insetSeg.length, projectPointToFrame(physical, insetSeg)),
-                            );
-                          };
-                          return closed.map((c, i) => {
-                            const start = project(c.start);
-                            const end = project(c.end);
-                            return (
-                              <line
-                                key={`${origSeg.index}-${i}`}
-                                x1={insetSeg.a.x + insetUx * start}
-                                y1={insetSeg.a.y + insetUy * start}
-                                x2={insetSeg.a.x + insetUx * end}
-                                y2={insetSeg.a.y + insetUy * end}
-                                className="stroke-zinc-800 dark:stroke-zinc-300"
-                                strokeWidth={8}
-                                strokeLinecap="round"
-                              />
-                            );
+                            return closed.map((c, i) => {
+                              const start = project(c.start);
+                              const end = project(c.end);
+                              return (
+                                <line
+                                  key={`${origSeg.index}-${i}`}
+                                  x1={insetSeg.a.x + insetUx * start}
+                                  y1={insetSeg.a.y + insetUy * start}
+                                  x2={insetSeg.a.x + insetUx * end}
+                                  y2={insetSeg.a.y + insetUy * end}
+                                  className="stroke-zinc-800 dark:stroke-zinc-300"
+                                  strokeWidth={8}
+                                  strokeLinecap="round"
+                                />
+                              );
+                            });
                           });
-                        });
-                      })()}
+                        })()}
 
-                      {/* CAD-style dimension lines -- restored for plain
+                        {/* CAD-style dimension lines -- restored for plain
                           (non-hallway) rooms behind the showDimensions
                           toggle, but deliberately never shown for an L/T
                           hallway: a line drawn from one end of the shape's
@@ -1379,100 +1477,100 @@ export function MultiRoomCanvas({
                           (not primaryRect) since this path only ever runs
                           for a plain rectangular room, where they're the
                           same thing anyway. */}
-                      {showDimensions && !isPolygonRoom && (
-                        <>
-                          {/* Width Dimension */}
-                          <g className="opacity-70">
-                            <line
-                              x1={30}
-                              y1={30}
-                              x2={room.width - 30}
-                              y2={30}
-                              className="stroke-zinc-500/80 dark:stroke-zinc-400/80"
-                              strokeWidth={1}
-                            />
-                            <line
-                              x1={25}
-                              y1={35}
-                              x2={35}
-                              y2={25}
-                              className="stroke-zinc-500 dark:stroke-zinc-400"
-                              strokeWidth={1.5}
-                            />
-                            <line
-                              x1={room.width - 35}
-                              y1={35}
-                              x2={room.width - 25}
-                              y2={25}
-                              className="stroke-zinc-500 dark:stroke-zinc-400"
-                              strokeWidth={1.5}
-                            />
-                            <rect
-                              x={room.width / 2 - 25}
-                              y={19}
-                              width={50}
-                              height={20}
-                              rx={4}
-                              className="fill-card stroke-none"
-                            />
-                            <text
-                              x={room.width / 2}
-                              y={33}
-                              className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300"
-                              textAnchor="middle"
-                            >
-                              {Math.round(room.width)} cm
-                            </text>
-                          </g>
+                        {showDimensions && !isPolygonRoom && (
+                          <>
+                            {/* Width Dimension */}
+                            <g className="opacity-70">
+                              <line
+                                x1={30}
+                                y1={30}
+                                x2={room.width - 30}
+                                y2={30}
+                                className="stroke-zinc-500/80 dark:stroke-zinc-400/80"
+                                strokeWidth={1}
+                              />
+                              <line
+                                x1={25}
+                                y1={35}
+                                x2={35}
+                                y2={25}
+                                className="stroke-zinc-500 dark:stroke-zinc-400"
+                                strokeWidth={1.5}
+                              />
+                              <line
+                                x1={room.width - 35}
+                                y1={35}
+                                x2={room.width - 25}
+                                y2={25}
+                                className="stroke-zinc-500 dark:stroke-zinc-400"
+                                strokeWidth={1.5}
+                              />
+                              <rect
+                                x={room.width / 2 - 25}
+                                y={19}
+                                width={50}
+                                height={20}
+                                rx={4}
+                                className="fill-card stroke-none"
+                              />
+                              <text
+                                x={room.width / 2}
+                                y={33}
+                                className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300"
+                                textAnchor="middle"
+                              >
+                                {Math.round(room.width)} cm
+                              </text>
+                            </g>
 
-                          {/* Length Dimension */}
-                          <g className="opacity-70">
-                            <line
-                              x1={30}
-                              y1={30}
-                              x2={30}
-                              y2={room.length - 30}
-                              className="stroke-zinc-500/80 dark:stroke-zinc-400/80"
-                              strokeWidth={1}
-                            />
-                            <line
-                              x1={25}
-                              y1={35}
-                              x2={35}
-                              y2={25}
-                              className="stroke-zinc-500 dark:stroke-zinc-400"
-                              strokeWidth={1.5}
-                            />
-                            <line
-                              x1={25}
-                              y1={room.length - 25}
-                              x2={35}
-                              y2={room.length - 35}
-                              className="stroke-zinc-500 dark:stroke-zinc-400"
-                              strokeWidth={1.5}
-                            />
-                            <rect
-                              x={19}
-                              y={room.length / 2 - 10}
-                              width={22}
-                              height={20}
-                              rx={4}
-                              className="fill-card stroke-none"
-                            />
-                            <text
-                              x={29}
-                              y={room.length / 2 + 4}
-                              className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300"
-                              textAnchor="middle"
-                              transform={`rotate(-90, 29, ${room.length / 2})`}
-                            >
-                              {Math.round(room.length)} cm
-                            </text>
-                          </g>
-                        </>
-                      )}
+                            {/* Length Dimension */}
+                            <g className="opacity-70">
+                              <line
+                                x1={30}
+                                y1={30}
+                                x2={30}
+                                y2={room.length - 30}
+                                className="stroke-zinc-500/80 dark:stroke-zinc-400/80"
+                                strokeWidth={1}
+                              />
+                              <line
+                                x1={25}
+                                y1={35}
+                                x2={35}
+                                y2={25}
+                                className="stroke-zinc-500 dark:stroke-zinc-400"
+                                strokeWidth={1.5}
+                              />
+                              <line
+                                x1={25}
+                                y1={room.length - 25}
+                                x2={35}
+                                y2={room.length - 35}
+                                className="stroke-zinc-500 dark:stroke-zinc-400"
+                                strokeWidth={1.5}
+                              />
+                              <rect
+                                x={19}
+                                y={room.length / 2 - 10}
+                                width={22}
+                                height={20}
+                                rx={4}
+                                className="fill-card stroke-none"
+                              />
+                              <text
+                                x={29}
+                                y={room.length / 2 + 4}
+                                className="text-[12px] font-sans font-bold fill-zinc-500 dark:fill-zinc-300"
+                                textAnchor="middle"
+                                transform={`rotate(-90, 29, ${room.length / 2})`}
+                              >
+                                {Math.round(room.length)} cm
+                              </text>
+                            </g>
+                          </>
+                        )}
 
-                      {/* Room name + (hallways only) a plain "W x L cm"
+                        {/* Room name + (hallways only) a plain "W x L cm"
                           text -- independent of showDimensions above.
                           Centered in primaryRect (the largest rectangle in
                           the room's own shape decomposition, see
@@ -1482,233 +1580,239 @@ export function MultiRoomCanvas({
                           A plain room's own width/length are already shown
                           by the CAD dimension lines above when enabled, so
                           this text doesn't duplicate them there. */}
-                      {showLabels && (
-                        <text
-                          x={primaryRect.x + primaryRect.width / 2}
-                          y={primaryRect.y + primaryRect.height / 2}
-                          className="text-[14px] uppercase font-bold tracking-wider fill-zinc-400/80 dark:fill-zinc-500/80 font-sans"
-                          textAnchor="middle"
-                        >
-                          {room.name}
-                        </text>
-                      )}
-                      {showLabels && isPolygonRoom && (
-                        <text
-                          x={primaryRect.x + primaryRect.width / 2}
-                          y={primaryRect.y + primaryRect.height / 2 + 18}
-                          className="text-[11px] font-sans font-semibold fill-zinc-500/70 dark:fill-zinc-400/70"
-                          textAnchor="middle"
-                        >
-                          {Math.round(room.width)} × {Math.round(room.length)} cm
-                        </text>
-                      )}
+                        {showLabels && (
+                          <text
+                            x={primaryRect.x + primaryRect.width / 2}
+                            y={primaryRect.y + primaryRect.height / 2}
+                            className="text-[14px] uppercase font-bold tracking-wider fill-zinc-400/80 dark:fill-zinc-500/80 font-sans"
+                            textAnchor="middle"
+                          >
+                            {room.name}
+                          </text>
+                        )}
+                        {showLabels && isPolygonRoom && (
+                          <text
+                            x={primaryRect.x + primaryRect.width / 2}
+                            y={primaryRect.y + primaryRect.height / 2 + 18}
+                            className="text-[11px] font-sans font-semibold fill-zinc-500/70 dark:fill-zinc-400/70"
+                            textAnchor="middle"
+                          >
+                            {Math.round(room.width)} × {Math.round(room.length)} cm
+                          </text>
+                        )}
 
-                      {/* Openings (Doors/Windows) simplified representation.
+                        {/* Openings (Doors/Windows) simplified representation.
                           An opening whose span actually falls inside an
                           open interval on its wall is skipped (not deleted
                           -- see MultiRoomInspector.tsx) since there's no
                           wall left there to draw it on; one still sitting
                           in a closed sub-run of a partially-open wall
                           keeps rendering normally. */}
-                      {room.openings.map((op) => {
-                        const wallKey = typeof op.wall === "string" ? op.wall : String(op.wall);
-                        const openIntervals = effectiveOpenWalls.get(wallKey) ?? [];
-                        const opStart = op.position;
-                        const opEnd = op.position + op.width;
-                        const overlapsOpenWall = openIntervals.some(
-                          (iv) => opStart < iv.end && opEnd > iv.start,
-                        );
-                        if (overlapsOpenWall) return null;
+                        {room.openings.map((op) => {
+                          const wallKey = typeof op.wall === "string" ? op.wall : String(op.wall);
+                          const openIntervals = effectiveOpenWalls.get(wallKey) ?? [];
+                          const opStart = op.position;
+                          const opEnd = op.position + op.width;
+                          const overlapsOpenWall = openIntervals.some(
+                            (iv) => opStart < iv.end && opEnd > iv.start,
+                          );
+                          if (overlapsOpenWall) return null;
 
-                        let ox = 0,
-                          oy = 0,
-                          ow = op.width,
-                          ol = 8;
-                        let isHorizontal = op.wall === "top" || op.wall === "bottom";
+                          let ox = 0,
+                            oy = 0,
+                            ow = op.width,
+                            ol = 8;
+                          let isHorizontal = op.wall === "top" || op.wall === "bottom";
 
-                        if (typeof op.wall === "number") {
-                          // Polygon (hallway) room -- numeric walls are
-                          // always forward-winding (see hallway-shapes.ts),
-                          // so the gap rect is the bounding box of the
-                          // opening's span along the wall plus an inward
-                          // extension by the same 8-unit thickness the
-                          // named-wall path below uses.
-                          const seg = resolveWallSegment(roomCorners, op.wall);
-                          if (!seg) return null;
-                          const dx = seg.b.x - seg.a.x;
-                          const dy = seg.b.y - seg.a.y;
-                          const segLen = Math.hypot(dx, dy) || 1;
-                          const ux = dx / segLen;
-                          const uy = dy / segLen;
-                          const inX = -uy;
-                          const inY = ux;
-                          const gapThick = 8;
-                          const p1 = {
-                            x: seg.a.x + ux * op.position,
-                            y: seg.a.y + uy * op.position,
-                          };
-                          const p2 = {
-                            x: seg.a.x + ux * (op.position + op.width),
-                            y: seg.a.y + uy * (op.position + op.width),
-                          };
-                          const p3 = { x: p1.x + inX * gapThick, y: p1.y + inY * gapThick };
-                          const p4 = { x: p2.x + inX * gapThick, y: p2.y + inY * gapThick };
-                          const xsAll = [p1.x, p2.x, p3.x, p4.x];
-                          const ysAll = [p1.y, p2.y, p3.y, p4.y];
-                          ox = Math.min(...xsAll);
-                          oy = Math.min(...ysAll);
-                          ow = Math.max(...xsAll) - ox;
-                          ol = Math.max(...ysAll) - oy;
-                          isHorizontal = Math.abs(ux) > Math.abs(uy);
-                        } else if (op.wall === "top") {
-                          ox = op.position;
-                          oy = 0;
-                          ow = op.width;
-                          ol = 8;
-                        } else if (op.wall === "bottom") {
-                          ox = op.position;
-                          oy = room.length - 8;
-                          ow = op.width;
-                          ol = 8;
-                        } else if (op.wall === "left") {
-                          ox = 0;
-                          oy = op.position;
-                          ow = 8;
-                          ol = op.width;
-                        } else if (op.wall === "right") {
-                          ox = room.width - 8;
-                          oy = op.position;
-                          ow = 8;
-                          ol = op.width;
-                        }
+                          if (typeof op.wall === "number") {
+                            // Polygon (hallway) room -- numeric walls are
+                            // always forward-winding (see hallway-shapes.ts),
+                            // so the gap rect is the bounding box of the
+                            // opening's span along the wall plus an inward
+                            // extension by the same 8-unit thickness the
+                            // named-wall path below uses.
+                            const seg = resolveWallSegment(roomCorners, op.wall);
+                            if (!seg) return null;
+                            const dx = seg.b.x - seg.a.x;
+                            const dy = seg.b.y - seg.a.y;
+                            const segLen = Math.hypot(dx, dy) || 1;
+                            const ux = dx / segLen;
+                            const uy = dy / segLen;
+                            const inX = -uy;
+                            const inY = ux;
+                            const gapThick = 8;
+                            const p1 = {
+                              x: seg.a.x + ux * op.position,
+                              y: seg.a.y + uy * op.position,
+                            };
+                            const p2 = {
+                              x: seg.a.x + ux * (op.position + op.width),
+                              y: seg.a.y + uy * (op.position + op.width),
+                            };
+                            const p3 = { x: p1.x + inX * gapThick, y: p1.y + inY * gapThick };
+                            const p4 = { x: p2.x + inX * gapThick, y: p2.y + inY * gapThick };
+                            const xsAll = [p1.x, p2.x, p3.x, p4.x];
+                            const ysAll = [p1.y, p2.y, p3.y, p4.y];
+                            ox = Math.min(...xsAll);
+                            oy = Math.min(...ysAll);
+                            ow = Math.max(...xsAll) - ox;
+                            ol = Math.max(...ysAll) - oy;
+                            isHorizontal = Math.abs(ux) > Math.abs(uy);
+                          } else if (op.wall === "top") {
+                            ox = op.position;
+                            oy = 0;
+                            ow = op.width;
+                            ol = 8;
+                          } else if (op.wall === "bottom") {
+                            ox = op.position;
+                            oy = room.length - 8;
+                            ow = op.width;
+                            ol = 8;
+                          } else if (op.wall === "left") {
+                            ox = 0;
+                            oy = op.position;
+                            ow = 8;
+                            ol = op.width;
+                          } else if (op.wall === "right") {
+                            ox = room.width - 8;
+                            oy = op.position;
+                            ow = 8;
+                            ol = op.width;
+                          }
 
-                        if (op.kind === "window") {
-                          return (
-                            <g key={op.id}>
-                              {/* Gap cover */}
-                              <rect
-                                x={ox}
-                                y={oy}
-                                width={ow}
-                                height={ol}
-                                className="fill-card stroke-none"
-                              />
-                              {/* Window double line box */}
-                              <rect
-                                x={ox}
-                                y={oy}
-                                width={ow}
-                                height={ol}
-                                className="stroke-zinc-800 dark:stroke-zinc-300 fill-none"
-                                strokeWidth={1}
-                              />
-                              {isHorizontal ? (
-                                <line
-                                  x1={ox}
-                                  y1={oy + ol / 2}
-                                  x2={ox + ow}
-                                  y2={oy + ol / 2}
-                                  className="stroke-zinc-800 dark:stroke-zinc-300"
+                          if (op.kind === "window") {
+                            return (
+                              <g key={op.id}>
+                                {/* Gap cover */}
+                                <rect
+                                  x={ox}
+                                  y={oy}
+                                  width={ow}
+                                  height={ol}
+                                  className="fill-card stroke-none"
+                                />
+                                {/* Window double line box */}
+                                <rect
+                                  x={ox}
+                                  y={oy}
+                                  width={ow}
+                                  height={ol}
+                                  className="stroke-zinc-800 dark:stroke-zinc-300 fill-none"
                                   strokeWidth={1}
                                 />
-                              ) : (
-                                <line
-                                  x1={ox + ow / 2}
-                                  y1={oy}
-                                  x2={ox + ow / 2}
-                                  y2={oy + ol}
-                                  className="stroke-zinc-800 dark:stroke-zinc-300"
-                                  strokeWidth={1}
+                                {isHorizontal ? (
+                                  <line
+                                    x1={ox}
+                                    y1={oy + ol / 2}
+                                    x2={ox + ow}
+                                    y2={oy + ol / 2}
+                                    className="stroke-zinc-800 dark:stroke-zinc-300"
+                                    strokeWidth={1}
+                                  />
+                                ) : (
+                                  <line
+                                    x1={ox + ow / 2}
+                                    y1={oy}
+                                    x2={ox + ow / 2}
+                                    y2={oy + ol}
+                                    className="stroke-zinc-800 dark:stroke-zinc-300"
+                                    strokeWidth={1}
+                                  />
+                                )}
+                              </g>
+                            );
+                          } else {
+                            // Door representation -- deliberately just the gap
+                            // in the wall line, with no leaf, swing arc, or
+                            // hinge marker drawn. Keeps the overview reading
+                            // as a clean floor plan rather than a detailed
+                            // door schedule; hinge/swing are still fully
+                            // editable and rendered in the single-room view.
+                            return (
+                              <g key={op.id}>
+                                {/* Gap in wall */}
+                                <rect
+                                  x={ox}
+                                  y={oy}
+                                  width={ow}
+                                  height={ol}
+                                  className="fill-card stroke-none"
                                 />
-                              )}
-                            </g>
-                          );
-                        } else {
-                          // Door representation -- deliberately just the gap
-                          // in the wall line, with no leaf, swing arc, or
-                          // hinge marker drawn. Keeps the overview reading
-                          // as a clean floor plan rather than a detailed
-                          // door schedule; hinge/swing are still fully
-                          // editable and rendered in the single-room view.
-                          return (
-                            <g key={op.id}>
-                              {/* Gap in wall */}
-                              <rect
-                                x={ox}
-                                y={oy}
-                                width={ow}
-                                height={ol}
-                                className="fill-card stroke-none"
-                              />
-                            </g>
-                          );
-                        }
-                      })}
+                              </g>
+                            );
+                          }
+                        })}
 
-                      {/* Items / Furniture (Visible only when toggle is on) --
+                        {/* Items / Furniture (Visible only when toggle is on) --
                           mirrors the single-room canvas's layer opacity tiers
                           (under < main < on-top) and renders circle-shaped
                           presets (e.g. a round table) as an ellipse instead
                           of a rect, purely visual -- collision never
                           considers item shape or layer. */}
-                      {showFurniture &&
-                        [...room.items]
-                          .sort((a, b) => {
-                            const rank: Record<string, number> = {
-                              under: 0,
-                              main: 1,
-                              "on-top": 2,
-                              wall: 3,
-                            };
-                            return (rank[a.layer ?? "main"] ?? 1) - (rank[b.layer ?? "main"] ?? 1);
-                          })
-                          .map((item) => {
-                            const layer = item.layer ?? "main";
-                            const shape = item.shape ?? "rect";
-                            const opacity =
-                              layer === "under"
-                                ? 0.35
-                                : layer === "on-top"
-                                  ? 0.8
-                                  : layer === "wall"
-                                    ? 0.7
-                                    : 0.6;
-                            const cx = item.x + item.width / 2;
-                            const cy = item.y + item.length / 2;
-                            return (
-                              <g key={item.id} transform={`rotate(${item.rotation}, ${cx}, ${cy})`}>
-                                {shape === "circle" ? (
-                                  <ellipse
-                                    cx={cx}
-                                    cy={cy}
-                                    rx={item.width / 2}
-                                    ry={item.length / 2}
-                                    fill={item.color || "#888888"}
-                                    className="stroke-zinc-600 dark:stroke-zinc-400"
-                                    strokeWidth={1}
-                                    opacity={opacity}
-                                  />
-                                ) : (
-                                  <rect
-                                    x={item.x}
-                                    y={item.y}
-                                    width={item.width}
-                                    height={item.length}
-                                    rx={2}
-                                    fill={item.color || "#888888"}
-                                    className="stroke-zinc-600 dark:stroke-zinc-400"
-                                    strokeWidth={1}
-                                    opacity={opacity}
-                                  />
-                                )}
-                              </g>
-                            );
-                          })}
-                    </svg>
+                        {showFurniture &&
+                          [...room.items]
+                            .sort((a, b) => {
+                              const rank: Record<string, number> = {
+                                under: 0,
+                                main: 1,
+                                "on-top": 2,
+                                wall: 3,
+                              };
+                              return (
+                                (rank[a.layer ?? "main"] ?? 1) - (rank[b.layer ?? "main"] ?? 1)
+                              );
+                            })
+                            .map((item) => {
+                              const layer = item.layer ?? "main";
+                              const shape = item.shape ?? "rect";
+                              const opacity =
+                                layer === "under"
+                                  ? 0.35
+                                  : layer === "on-top"
+                                    ? 0.8
+                                    : layer === "wall"
+                                      ? 0.7
+                                      : 0.6;
+                              const cx = item.x + item.width / 2;
+                              const cy = item.y + item.length / 2;
+                              return (
+                                <g
+                                  key={item.id}
+                                  transform={`rotate(${item.rotation}, ${cx}, ${cy})`}
+                                >
+                                  {shape === "circle" ? (
+                                    <ellipse
+                                      cx={cx}
+                                      cy={cy}
+                                      rx={item.width / 2}
+                                      ry={item.length / 2}
+                                      fill={item.color || "#888888"}
+                                      className="stroke-zinc-600 dark:stroke-zinc-400"
+                                      strokeWidth={1}
+                                      opacity={opacity}
+                                    />
+                                  ) : (
+                                    <rect
+                                      x={item.x}
+                                      y={item.y}
+                                      width={item.width}
+                                      height={item.length}
+                                      rx={2}
+                                      fill={item.color || "#888888"}
+                                      className="stroke-zinc-600 dark:stroke-zinc-400"
+                                      strokeWidth={1}
+                                      opacity={opacity}
+                                    />
+                                  )}
+                                </g>
+                              );
+                            })}
+                      </svg>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
 

@@ -124,6 +124,7 @@ function RoomPlannerWrapper() {
         <CanvasArea
           t={planner.t}
           stageRef={planner.stageRef}
+          stageReady={planner.stageReady}
           scale={planner.scale}
           offsetX={planner.offsetX}
           offsetY={planner.offsetY}

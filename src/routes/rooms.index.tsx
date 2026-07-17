@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { STRINGS } from "@/lib/planner-translations";
-import type { RoomLayout, Lang } from "@/types/planner";
+import type { RoomLayout, Lang, Floor } from "@/types/planner";
 import { MultiRoomCanvas } from "@/components/planner/MultiRoomCanvas";
 import { MultiRoomSidebar } from "@/components/planner/MultiRoomSidebar";
 import { generateDefaultApartmentLayout } from "@/lib/default-apartment";
+import {
+  loadFloors,
+  saveFloors,
+  loadActiveFloorId,
+  saveActiveFloorId,
+  createFloor,
+  parseImportedFloors,
+} from "@/lib/floors";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -63,10 +71,113 @@ function MultiRoomOverview() {
     if (typeof window !== "undefined") window.localStorage.setItem("planner-lang", l);
   };
 
-  // Rooms state loaded from localStorage
-  const [rooms, setRooms] = useState<RoomLayout[]>([]);
+  // Building state loaded from localStorage -- floors[] is the whole
+  // building (see Floor in types/planner.ts), activeFloorId picks which
+  // one is currently being edited. `rooms`/`setRooms` below are derived
+  // from just the active floor's slice, so every existing room-editing
+  // code path (MultiRoomCanvas, MultiRoomSidebar, multi-room-actions.ts)
+  // keeps operating on a plain RoomLayout[] exactly as before and never
+  // needs to know floors exist at all.
+  const [floors, setFloors] = useState<Floor[]>([]);
+  const [activeFloorId, setActiveFloorId] = useState<string>("");
+  // Which way the floor-switch transition animation should play -- "up"
+  // when the newly-active floor sits higher in the stack (floors[] index)
+  // than the one we just left, "down" otherwise. Set right before
+  // activeFloorId changes, read once by MultiRoomCanvas's transition
+  // wrapper (see FloorSwitcher.tsx / MultiRoomCanvas.tsx).
+  const [floorSwitchDirection, setFloorSwitchDirection] = useState<"up" | "down">("up");
+
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
+
+  const activeFloorIndex = floors.findIndex((f) => f.id === activeFloorId);
+  const rooms = activeFloorIndex >= 0 ? floors[activeFloorIndex].rooms : [];
+  const setRooms: React.Dispatch<React.SetStateAction<RoomLayout[]>> = useCallback(
+    (updater) => {
+      setFloors((prev) =>
+        prev.map((f) =>
+          f.id === activeFloorId
+            ? {
+                ...f,
+                rooms:
+                  typeof updater === "function"
+                    ? (updater as (p: RoomLayout[]) => RoomLayout[])(f.rooms)
+                    : updater,
+              }
+            : f,
+        ),
+      );
+    },
+    [activeFloorId],
+  );
+
+  const selectFloor = useCallback(
+    (id: string) => {
+      if (id === activeFloorId) return;
+      const fromIdx = floors.findIndex((f) => f.id === activeFloorId);
+      const toIdx = floors.findIndex((f) => f.id === id);
+      setFloorSwitchDirection(toIdx > fromIdx ? "up" : "down");
+      setActiveFloorId(id);
+      setSelectedRoomId(null);
+      setSelectedRoomIds(new Set());
+    },
+
+    [activeFloorId, floors],
+  );
+
+  const addFloor = useCallback(() => {
+    // No name passed -- a freshly-added floor is auto-named from its
+    // position (see Floor.name's doc comment), so it reads correctly
+    // ("Ground Floor"/"1st Floor"/...) in whatever language is active,
+    // and keeps re-numbering itself correctly if floors are later
+    // reordered or one below it is deleted.
+    const floor = createFloor();
+    setFloors((prev) => [...prev, floor]);
+    setFloorSwitchDirection("up");
+    setActiveFloorId(floor.id);
+    setSelectedRoomId(null);
+    setSelectedRoomIds(new Set());
+  }, []);
+
+  const renameFloor = useCallback((id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setFloors((prev) => prev.map((f) => (f.id === id ? { ...f, name: trimmed } : f)));
+  }, []);
+
+  const deleteFloor = useCallback(
+    (id: string) => {
+      if (floors.length <= 1) return;
+      const idx = floors.findIndex((f) => f.id === id);
+      if (idx < 0) return;
+      const next = floors.filter((f) => f.id !== id);
+      setFloors(next);
+      if (id === activeFloorId) {
+        const fallback = next[Math.max(0, idx - 1)] ?? next[0];
+        setFloorSwitchDirection(idx > 0 ? "down" : "up");
+        setActiveFloorId(fallback.id);
+        setSelectedRoomId(null);
+        setSelectedRoomIds(new Set());
+      }
+    },
+    [floors, activeFloorId],
+  );
+
+  // Applies a full new floor order in one shot -- see FloorSwitcher.tsx's
+  // drag-and-drop reorder, which computes the complete resulting order
+  // (canonical, index 0 = lowest) itself and hands it over wholesale
+  // rather than describing a single incremental move.
+  const reorderFloors = useCallback((orderedIds: string[]) => {
+    setFloors((prev) => {
+      const byId = new Map(prev.map((f) => [f.id, f]));
+      const next = orderedIds.map((id) => byId.get(id)).filter((f): f is Floor => !!f);
+      // Safety net: if the incoming id list doesn't account for every
+      // floor (shouldn't happen), leave the order untouched rather than
+      // silently dropping one.
+      return next.length === prev.length ? next : prev;
+    });
+  }, []);
+
   const [collisionEnabled, setCollisionEnabled] = useState(true);
   const [zoomFactor, setZoomFactor] = useState(0.85);
   const [showFurniture, setShowFurniture] = useState(false);
@@ -91,52 +202,64 @@ function MultiRoomOverview() {
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Load rooms initial state. On true app startup (first mount this session)
-  // we always generate the default fully-furnished 6-room apartment (see
-  // default-apartment.ts) rather than reloading whatever was left over from
-  // last time, so every session starts from the same deliberate showcase
-  // layout instead of accumulating leftover test edits. Returning to this
-  // route later in the same session (e.g. back from /rooms/$roomId) just
-  // reloads from localStorage as normal, preserving whatever you were just
-  // editing.
+  // Load the building's initial state. On true app startup (first mount
+  // this session) we always generate a single ground floor with the
+  // default fully-furnished 6-room apartment (see default-apartment.ts)
+  // rather than reloading whatever was left over from last time, so every
+  // session starts from the same deliberate showcase layout instead of
+  // accumulating leftover test edits. Returning to this route later in the
+  // same session (e.g. back from /rooms/$roomId) just reloads from
+  // localStorage as normal (transparently migrating a legacy single-floor
+  // save if that's all that's there -- see loadFloors in lib/floors.ts),
+  // preserving whatever you were just editing, floors included.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const startFresh = () => {
+      // No name passed -- auto-named from position (index 0 -> "Ground
+      // Floor"/"Erdgeschoss"), same reasoning as addFloor above.
+      const floor = createFloor(generateDefaultApartmentLayout(lang));
+      setFloors([floor]);
+      setActiveFloorId(floor.id);
+      saveFloors([floor]);
+      saveActiveFloorId(floor.id);
+    };
+
     if (!hasGeneratedRoomsThisSession) {
       hasGeneratedRoomsThisSession = true;
-      const fresh = generateDefaultApartmentLayout(lang);
-      setRooms(fresh);
-      window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
+      startFresh();
       return;
     }
 
-    const saved = window.localStorage.getItem("planner-multi-rooms");
-    if (saved) {
-      try {
-        setRooms(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse saved rooms, generating a fresh layout", e);
-        const fresh = generateDefaultApartmentLayout(lang);
-        setRooms(fresh);
-        window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
-      }
+    const saved = loadFloors();
+    if (saved && saved.length > 0) {
+      setFloors(saved);
+      setActiveFloorId(loadActiveFloorId(saved));
     } else {
-      const fresh = generateDefaultApartmentLayout(lang);
-      setRooms(fresh);
-      window.localStorage.setItem("planner-multi-rooms", JSON.stringify(fresh));
+      startFresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Save rooms to localStorage on changes
+  // Persist the building (all floors) to localStorage on any change.
   useEffect(() => {
-    if (typeof window === "undefined" || rooms.length === 0) return;
-    window.localStorage.setItem("planner-multi-rooms", JSON.stringify(rooms));
-  }, [rooms]);
+    if (typeof window === "undefined" || floors.length === 0) return;
+    saveFloors(floors);
+  }, [floors]);
 
-  // Export rooms layout
+  // Persist which floor is active separately -- see ACTIVE_FLOOR_ID_KEY's
+  // doc comment in lib/floors.ts for why this isn't folded into the floors
+  // blob above.
+  useEffect(() => {
+    if (typeof window === "undefined" || !activeFloorId) return;
+    saveActiveFloorId(activeFloorId);
+  }, [activeFloorId]);
+
+  // Export the whole building (every floor) as one file, not just whichever
+  // floor happens to be active -- otherwise exporting would silently drop
+  // every other floor's rooms.
   const exportJSON = () => {
-    const dataStr = JSON.stringify(rooms, null, 2);
+    const dataStr = JSON.stringify(floors, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -149,7 +272,9 @@ function MultiRoomOverview() {
     );
   };
 
-  // Import rooms layout
+  // Import a building layout -- accepts either the current multi-floor
+  // export shape or a legacy flat single-floor export (see
+  // parseImportedFloors in lib/floors.ts), replacing every floor.
   const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -158,16 +283,17 @@ function MultiRoomOverview() {
     r.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target?.result as string);
-        if (Array.isArray(parsed)) {
-          setRooms(parsed);
-          toast.success(
-            lang === "de"
-              ? "Layout erfolgreich importiert"
-              : "Floor plan layout imported successfully",
-          );
-        } else {
-          throw new Error("Invalid format");
-        }
+        const imported = parseImportedFloors(parsed);
+        if (!imported) throw new Error("Invalid format");
+        setFloors(imported);
+        setActiveFloorId(imported[0].id);
+        setSelectedRoomId(null);
+        setSelectedRoomIds(new Set());
+        toast.success(
+          lang === "de"
+            ? "Layout erfolgreich importiert"
+            : "Floor plan layout imported successfully",
+        );
       } catch (err) {
         toast.error(
           lang === "de" ? "Fehler beim Importieren" : "Failed to import file: Invalid format",
@@ -177,17 +303,20 @@ function MultiRoomOverview() {
     r.readAsText(file);
   };
 
+  // Clears the rooms on the CURRENT floor only -- the floor itself (and
+  // every other floor) stays put. Deleting a whole floor is a separate
+  // action in the floor switcher's manage menu (see FloorSwitcher.tsx).
   const clearAllRooms = () => {
     if (
       window.confirm(
         lang === "de"
-          ? "Möchtest du wirklich alle Räume löschen?"
-          : "Are you sure you want to delete all rooms?",
+          ? "Möchtest du wirklich alle Räume auf diesem Geschoss löschen?"
+          : "Are you sure you want to delete all rooms on this floor?",
       )
     ) {
       setRooms([]);
       setSelectedRoomId(null);
-      window.localStorage.removeItem("planner-multi-rooms");
+      setSelectedRoomIds(new Set());
       toast.success(lang === "de" ? "Alle Räume gelöscht" : "All rooms cleared");
     }
   };
@@ -353,7 +482,7 @@ function MultiRoomOverview() {
                   className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
                 >
                   <Trash2 className="h-4 w-4" />
-                  <span>{lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}</span>
+                  <span>{lang === "de" ? "Geschoss leeren" : "Clear This Floor"}</span>
                 </Button>
               </div>
 
@@ -381,7 +510,7 @@ function MultiRoomOverview() {
                     className="text-rose-500 hover:text-rose-600 focus:text-rose-600"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />{" "}
-                    {lang === "de" ? "Alles zurücksetzen" : "Clear All Rooms"}
+                    {lang === "de" ? "Geschoss leeren" : "Clear This Floor"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -439,6 +568,14 @@ function MultiRoomOverview() {
           setMultiSelectMode={setMultiSelectMode}
           threeDActive={threeDActive}
           setThreeDActive={setThreeDActive}
+          floors={floors}
+          activeFloorId={activeFloorId}
+          floorSwitchDirection={floorSwitchDirection}
+          onSelectFloor={selectFloor}
+          onAddFloor={addFloor}
+          onRenameFloor={renameFloor}
+          onDeleteFloor={deleteFloor}
+          onReorderFloors={reorderFloors}
         />
       </div>
     </div>

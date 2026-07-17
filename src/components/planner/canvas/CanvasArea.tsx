@@ -18,6 +18,7 @@ import { CanvasMarquee } from "./CanvasMarquee";
 import { CanvasRuler } from "./CanvasRuler";
 import { ToolbarOverlay } from "./ToolbarOverlay";
 import { MobileZoomButtons } from "./MobileZoomButtons";
+import { CanvasLoadingOverlay } from "./CanvasLoadingOverlay";
 import { InspectorSection } from "../sidebar/InspectorSection";
 import { HelpCircle, SlidersHorizontal } from "lucide-react";
 import {
@@ -31,6 +32,7 @@ import {
 export function CanvasArea({
   t,
   stageRef,
+  stageReady,
   scale,
   offsetX,
   offsetY,
@@ -370,6 +372,13 @@ export function CanvasArea({
       >
         {/* Room dimensions label (top-left of canvas) */}
         <RoomDimensionBadge roomW={roomW} roomL={roomL} selectedLabel={selectedLabel} />
+
+        {/* Masks the moment before the stage has a real measured size --
+            see stageReady's doc comment in use-room-planner.ts and
+            CanvasLoadingOverlay's own doc comment for why this exists.
+            Also covers route-switch transitions for free, since navigating
+            here fully remounts this component. */}
+        <CanvasLoadingOverlay ready={stageReady} />
 
         {threeDActive ? (
           <ThreeDView t={t} rooms={threeDRooms} selectedIds={selectedIds} isDark={isDark} />

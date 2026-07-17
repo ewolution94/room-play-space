@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import type {
@@ -25,6 +25,7 @@ import {
 } from "@/lib/planner-math";
 import { importSchema } from "@/lib/planner-schema";
 import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
+import { loadFloors, saveFloors } from "@/lib/floors";
 import {
   computeAutoOpenIntervals,
   resolveEffectiveOpenIntervals,
@@ -158,23 +159,26 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     if (typeof window !== "undefined") window.localStorage.setItem("planner-lang", lang);
   }, [lang]);
 
-  // Load data for a specific room if requested. Also hangs onto the full
-  // sibling list (read once, at mount) purely so `openWalls` below can
-  // auto-detect which of *this* room's walls touch a neighbor's -- siblings
-  // are never referenced again after this, and are not kept reactive: the
-  // single-room and multi-room views are different routes, so there's no
-  // way to be looking at a sibling's live position while editing this room.
+  // Load data for a specific room if requested. Also hangs onto its own
+  // floor's sibling rooms (read once, at mount) purely so `openWalls` below
+  // can auto-detect which of *this* room's walls touch a neighbor's --
+  // siblings are never referenced again after this, and are not kept
+  // reactive: the single-room and multi-room views are different routes, so
+  // there's no way to be looking at a sibling's live position while editing
+  // this room. Deliberately scoped to the room's OWN floor only (see
+  // Floor in types/planner.ts) -- two floors never share a physical wall,
+  // so a room on another floor should never be treated as a touching
+  // neighbor here.
   const getInitialRoomData = (): { room: any; siblings: RoomLayout[] } => {
     if (typeof window === "undefined" || !roomId) return { room: null, siblings: [] };
-    try {
-      const saved = window.localStorage.getItem("planner-multi-rooms");
-      if (!saved) return { room: null, siblings: [] };
-      const siblings: RoomLayout[] = JSON.parse(saved);
-      return { room: siblings.find((r) => r.id === roomId) || null, siblings };
-    } catch (e) {
-      console.error("Failed to load room data from localStorage", e);
-      return { room: null, siblings: [] };
-    }
+    const floors = loadFloors();
+    if (!floors) return { room: null, siblings: [] };
+    const owningFloor = floors.find((f) => f.rooms.some((r) => r.id === roomId));
+    if (!owningFloor) return { room: null, siblings: [] };
+    return {
+      room: owningFloor.rooms.find((r) => r.id === roomId) || null,
+      siblings: owningFloor.rooms,
+    };
   };
   const { room: initialRoom, siblings: initialSiblings } = getInitialRoomData();
 
@@ -233,31 +237,25 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     () => initialRoom?.openings ?? buildDefaultOfficeOpenings(),
   );
 
-  // Sync changes back to localStorage under planner-multi-rooms
+  // Sync changes back to whichever floor this room actually belongs to --
+  // every other floor's rooms pass through untouched (see loadFloors/
+  // saveFloors in lib/floors.ts).
   useEffect(() => {
     if (typeof window === "undefined" || !roomId) return;
-    try {
-      const saved = window.localStorage.getItem("planner-multi-rooms");
-      if (!saved) return;
-      const rooms = JSON.parse(saved);
-      const updatedRooms = rooms.map((r: any) => {
-        if (r.id === roomId) {
-          return {
-            ...r,
-            width: roomW,
-            length: roomL,
-            items,
-            openings,
-            corners,
-            wallColors,
-          };
-        }
-        return r;
-      });
-      window.localStorage.setItem("planner-multi-rooms", JSON.stringify(updatedRooms));
-    } catch (e) {
-      console.error("Failed to sync room data to localStorage", e);
-    }
+    const floors = loadFloors();
+    if (!floors) return;
+    const updatedFloors = floors.map((floor) => {
+      if (!floor.rooms.some((r) => r.id === roomId)) return floor;
+      return {
+        ...floor,
+        rooms: floor.rooms.map((r) =>
+          r.id === roomId
+            ? { ...r, width: roomW, length: roomL, items, openings, corners, wallColors }
+            : r,
+        ),
+      };
+    });
+    saveFloors(updatedFloors);
   }, [roomId, roomW, roomL, items, openings, corners, wallColors]);
 
   // -------- History (undo / redo) --------
@@ -386,13 +384,35 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   const [oWidth, setOWidth] = useState(90);
 
   const stageRef = useRef<HTMLDivElement>(null);
+  // 600x400 is only ever a placeholder for the very first render, before
+  // the container has a real measured size -- see stageReady below for how
+  // that window is actually hidden from view instead of just minimized.
   const [stageSize, setStageSize] = useState({ w: 600, h: 400 });
+  // False until the stage has been measured at least once with a real,
+  // non-zero size. CanvasArea.tsx renders a CanvasLoadingOverlay until this
+  // flips true, masking the moment where scale/offsetX/offsetY would
+  // otherwise still be based on the 600x400 guess above (visibly shoving
+  // the room into the top-left corner, mis-scaled, for a beat).
+  const [stageReady, setStageReady] = useState(false);
+
+  // Measures synchronously, before the browser paints, so the very first
+  // frame the user could possibly see already uses the real container
+  // size instead of the 600x400 placeholder -- useLayoutEffect (not
+  // useEffect) is what makes this happen before paint rather than after.
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
+    setStageSize({ w: el.clientWidth, h: el.clientHeight });
+    setStageReady(true);
+  }, []);
 
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
+      if (el.clientWidth === 0 || el.clientHeight === 0) return;
       setStageSize({ w: el.clientWidth, h: el.clientHeight });
+      setStageReady(true);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -1184,6 +1204,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     setMultiSelectMode,
     isPanning,
     stageSize,
+    stageReady,
     scale,
     roomPxW,
     roomPxL,

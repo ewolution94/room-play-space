@@ -197,6 +197,28 @@ export interface RoomLayout {
   wallOverrides?: Record<string, boolean>;
 }
 
+// A single story of the building (e.g. "Ground Floor", "1st Floor"). Each
+// floor owns its own independent set of rooms -- room-to-room adjacency,
+// wall-touching detection, and the whole-apartment 3D view (see
+// room-adjacency.ts) are all scoped to a single floor's rooms only, since
+// two floors never share a physical wall. The array order in
+// MultiRoomState.floors below IS the building's vertical stacking order
+// (index 0 = lowest), which both the floor-switcher pill tabs (left-to-
+// right) and the switch-direction animation (see FloorSwitcher.tsx /
+// MultiRoomCanvas.tsx) rely on directly.
+export interface Floor {
+  id: string;
+  // null means "not renamed -- display the position-based default name
+  // (see defaultFloorName/floorDisplayName in lib/floors.ts)", which is
+  // recomputed from this floor's current index and the active UI language
+  // every render, so it re-translates automatically on a language switch
+  // and re-numbers automatically after a reorder. Only ever becomes a
+  // string once the user explicitly renames the floor via the manage
+  // popover -- from that point on it's a fixed custom name, untranslated.
+  name: string | null;
+  rooms: RoomLayout[];
+}
+
 export interface Point {
   x: number;
   y: number;
@@ -306,6 +328,7 @@ export interface SidebarProps {
 export interface CanvasAreaProps {
   t: TranslationStrings;
   stageRef: React.RefObject<HTMLDivElement | null>;
+  stageReady: boolean;
   scale: number;
   offsetX: number;
   offsetY: number;
@@ -410,6 +433,7 @@ export interface UseRoomPlannerReturn {
   setMultiSelectMode: React.Dispatch<React.SetStateAction<boolean>>;
   isPanning: boolean;
   stageSize: { w: number; h: number };
+  stageReady: boolean;
   scale: number;
   roomPxW: number;
   roomPxL: number;
