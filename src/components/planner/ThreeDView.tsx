@@ -458,6 +458,10 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const wallFadeOpacityRef = useRef<number>(0.25);
+  // Lets the separate "Toggleable Light Sources" effect below reuse the
+  // exact same THREE.Scene the main effect built, instead of needing its
+  // own -- see that effect's doc comment for why this exists.
+  const sceneRef = useRef<THREE.Scene | null>(null);
 
   // The overall bounding box of every room instance's real placed shape
   // (each instance's LOCAL corners translated by its own x/y, exactly like
@@ -588,6 +592,7 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
 
     // --- Scene Setup ---
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
     scene.background = new THREE.Color(isDark ? "#0f172a" : "#f8fafc"); // slate-900 vs slate-50
 
     // --- Camera Setup ---
@@ -1450,188 +1455,10 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     }
 
     // --- Toggleable Light Sources ---
-    // A second, lightweight pass over every item rather than folding this
-    // into the render loop above: the mesh-building branches above (kit
-    // model / procedural / box) each already compute this same item-center
-    // world position independently, so recomputing it once more here is far
-    // simpler and safer than threading a light-emission concern through
-    // three separate, already-intricate code paths. Skipped entirely (no
-    // lights added at all) unless the "Enable Lighting" view option is on.
-    //
-    // This renderer has no real bloom/volumetric pipeline, so "glow" is
-    // faked with layered, additive-blended, unlit (MeshBasicMaterial)
-    // shapes -- several nested, increasingly large + increasingly
-    // transparent copies of the same shape, rather than one hard-edged
-    // shape at a single opacity. Additive blending means overlapping
-    // layers naturally brighten toward the center, which is what actually
-    // reads as "soft diffuse glow" instead of a flat, uniformly-colored
-    // silhouette with a visible edge.
-    if (lightingEnabled) {
-      const lightColor = "#ffe1b0";
-      const addGlowLayer = (
-        geometry: THREE.BufferGeometry,
-        opacity: number,
-        extra?: Partial<THREE.MeshBasicMaterialParameters>,
-      ) => {
-        const mesh = new THREE.Mesh(
-          geometry,
-          new THREE.MeshBasicMaterial({
-            color: lightColor,
-            transparent: true,
-            opacity,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            ...extra,
-          }),
-        );
-        scene.add(mesh);
-        return mesh;
-      };
-
-      for (const room of rooms) {
-        for (const it of room.items) {
-          const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
-          if (!preset?.isLightSource || lightsOff.has(it.id)) continue;
-
-          const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
-          const itElev = it.elevation ?? 0;
-          const worldX = room.x + it.x + it.width / 2 - centerX;
-          const worldZ = room.y + it.y + it.length / 2 - centerZ;
-          // Near the shade/bulb of the fixture, not its floor-contact
-          // point -- a floor lamp's light should come from up near its
-          // shade, not from the floor beneath its base.
-          const worldY = itElev + itHeight * 0.85;
-
-          // Bigger fixtures read as brighter/more prominent than small
-          // ones (a dining chandelier vs. a desk lamp), scaled off the
-          // item's own footprint against a "typical lamp" baseline and
-          // clamped so nothing vanishes or blows out the whole room.
-          const sizeFactor = Math.min(2.4, Math.max(0.65, Math.max(it.width, it.length) / 38));
-
-          // Ceiling/pendant/sconce/chandelier fixtures (see the "wall"
-          // layer's doc comment in types/planner.ts) get a real downward
-          // SpotLight plus a soft diffuse wash -- a lamp sitting on the
-          // floor or a desk doesn't have a comparable single "beam," so it
-          // just gets a stronger omnidirectional PointLight instead.
-          const isDownlight = (it.layer ?? "main") === "wall";
-
-          if (isDownlight) {
-            // Wide angle + heavy penumbra: a real pendant/ceiling light
-            // washes a broad area softly, it doesn't project a crisp
-            // theatrical spotlight beam. This SpotLight still does the
-            // actual falloff work (it's what makes nearby surfaces read
-            // brighter than far ones), it just no longer gets a fake
-            // beam-shaped mesh drawn along its cone -- see the
-            // RectAreaLight below for that.
-            const spotAngle = Math.PI / 4.2; // ~43 degrees
-            const spotLight = new THREE.SpotLight(
-              lightColor,
-              22 * sizeFactor,
-              500,
-              spotAngle,
-              0.95,
-              0.85,
-            );
-            spotLight.position.set(worldX, worldY, worldZ);
-            const spotTarget = new THREE.Object3D();
-            spotTarget.position.set(worldX, 0, worldZ);
-            scene.add(spotTarget);
-            spotLight.target = spotTarget;
-            spotLight.castShadow = false;
-            scene.add(spotLight);
-
-            // RectAreaLight: per the three.js manual's lights article
-            // (https://threejs.org/manual/#en/lights), this is the light
-            // type built for "a rectangular area of light like ... a
-            // frosted sky light in a ceiling" -- exactly the fixture
-            // we're modeling, and a real light rather than a translucent
-            // mesh standing in for one. It has no cone/beam shape at all;
-            // it just radiates softly from its rectangle, facing the
-            // direction it's rotated toward (down, here), which is what
-            // reads as a natural, diffuse ceiling wash instead of a hard
-            // "flashlight" cone. Requires MeshStandardMaterial/
-            // MeshPhysicalMaterial surfaces to receive it, which the
-            // room's walls/floor/furniture already use.
-            const panelSize = Math.max(22, Math.min(it.width, it.length) * 0.9) * sizeFactor;
-            const rectLight = new THREE.RectAreaLight(
-              lightColor,
-              18 * sizeFactor,
-              panelSize,
-              panelSize,
-            );
-            rectLight.position.set(worldX, worldY, worldZ);
-            rectLight.rotation.x = -Math.PI / 2; // face straight down
-            scene.add(rectLight);
-
-            // Stop the floor pool a bit above true floor level (0), clear
-            // of any "under" layer item (rugs, mats -- always <= 3cm tall,
-            // see the catalog integrity test for that constraint) sitting
-            // underneath. These are unlit, depthWrite:false planes/shells,
-            // so anything else occupying the exact same y coordinate as
-            // one of them is a textbook z-fighting setup -- the rug's
-            // opaque top face and a coplanar glow disc at the same height
-            // flicker as the depth test's result flips between them frame
-            // to frame. This clearance was the actual cause of a reported
-            // flickering rug once lighting was enabled.
-            const floorClearance = 3.5;
-            const dropHeight = Math.max(worldY - floorClearance, 1);
-
-            // Pool of light roughly where the fixture's downward light
-            // actually lands -- previously the base of a fake beam cone;
-            // now just a standalone soft disc sized off the same spot
-            // angle, since there's no cone mesh to inherit its radius
-            // from anymore. Single disc (three stacked rings previously
-            // read as visible concentric bands rather than one clean
-            // spot).
-            const beamRadius = Math.tan(spotAngle) * dropHeight;
-            const poolDisc = addGlowLayer(
-              new THREE.CircleGeometry(beamRadius, 32),
-              Math.min(0.34, 0.26 * sizeFactor),
-            );
-            poolDisc.rotation.x = -Math.PI / 2;
-            poolDisc.position.set(worldX, floorClearance, worldZ);
-          } else {
-            const pointLight = new THREE.PointLight(
-              lightColor,
-              7.5 * sizeFactor,
-              Math.max(it.width, it.length, 60) * 18,
-              1.4,
-            );
-            pointLight.position.set(worldX, worldY, worldZ);
-            // Many small lamps casting shadows gets expensive fast and
-            // reads as noisy flicker more than realism at this scale --
-            // the directional sun light above already owns shadows.
-            pointLight.castShadow = false;
-            scene.add(pointLight);
-          }
-
-          // Glowing bulb: a bright unlit core plus three soft additive
-          // halos (each bigger and fainter than the last), scaled by the
-          // same sizeFactor, so the fixture visibly reads as "on" up close
-          // no matter how the real light above falls off across the room.
-          const bulbRadius = Math.min(6, Math.max(it.width, it.length) * 0.1) * sizeFactor;
-          const bulbMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(bulbRadius, 14, 14),
-            new THREE.MeshBasicMaterial({ color: "#fffcf2" }),
-          );
-          bulbMesh.position.set(worldX, worldY, worldZ);
-          scene.add(bulbMesh);
-
-          const haloLayers = [
-            { radiusMult: 2.2, opacity: 0.55 },
-            { radiusMult: 3.8, opacity: 0.3 },
-            { radiusMult: 6, opacity: 0.13 },
-          ];
-          for (const layer of haloLayers) {
-            const halo = addGlowLayer(
-              new THREE.SphereGeometry(bulbRadius * layer.radiusMult, 14, 14),
-              layer.opacity,
-            );
-            halo.position.set(worldX, worldY, worldZ);
-          }
-        }
-      }
-    }
+    // Moved out to its own effect below (right after this one) so that
+    // flipping "Enable Lighting" or an individual fixture's toggle doesn't
+    // tear down and rebuild this entire scene -- see that effect's doc
+    // comment for the full reasoning.
 
     // --- Animation Loop ---
     let animationFrameId: number;
@@ -1753,6 +1580,238 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
       dirLightRef.current = null;
       controlsRef.current = null;
       cameraRef.current = null;
+      sceneRef.current = null;
+    };
+  }, [
+    rooms,
+    selectedIds,
+    showNames,
+    isDark,
+    sceneBounds,
+    sunlightAngle,
+    sunlightEnabled,
+    kitModelVersion,
+    // lightingEnabled/lightsOff deliberately NOT here -- see the separate
+    // "Toggleable Light Sources" effect right below, which handles those
+    // without rebuilding this entire (expensive) scene.
+  ]);
+
+  // --- Toggleable Light Sources ---
+  // A separate, lightweight effect rather than folding this into the main
+  // scene-building effect above: that effect tears down and rebuilds
+  // EVERYTHING (walls, furniture, kit models, camera, controls, the whole
+  // renderer) on every dependency change, which means simply flipping
+  // "Enable Lighting" or one fixture's on/off toggle used to reset the
+  // camera back to its default framing too -- jarring, and not what
+  // toggling a light should do. This effect instead reuses the exact same
+  // THREE.Scene the main effect built (via sceneRef) and only adds/removes
+  // its own dedicated THREE.Group of light-only objects, leaving the
+  // camera, controls, and everything else the user is looking at alone.
+  //
+  // It still depends on every input that makes the main effect above build
+  // a brand new Scene object (rooms, selectedIds, showNames, isDark,
+  // sceneBounds, sunlightAngle, sunlightEnabled, kitModelVersion) so that
+  // when one of THOSE changes and a fresh scene is created, this effect
+  // re-attaches its light group to it too -- otherwise a rebuild triggered
+  // by something unrelated to lighting (e.g. toggling dark mode) would
+  // leave the new scene with no lights until the next lighting-specific
+  // change.
+  //
+  // This renderer has no real bloom/volumetric pipeline, so "glow" is
+  // faked with layered, additive-blended, unlit (MeshBasicMaterial)
+  // shapes -- several nested, increasingly large + increasingly
+  // transparent copies of the same shape, rather than one hard-edged
+  // shape at a single opacity. Additive blending means overlapping layers
+  // naturally brighten toward the center, which is what actually reads as
+  // "soft diffuse glow" instead of a flat, uniformly-colored silhouette
+  // with a visible edge.
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const lightGroup = new THREE.Group();
+    scene.add(lightGroup);
+
+    if (lightingEnabled) {
+      const { centerX, centerZ } = sceneBounds;
+      const lightColor = "#ffe1b0";
+      const addGlowLayer = (
+        geometry: THREE.BufferGeometry,
+        opacity: number,
+        extra?: Partial<THREE.MeshBasicMaterialParameters>,
+      ) => {
+        const mesh = new THREE.Mesh(
+          geometry,
+          new THREE.MeshBasicMaterial({
+            color: lightColor,
+            transparent: true,
+            opacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            ...extra,
+          }),
+        );
+        lightGroup.add(mesh);
+        return mesh;
+      };
+
+      for (const room of rooms) {
+        for (const it of room.items) {
+          const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
+          if (!preset?.isLightSource || lightsOff.has(it.id)) continue;
+
+          const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
+          const itElev = it.elevation ?? 0;
+          const worldX = room.x + it.x + it.width / 2 - centerX;
+          const worldZ = room.y + it.y + it.length / 2 - centerZ;
+          // Near the shade/bulb of the fixture, not its floor-contact
+          // point -- a floor lamp's light should come from up near its
+          // shade, not from the floor beneath its base.
+          const worldY = itElev + itHeight * 0.85;
+
+          // Bigger fixtures read as brighter/more prominent than small
+          // ones (a dining chandelier vs. a desk lamp), scaled off the
+          // item's own footprint against a "typical lamp" baseline and
+          // clamped so nothing vanishes or blows out the whole room.
+          const sizeFactor = Math.min(2.4, Math.max(0.65, Math.max(it.width, it.length) / 38));
+
+          // Ceiling/pendant/sconce/chandelier fixtures (see the "wall"
+          // layer's doc comment in types/planner.ts) get a real downward
+          // SpotLight plus a soft diffuse wash -- a lamp sitting on the
+          // floor or a desk doesn't have a comparable single "beam," so it
+          // just gets a stronger omnidirectional PointLight instead.
+          const isDownlight = (it.layer ?? "main") === "wall";
+
+          if (isDownlight) {
+            // Wide angle + heavy penumbra: a real pendant/ceiling light
+            // washes a broad area softly, it doesn't project a crisp
+            // theatrical spotlight beam. This SpotLight still does the
+            // actual falloff work (it's what makes nearby surfaces read
+            // brighter than far ones), it just no longer gets a fake
+            // beam-shaped mesh drawn along its cone -- see the
+            // RectAreaLight below for that.
+            const spotAngle = Math.PI / 4.2; // ~43 degrees
+            const spotLight = new THREE.SpotLight(
+              lightColor,
+              22 * sizeFactor,
+              500,
+              spotAngle,
+              0.95,
+              0.85,
+            );
+            spotLight.position.set(worldX, worldY, worldZ);
+            const spotTarget = new THREE.Object3D();
+            spotTarget.position.set(worldX, 0, worldZ);
+            lightGroup.add(spotTarget);
+            spotLight.target = spotTarget;
+            spotLight.castShadow = false;
+            lightGroup.add(spotLight);
+
+            // RectAreaLight: per the three.js manual's lights article
+            // (https://threejs.org/manual/#en/lights), this is the light
+            // type built for "a rectangular area of light like ... a
+            // frosted sky light in a ceiling" -- exactly the fixture
+            // we're modeling, and a real light rather than a translucent
+            // mesh standing in for one. It has no cone/beam shape at all;
+            // it just radiates softly from its rectangle, facing the
+            // direction it's rotated toward (down, here), which is what
+            // reads as a natural, diffuse ceiling wash instead of a hard
+            // "flashlight" cone. Requires MeshStandardMaterial/
+            // MeshPhysicalMaterial surfaces to receive it, which the
+            // room's walls/floor/furniture already use.
+            const panelSize = Math.max(22, Math.min(it.width, it.length) * 0.9) * sizeFactor;
+            const rectLight = new THREE.RectAreaLight(
+              lightColor,
+              18 * sizeFactor,
+              panelSize,
+              panelSize,
+            );
+            rectLight.position.set(worldX, worldY, worldZ);
+            rectLight.rotation.x = -Math.PI / 2; // face straight down
+            lightGroup.add(rectLight);
+
+            // Stop the floor pool a bit above true floor level (0), clear
+            // of any "under" layer item (rugs, mats -- always <= 3cm tall,
+            // see the catalog integrity test for that constraint) sitting
+            // underneath. These are unlit, depthWrite:false planes/shells,
+            // so anything else occupying the exact same y coordinate as
+            // one of them is a textbook z-fighting setup -- the rug's
+            // opaque top face and a coplanar glow disc at the same height
+            // flicker as the depth test's result flips between them frame
+            // to frame. This clearance was the actual cause of a reported
+            // flickering rug once lighting was enabled.
+            const floorClearance = 3.5;
+            const dropHeight = Math.max(worldY - floorClearance, 1);
+
+            // Pool of light roughly where the fixture's downward light
+            // actually lands -- previously the base of a fake beam cone;
+            // now just a standalone soft disc sized off the same spot
+            // angle, since there's no cone mesh to inherit its radius
+            // from anymore. Single disc (three stacked rings previously
+            // read as visible concentric bands rather than one clean
+            // spot).
+            const beamRadius = Math.tan(spotAngle) * dropHeight;
+            const poolDisc = addGlowLayer(
+              new THREE.CircleGeometry(beamRadius, 32),
+              Math.min(0.34, 0.26 * sizeFactor),
+            );
+            poolDisc.rotation.x = -Math.PI / 2;
+            poolDisc.position.set(worldX, floorClearance, worldZ);
+          } else {
+            const pointLight = new THREE.PointLight(
+              lightColor,
+              7.5 * sizeFactor,
+              Math.max(it.width, it.length, 60) * 18,
+              1.4,
+            );
+            pointLight.position.set(worldX, worldY, worldZ);
+            // Many small lamps casting shadows gets expensive fast and
+            // reads as noisy flicker more than realism at this scale --
+            // the directional sun light above already owns shadows.
+            pointLight.castShadow = false;
+            lightGroup.add(pointLight);
+          }
+
+          // Glowing bulb: a bright unlit core plus three soft additive
+          // halos (each bigger and fainter than the last), scaled by the
+          // same sizeFactor, so the fixture visibly reads as "on" up close
+          // no matter how the real light above falls off across the room.
+          const bulbRadius = Math.min(6, Math.max(it.width, it.length) * 0.1) * sizeFactor;
+          const bulbMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(bulbRadius, 14, 14),
+            new THREE.MeshBasicMaterial({ color: "#fffcf2" }),
+          );
+          bulbMesh.position.set(worldX, worldY, worldZ);
+          lightGroup.add(bulbMesh);
+
+          const haloLayers = [
+            { radiusMult: 2.2, opacity: 0.55 },
+            { radiusMult: 3.8, opacity: 0.3 },
+            { radiusMult: 6, opacity: 0.13 },
+          ];
+          for (const layer of haloLayers) {
+            const halo = addGlowLayer(
+              new THREE.SphereGeometry(bulbRadius * layer.radiusMult, 14, 14),
+              layer.opacity,
+            );
+            halo.position.set(worldX, worldY, worldZ);
+          }
+        }
+      }
+    }
+
+    return () => {
+      lightGroup.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((mat) => mat.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        }
+      });
+      scene.remove(lightGroup);
     };
   }, [
     rooms,
