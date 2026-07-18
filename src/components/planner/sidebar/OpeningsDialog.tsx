@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/ui/number-field";
 import { Button } from "@/components/ui/button";
-import { Sliders, Ruler, Square, Plus } from "lucide-react";
+import { Sliders, Ruler, Square, Plus, DoorOpen } from "lucide-react";
 import {
   Dialog,
   DialogTrigger,
@@ -110,14 +110,14 @@ export function OpeningsDialog({
       <DialogTrigger asChild>
         <Button
           id="tour-openings"
-          variant="outline"
+          variant="default"
           size="sm"
           type="button"
           disabled={threeDActive}
-          className="h-9 text-xs font-semibold w-full hover:bg-primary/5 active:scale-95 transition-all flex items-center justify-center gap-1.5 border-dashed"
+          className="h-10 text-sm font-semibold w-full active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-sm"
         >
-          <Sliders className="h-3.5 w-3.5 text-primary" />
-          {lang === "de" ? "Wandöffnungen" : "Openings"}
+          <DoorOpen className="h-4 w-4" />
+          {lang === "de" ? "Tür/Fenster hinzufügen" : "Add Door / Window"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-md border shadow-2xl">

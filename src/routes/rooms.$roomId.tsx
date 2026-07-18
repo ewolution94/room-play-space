@@ -46,7 +46,6 @@ function RoomPlannerWrapper() {
         setTourStep={planner.setTourStep}
         theme={theme}
         toggleTheme={toggleTheme}
-        backUrl="/rooms"
       />
 
       <AlertDialog open={resetMode !== null} onOpenChange={(o) => !o && setResetMode(null)}>
@@ -181,6 +180,7 @@ function RoomPlannerWrapper() {
           updateOpening={planner.updateOpening}
           removeOpening={planner.removeOpening}
           openWalls={planner.openWalls}
+          backUrl="/rooms"
         />
       </div>
     </div>

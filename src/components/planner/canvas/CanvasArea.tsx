@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Link } from "@tanstack/react-router";
 import type { CanvasAreaProps } from "@/types/planner";
 import {
   wallSegments,
@@ -20,7 +21,7 @@ import { ToolbarOverlay } from "./ToolbarOverlay";
 import { MobileZoomButtons } from "./MobileZoomButtons";
 import { CanvasLoadingOverlay } from "./CanvasLoadingOverlay";
 import { InspectorSection } from "../sidebar/InspectorSection";
-import { HelpCircle, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, HelpCircle, SlidersHorizontal } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -89,6 +90,7 @@ export function CanvasArea({
   updateOpening,
   removeOpening,
   openWalls,
+  backUrl,
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
   // Corner-drag ("Enable Corner Dragging") is disabled from the UI for now
@@ -866,6 +868,23 @@ export function CanvasArea({
             in portrait (see useMobileViewOnly): rotating never exits
             view-only mode, it just gives more canvas room. */}
         {isMobileViewOnly && isPortrait && <RotateHint lang={lang} />}
+
+        {/* Back to the multi-room overview -- only present when this room
+            was opened from there (see backUrl's doc comment in
+            types/planner.ts). Bottom-left, clear of the bottom-center
+            2D/3D toolbar and the bottom-right scale bar/inspector, and
+            paired with a visible label instead of the small icon-only
+            button this used to be in the header (see Header.tsx). */}
+        {backUrl && (
+          <Link
+            to={backUrl}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/80 backdrop-blur-md px-3.5 py-1.5 shadow-lg select-none text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>{lang === "de" ? "Zurück zur Übersicht" : "Back to Overview"}</span>
+          </Link>
+        )}
 
         {/* Floating bottom toolbar */}
         <ToolbarOverlay

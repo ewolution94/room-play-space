@@ -137,6 +137,14 @@ export interface Preset {
   // resolveRenderMode/kit-models.ts) -- kitModel always takes priority when
   // usable; this is the fallback below it, one step above the plain box.
   proceduralModel?: ProceduralModel;
+  // True for lamp/ceiling-light/sconce-style presets that can actually
+  // emit light in the 3D view's toggleable lighting feature (see
+  // ThreeDView.tsx's "Enable Lighting" option and per-item light toggle).
+  // Purely a 3D-view-session concern -- whether a given placed instance's
+  // light is currently on/off is local UI state there, not persisted room
+  // data, so this flag only needs to say "this preset CAN light up", not
+  // track any on/off state itself.
+  isLightSource?: boolean;
 }
 
 // Rectangular rooms (exactly 4 corners) address a wall by name, as they
@@ -272,7 +280,6 @@ export interface HeaderProps {
   setTourStep: (step: React.SetStateAction<number>) => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
-  backUrl?: string;
   roomsUrl?: string;
   /** Mobile "view only" mode (see useMobileViewOnly) -- strips the header
    * down to just identity + theme/language + navigation, since every
@@ -391,6 +398,13 @@ export interface CanvasAreaProps {
   // this room's own wallOverrides with adjacency auto-detected against its
   // siblings in the multi-room overview. See room-adjacency.ts.
   openWalls: Map<string, WallOpenInterval[]>;
+  // When set, renders a labeled "back" pill at the bottom-left of the
+  // canvas that navigates here -- e.g. "/rooms", for a single room opened
+  // from the multi-room overview (see rooms.$roomId.tsx). Undefined on the
+  // standalone single-room planner route, which has no overview to return
+  // to. Previously this lived as a small icon-only button in the header
+  // instead; see Header.tsx's doc comment on why it moved.
+  backUrl?: string;
 }
 
 export interface TourOverlayProps {

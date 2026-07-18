@@ -19,7 +19,6 @@ import {
   MoreHorizontal,
   Sun,
   Moon,
-  ArrowLeft,
   LayoutGrid,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
@@ -44,7 +43,6 @@ export function Header({
   setTourStep,
   theme,
   toggleTheme,
-  backUrl,
   roomsUrl,
   viewOnly,
 }: HeaderProps) {
@@ -64,22 +62,17 @@ export function Header({
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
         <div id="tour-header" className="flex min-w-0 items-center gap-3">
-          {backUrl ? (
-            <Button variant="ghost" size="sm" asChild className="h-9 w-9 p-0 shrink-0">
-              <Link
-                to={backUrl}
-                title={lang === "de" ? "Zurück zum Grundriss" : "Back to Floor Plan"}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
-          ) : (
-            <img
-              src="/logo.png"
-              alt="Büro Planner Logo"
-              className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
-            />
-          )}
+          {/* The single-room view's "back to floor plan" button used to
+              live here as a small icon-only button -- easy to miss and not
+              very self-explanatory. It now lives as a labeled pill at the
+              bottom-left of the canvas itself instead (see CanvasArea.tsx's
+              backUrl/backLabel props), so this slot always just shows the
+              logo. */}
+          <img
+            src="/logo.png"
+            alt="Büro Planner Logo"
+            className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
+          />
           <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-sky-400">
               {t.title}

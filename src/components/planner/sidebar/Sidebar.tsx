@@ -130,6 +130,33 @@ export function Sidebar({
       <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
         {activeTab === "add" ? (
           <>
+            {/* Add Door/Window -- pinned above the furniture catalog
+                instead of buried in a small button below it. This is a
+                fundamental room-editing action (most rooms need at least
+                one door), not an advanced/rare one like Custom Item below,
+                so it gets top billing and its own full-width row. */}
+            <div className="px-1">
+              <OpeningsDialog
+                t={t}
+                lang={lang}
+                threeDActive={threeDActive}
+                open={openingOpen}
+                onOpenChange={setOpeningOpen}
+                oKind={oKind}
+                setOKind={setOKind}
+                oWall={oWall}
+                setOWall={setOWall}
+                oPos={oPos}
+                setOPos={setOPos}
+                oWidth={oWidth}
+                setOWidth={setOWidth}
+                addOpening={addOpening}
+                cornersCount={corners.length}
+                corners={corners}
+                openWalls={openWalls}
+              />
+            </div>
+
             {/* Catalog Preset Cards */}
             <CatalogSection
               t={t}
@@ -139,8 +166,11 @@ export function Sidebar({
               addPreset={addPreset}
             />
 
-            {/* Advanced Elements Dialog Triggers */}
-            <div className="grid grid-cols-2 gap-2 mt-1 px-1">
+            {/* Custom Item -- an advanced, rarely-needed escape hatch for a
+                one-off size/shape the catalog doesn't cover, so it lives
+                below the catalog instead of competing with Add Door/Window
+                for the same prime spot. */}
+            <div className="px-1">
               <CustomItemDialog
                 t={t}
                 lang={lang}
@@ -161,26 +191,6 @@ export function Sidebar({
                 setNShape={setNShape}
                 addCustomBox={addCustomBox}
                 swatches={SWATCHES}
-              />
-
-              <OpeningsDialog
-                t={t}
-                lang={lang}
-                threeDActive={threeDActive}
-                open={openingOpen}
-                onOpenChange={setOpeningOpen}
-                oKind={oKind}
-                setOKind={setOKind}
-                oWall={oWall}
-                setOWall={setOWall}
-                oPos={oPos}
-                setOPos={setOPos}
-                oWidth={oWidth}
-                setOWidth={setOWidth}
-                addOpening={addOpening}
-                cornersCount={corners.length}
-                corners={corners}
-                openWalls={openWalls}
               />
             </div>
           </>

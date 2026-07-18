@@ -400,6 +400,38 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   const [sunlightEnabled, setSunlightEnabled] = useState(true);
   const [sunlightAngle, setSunlightAngle] = useState(45);
 
+  // Toggleable "mood lighting" for lamp/ceiling-light/sconce-style items
+  // (see Preset.isLightSource) -- an opt-in accent on top of the ambient/
+  // sun/hemisphere fill lighting above, off by default like the other
+  // additive view toggles in this panel. Deliberately session-only state
+  // (not persisted onto Item/localStorage): which lamps are lit is a mood
+  // you set while looking at the 3D view, not room layout data. `lightsOff`
+  // tracks exceptions to "every light source is on" -- an item id in the
+  // set means that one specific fixture has been switched off.
+  const [lightingEnabled, setLightingEnabled] = useState(false);
+  const [lightsOff, setLightsOff] = useState<Set<string>>(new Set());
+  const toggleItemLight = (id: string) => {
+    setLightsOff((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Every currently-placed light-fixture item, across every room instance
+  // (a lone single-room view's `rooms` is just a one-element list -- see
+  // RoomInstance3D's doc comment) -- drives the per-item toggle list below.
+  const lightSourceItems = useMemo(
+    () =>
+      rooms.flatMap((room) =>
+        room.items
+          .filter((it) => it.icon && PRESET_BY_KEY[it.icon]?.isLightSource)
+          .map((it) => ({ id: it.id, name: it.name })),
+      ),
+    [rooms],
+  );
+
   // Mobile "view only" mode (see useMobileViewOnly): the always-visible "3D
   // View Controls" panel becomes a togglable bottom sheet. Every toggle in
   // it is a genuine view option (labels, sunlight, wall opacity), not an
@@ -1409,6 +1441,55 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
       }
     }
 
+    // --- Toggleable Light Sources ---
+    // A second, lightweight pass over every item rather than folding this
+    // into the render loop above: the mesh-building branches above (kit
+    // model / procedural / box) each already compute this same item-center
+    // world position independently, so recomputing it once more here is far
+    // simpler and safer than threading a light-emission concern through
+    // three separate, already-intricate code paths. Skipped entirely (no
+    // lights added at all) unless the "Enable Lighting" view option is on.
+    if (lightingEnabled) {
+      for (const room of rooms) {
+        for (const it of room.items) {
+          const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
+          if (!preset?.isLightSource || lightsOff.has(it.id)) continue;
+
+          const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
+          const itElev = it.elevation ?? 0;
+          const worldX = room.x + it.x + it.width / 2 - centerX;
+          const worldZ = room.y + it.y + it.length / 2 - centerZ;
+          // Near the shade/bulb of the fixture, not its floor-contact
+          // point -- a floor lamp's light should come from up near its
+          // shade, not from the floor beneath its base.
+          const worldY = itElev + itHeight * 0.85;
+
+          const pointLight = new THREE.PointLight(
+            "#ffd9a0",
+            1.2,
+            Math.max(it.width, it.length, 60) * 9,
+            2,
+          );
+          pointLight.position.set(worldX, worldY, worldZ);
+          // Many small lamps casting shadows gets expensive fast and reads
+          // as noisy flicker more than realism at this scale -- the
+          // directional sun light above already owns shadows.
+          pointLight.castShadow = false;
+          scene.add(pointLight);
+
+          // A small glowing "bulb" so a fixture reads as lit even in a
+          // bright room where the point light's own falloff is subtle.
+          const bulbRadius = Math.min(4, Math.max(it.width, it.length) * 0.08);
+          const bulbMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(bulbRadius, 12, 12),
+            new THREE.MeshBasicMaterial({ color: "#fff3d6" }),
+          );
+          bulbMesh.position.set(worldX, worldY, worldZ);
+          scene.add(bulbMesh);
+        }
+      }
+    }
+
     // --- Animation Loop ---
     let animationFrameId: number;
     const animate = () => {
@@ -1539,6 +1620,8 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     sunlightAngle,
     sunlightEnabled,
     kitModelVersion,
+    lightingEnabled,
+    lightsOff,
   ]);
 
   // Is German language active?
@@ -1571,7 +1654,44 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
           />
           <span>{isDe ? "Sonnenlicht aktivieren" : "Enable Sunlight"}</span>
         </label>
+
+        <label className="flex items-center gap-2 cursor-pointer font-medium">
+          <input
+            type="checkbox"
+            checked={lightingEnabled}
+            onChange={(e) => setLightingEnabled(e.target.checked)}
+            className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+          />
+          <span>{isDe ? "Beleuchtung aktivieren" : "Enable Lighting"}</span>
+        </label>
       </div>
+
+      {/* Per-fixture light toggles -- every lamp/ceiling-light/sconce
+          currently placed anywhere in view (see Preset.isLightSource),
+          individually switchable once the master toggle above is on. */}
+      {lightingEnabled && lightSourceItems.length > 0 && (
+        <div className="flex flex-col gap-1 border-t border-border/20 pt-2">
+          <span className="text-[10px] font-semibold text-muted-foreground">
+            {isDe ? "Einzelne Lichtquellen" : "Individual Lights"}
+          </span>
+          <div className="flex flex-col gap-1 max-h-28 overflow-y-auto pr-1">
+            {lightSourceItems.map((li) => (
+              <label
+                key={li.id}
+                className="flex items-center gap-2 cursor-pointer text-[11px] font-medium"
+              >
+                <input
+                  type="checkbox"
+                  checked={!lightsOff.has(li.id)}
+                  onChange={() => toggleItemLight(li.id)}
+                  className="h-3 w-3 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                />
+                <span className="truncate">{li.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Sunlight Angle Slider */}
       {sunlightEnabled && (
