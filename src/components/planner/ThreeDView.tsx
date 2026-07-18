@@ -1449,7 +1449,37 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     // simpler and safer than threading a light-emission concern through
     // three separate, already-intricate code paths. Skipped entirely (no
     // lights added at all) unless the "Enable Lighting" view option is on.
+    //
+    // This renderer has no real bloom/volumetric pipeline, so "glow" is
+    // faked with layered, additive-blended, unlit (MeshBasicMaterial)
+    // shapes -- several nested, increasingly large + increasingly
+    // transparent copies of the same shape, rather than one hard-edged
+    // shape at a single opacity. Additive blending means overlapping
+    // layers naturally brighten toward the center, which is what actually
+    // reads as "soft diffuse glow" instead of a flat, uniformly-colored
+    // silhouette with a visible edge.
     if (lightingEnabled) {
+      const lightColor = "#ffe1b0";
+      const addGlowLayer = (
+        geometry: THREE.BufferGeometry,
+        opacity: number,
+        extra?: Partial<THREE.MeshBasicMaterialParameters>,
+      ) => {
+        const mesh = new THREE.Mesh(
+          geometry,
+          new THREE.MeshBasicMaterial({
+            color: lightColor,
+            transparent: true,
+            opacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            ...extra,
+          }),
+        );
+        scene.add(mesh);
+        return mesh;
+      };
+
       for (const room of rooms) {
         for (const it of room.items) {
           const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
@@ -1464,28 +1494,115 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
           // shade, not from the floor beneath its base.
           const worldY = itElev + itHeight * 0.85;
 
-          const pointLight = new THREE.PointLight(
-            "#ffd9a0",
-            1.2,
-            Math.max(it.width, it.length, 60) * 9,
-            2,
-          );
-          pointLight.position.set(worldX, worldY, worldZ);
-          // Many small lamps casting shadows gets expensive fast and reads
-          // as noisy flicker more than realism at this scale -- the
-          // directional sun light above already owns shadows.
-          pointLight.castShadow = false;
-          scene.add(pointLight);
+          // Bigger fixtures read as brighter/more prominent than small
+          // ones (a dining chandelier vs. a desk lamp), scaled off the
+          // item's own footprint against a "typical lamp" baseline and
+          // clamped so nothing vanishes or blows out the whole room.
+          const sizeFactor = Math.min(2.4, Math.max(0.65, Math.max(it.width, it.length) / 38));
 
-          // A small glowing "bulb" so a fixture reads as lit even in a
-          // bright room where the point light's own falloff is subtle.
-          const bulbRadius = Math.min(4, Math.max(it.width, it.length) * 0.08);
+          // Ceiling/pendant/sconce/chandelier fixtures (see the "wall"
+          // layer's doc comment in types/planner.ts) get a real downward
+          // SpotLight plus a soft diffuse wash -- a lamp sitting on the
+          // floor or a desk doesn't have a comparable single "beam," so it
+          // just gets a stronger omnidirectional PointLight instead.
+          const isDownlight = (it.layer ?? "main") === "wall";
+
+          if (isDownlight) {
+            // Wide angle + heavy penumbra: a real pendant/ceiling light
+            // washes a broad area softly, it doesn't project a crisp
+            // theatrical spotlight beam.
+            const spotAngle = Math.PI / 4.2; // ~43 degrees
+            const spotLight = new THREE.SpotLight(
+              lightColor,
+              11 * sizeFactor,
+              360,
+              spotAngle,
+              0.95,
+              1.15,
+            );
+            spotLight.position.set(worldX, worldY, worldZ);
+            const spotTarget = new THREE.Object3D();
+            spotTarget.position.set(worldX, 0, worldZ);
+            scene.add(spotTarget);
+            spotLight.target = spotTarget;
+            spotLight.castShadow = false;
+            scene.add(spotLight);
+
+            // Stop the beam/pool a bit above true floor level (0), clear
+            // of any "under" layer item (rugs, mats -- always <= 3cm tall,
+            // see the catalog integrity test for that constraint) sitting
+            // underneath. These are unlit, depthWrite:false planes/shells,
+            // so anything else occupying the exact same y coordinate as
+            // one of them is a textbook z-fighting setup -- the rug's
+            // opaque top face and a coplanar glow disc at the same height
+            // flicker as the depth test's result flips between them frame
+            // to frame. This clearance was the actual cause of a reported
+            // flickering rug once lighting was enabled.
+            const floorClearance = 3.5;
+            const dropHeight = Math.max(worldY - floorClearance, 1);
+
+            // Diffuse beam: previously 3 nested cones of different widths
+            // and opacities, which read as visible concentric rings
+            // instead of a smooth gradient -- one wide, fairly opaque cone
+            // reads as softer and more natural than that layered attempt
+            // did, even though it's less "physically" graduated.
+            const beamRadius = Math.tan(spotAngle) * dropHeight;
+            const beamCone = addGlowLayer(
+              new THREE.ConeGeometry(beamRadius, dropHeight, 28, 1, true),
+              Math.min(0.32, 0.22 * sizeFactor),
+              { side: THREE.DoubleSide },
+            );
+            beamCone.position.set(worldX, floorClearance + dropHeight / 2, worldZ);
+
+            // Pool of light exactly where the cone lands on the floor --
+            // previously three concentric discs at different opacities,
+            // which read as visible rings rather than one clean spot.
+            // Single disc, same radius as the cone's own base.
+            const poolDisc = addGlowLayer(
+              new THREE.CircleGeometry(beamRadius, 32),
+              Math.min(0.32, 0.24 * sizeFactor),
+            );
+            poolDisc.rotation.x = -Math.PI / 2;
+            poolDisc.position.set(worldX, floorClearance, worldZ);
+          } else {
+            const pointLight = new THREE.PointLight(
+              lightColor,
+              7.5 * sizeFactor,
+              Math.max(it.width, it.length, 60) * 18,
+              1.4,
+            );
+            pointLight.position.set(worldX, worldY, worldZ);
+            // Many small lamps casting shadows gets expensive fast and
+            // reads as noisy flicker more than realism at this scale --
+            // the directional sun light above already owns shadows.
+            pointLight.castShadow = false;
+            scene.add(pointLight);
+          }
+
+          // Glowing bulb: a bright unlit core plus three soft additive
+          // halos (each bigger and fainter than the last), scaled by the
+          // same sizeFactor, so the fixture visibly reads as "on" up close
+          // no matter how the real light above falls off across the room.
+          const bulbRadius = Math.min(6, Math.max(it.width, it.length) * 0.1) * sizeFactor;
           const bulbMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(bulbRadius, 12, 12),
-            new THREE.MeshBasicMaterial({ color: "#fff3d6" }),
+            new THREE.SphereGeometry(bulbRadius, 14, 14),
+            new THREE.MeshBasicMaterial({ color: "#fffcf2" }),
           );
           bulbMesh.position.set(worldX, worldY, worldZ);
           scene.add(bulbMesh);
+
+          const haloLayers = [
+            { radiusMult: 2.2, opacity: 0.55 },
+            { radiusMult: 3.8, opacity: 0.3 },
+            { radiusMult: 6, opacity: 0.13 },
+          ];
+          for (const layer of haloLayers) {
+            const halo = addGlowLayer(
+              new THREE.SphereGeometry(bulbRadius * layer.radiusMult, 14, 14),
+              layer.opacity,
+            );
+            halo.position.set(worldX, worldY, worldZ);
+          }
         }
       }
     }
