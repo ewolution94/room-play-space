@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import type { Item, KitModel, Opening, Point, PresetMaterial } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
@@ -36,6 +37,13 @@ import {
 const kitModelCache = new Map<string, THREE.Group>();
 const kitModelLoading = new Set<string>();
 const kitGltfLoader = new GLTFLoader();
+
+// RectAreaLight needs its LTC (linearly transformed cosine) lookup tables
+// registered once before any RectAreaLight is used, per the three.js manual
+// (https://threejs.org/manual/#en/lights) -- done once at module load
+// rather than inside the per-mount scene effect below, since it's global,
+// idempotent shader setup rather than per-scene state.
+RectAreaLightUniformsLib.init();
 
 function loadKitModelIntoCache(file: string, onLoaded: () => void) {
   if (kitModelCache.has(file) || kitModelLoading.has(file)) return;
@@ -1510,15 +1518,19 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
           if (isDownlight) {
             // Wide angle + heavy penumbra: a real pendant/ceiling light
             // washes a broad area softly, it doesn't project a crisp
-            // theatrical spotlight beam.
+            // theatrical spotlight beam. This SpotLight still does the
+            // actual falloff work (it's what makes nearby surfaces read
+            // brighter than far ones), it just no longer gets a fake
+            // beam-shaped mesh drawn along its cone -- see the
+            // RectAreaLight below for that.
             const spotAngle = Math.PI / 4.2; // ~43 degrees
             const spotLight = new THREE.SpotLight(
               lightColor,
-              11 * sizeFactor,
-              360,
+              22 * sizeFactor,
+              500,
               spotAngle,
               0.95,
-              1.15,
+              0.85,
             );
             spotLight.position.set(worldX, worldY, worldZ);
             const spotTarget = new THREE.Object3D();
@@ -1528,7 +1540,30 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
             spotLight.castShadow = false;
             scene.add(spotLight);
 
-            // Stop the beam/pool a bit above true floor level (0), clear
+            // RectAreaLight: per the three.js manual's lights article
+            // (https://threejs.org/manual/#en/lights), this is the light
+            // type built for "a rectangular area of light like ... a
+            // frosted sky light in a ceiling" -- exactly the fixture
+            // we're modeling, and a real light rather than a translucent
+            // mesh standing in for one. It has no cone/beam shape at all;
+            // it just radiates softly from its rectangle, facing the
+            // direction it's rotated toward (down, here), which is what
+            // reads as a natural, diffuse ceiling wash instead of a hard
+            // "flashlight" cone. Requires MeshStandardMaterial/
+            // MeshPhysicalMaterial surfaces to receive it, which the
+            // room's walls/floor/furniture already use.
+            const panelSize = Math.max(22, Math.min(it.width, it.length) * 0.9) * sizeFactor;
+            const rectLight = new THREE.RectAreaLight(
+              lightColor,
+              18 * sizeFactor,
+              panelSize,
+              panelSize,
+            );
+            rectLight.position.set(worldX, worldY, worldZ);
+            rectLight.rotation.x = -Math.PI / 2; // face straight down
+            scene.add(rectLight);
+
+            // Stop the floor pool a bit above true floor level (0), clear
             // of any "under" layer item (rugs, mats -- always <= 3cm tall,
             // see the catalog integrity test for that constraint) sitting
             // underneath. These are unlit, depthWrite:false planes/shells,
@@ -1541,26 +1576,17 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
             const floorClearance = 3.5;
             const dropHeight = Math.max(worldY - floorClearance, 1);
 
-            // Diffuse beam: previously 3 nested cones of different widths
-            // and opacities, which read as visible concentric rings
-            // instead of a smooth gradient -- one wide, fairly opaque cone
-            // reads as softer and more natural than that layered attempt
-            // did, even though it's less "physically" graduated.
+            // Pool of light roughly where the fixture's downward light
+            // actually lands -- previously the base of a fake beam cone;
+            // now just a standalone soft disc sized off the same spot
+            // angle, since there's no cone mesh to inherit its radius
+            // from anymore. Single disc (three stacked rings previously
+            // read as visible concentric bands rather than one clean
+            // spot).
             const beamRadius = Math.tan(spotAngle) * dropHeight;
-            const beamCone = addGlowLayer(
-              new THREE.ConeGeometry(beamRadius, dropHeight, 28, 1, true),
-              Math.min(0.32, 0.22 * sizeFactor),
-              { side: THREE.DoubleSide },
-            );
-            beamCone.position.set(worldX, floorClearance + dropHeight / 2, worldZ);
-
-            // Pool of light exactly where the cone lands on the floor --
-            // previously three concentric discs at different opacities,
-            // which read as visible rings rather than one clean spot.
-            // Single disc, same radius as the cone's own base.
             const poolDisc = addGlowLayer(
               new THREE.CircleGeometry(beamRadius, 32),
-              Math.min(0.32, 0.24 * sizeFactor),
+              Math.min(0.34, 0.26 * sizeFactor),
             );
             poolDisc.rotation.x = -Math.PI / 2;
             poolDisc.position.set(worldX, floorClearance, worldZ);
