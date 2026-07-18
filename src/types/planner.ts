@@ -359,6 +359,10 @@ export interface CanvasAreaProps {
   marqueeRect: MarqueeRect | null;
   multiSelectMode: boolean;
   setMultiSelectMode: React.Dispatch<React.SetStateAction<boolean>>;
+  // True while Control is held down -- see use-ctrl-held.ts. Temporarily
+  // activates multi-select the same as multiSelectMode, without touching
+  // its persisted checkbox state.
+  ctrlHeld: boolean;
   isPanning: boolean;
   onStagePointerDown: (e: React.PointerEvent) => void;
   onStagePointerMove: (e: React.PointerEvent) => void;
@@ -431,6 +435,7 @@ export interface UseRoomPlannerReturn {
   marqueeRect: MarqueeRect | null;
   multiSelectMode: boolean;
   setMultiSelectMode: React.Dispatch<React.SetStateAction<boolean>>;
+  ctrlHeld: boolean;
   isPanning: boolean;
   stageSize: { w: number; h: number };
   stageReady: boolean;

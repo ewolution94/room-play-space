@@ -63,6 +63,7 @@ export function CanvasArea({
   marqueeRect,
   multiSelectMode,
   setMultiSelectMode,
+  ctrlHeld,
   isPanning,
   onStagePointerDown,
   onStagePointerMove,
@@ -90,7 +91,12 @@ export function CanvasArea({
   openWalls,
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
-  const [enableCornerDrag, setEnableCornerDrag] = useState(false);
+  // Corner-drag ("Enable Corner Dragging") is disabled from the UI for now
+  // -- it caused confusion and could break the app in some ways -- but the
+  // underlying drag logic and rendering below are kept intact for later.
+  // See todo.md for the note. Hard-coded off with no setter exposed, since
+  // there's no checkbox left to toggle it.
+  const [enableCornerDrag] = useState(false);
   const [showWallIds, setShowWallIds] = useState(false);
 
   // Mobile "view only" mode (see useMobileViewOnly): canvas-only, tools
@@ -363,7 +369,7 @@ export function CanvasArea({
             ? undefined
             : rulerMode
               ? "crosshair"
-              : !multiSelectMode
+              : !multiSelectMode && !ctrlHeld
                 ? isPanning
                   ? "grabbing"
                   : "grab"
@@ -760,28 +766,6 @@ export function CanvasArea({
                     <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
                       <input
                         type="checkbox"
-                        checked={enableCornerDrag}
-                        onChange={(e) => setEnableCornerDrag(e.target.checked)}
-                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-                      />
-                      <span className="flex items-center gap-1">
-                        {lang === "de" ? "Ecken verschieben" : "Enable Corner Dragging"}
-                        <span
-                          title={
-                            lang === "de"
-                              ? "Experimentelle Funktion: Ermöglicht das freie Ziehen der Raumecken zur Erstellung unregelmäßiger Grundrisse."
-                              : "Experimental Feature: Allows dragging room corners to shape custom non-rectangular layouts."
-                          }
-                          className="cursor-help inline-flex items-center"
-                        >
-                          <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
-                      <input
-                        type="checkbox"
                         checked={showWallIds}
                         onChange={(e) => setShowWallIds(e.target.checked)}
                         className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
@@ -823,8 +807,8 @@ export function CanvasArea({
                         <span
                           title={
                             lang === "de"
-                              ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf."
-                              : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead."
+                              ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf. Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
+                              : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead. Tip: hold Ctrl to activate multi-select temporarily."
                           }
                           className="cursor-help inline-flex items-center"
                         >

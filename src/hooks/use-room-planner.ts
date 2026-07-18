@@ -31,6 +31,7 @@ import {
   resolveEffectiveOpenIntervals,
   type WallOpenInterval,
 } from "@/lib/room-adjacency";
+import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 
 // Typical desk/table/counter height (cm) -- the default elevation a
 // newly-placed "on-top" item (lamp, laptop, vase, ...) gets so the 3D view
@@ -418,6 +419,32 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     return () => ro.disconnect();
   }, []);
 
+  // Scroll-wheel zoom: a native (non-passive) listener attached directly to
+  // the stage element, not a React onWheel prop -- React attaches its wheel
+  // listener passively by default, so calling preventDefault() inside a
+  // synthetic handler would silently fail to stop the page from scrolling.
+  // Scoping the listener to the stage div itself (rather than window/body)
+  // means it only ever fires while the pointer is actually over the canvas,
+  // so it can never hijack scrolling in the sidebar, a popover, or anywhere
+  // else in the app. Skipped in 3D mode, where OrbitControls owns the wheel
+  // for camera zoom instead.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (threeDActive) return;
+      e.preventDefault();
+      const step = 0.05;
+      const direction = e.deltaY > 0 ? -1 : 1;
+      setZoomFactor((z) => {
+        const next = Math.round((z + direction * step) * 100) / 100;
+        return Math.max(0.1, Math.min(2.0, next));
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [threeDActive]);
+
   const pad = 40;
   const baseScale = Math.min((stageSize.w - pad * 2) / roomW, (stageSize.h - pad * 2) / roomL);
   const scale = baseScale * zoomFactor;
@@ -430,6 +457,10 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   // multi-room master floor plan). Turning it on switches empty-canvas drag
   // over to the marquee multi-select box instead.
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  // While Control is held, multi-select behaves as if the checkbox above
+  // were on too -- without actually flipping its persisted state, so
+  // releasing Control cleanly reverts to whatever the checkbox says.
+  const ctrlHeld = useCtrlHeld();
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
@@ -781,7 +812,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       return;
     }
 
-    if (!multiSelectMode) {
+    if (!multiSelectMode && !ctrlHeld) {
       // Empty-canvas drag pans the view (matches the multi-room master floor
       // plan) instead of marquee-selecting.
       if (e.button !== 0) return;
@@ -1202,6 +1233,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     marqueeRect,
     multiSelectMode,
     setMultiSelectMode,
+    ctrlHeld,
     isPanning,
     stageSize,
     stageReady,

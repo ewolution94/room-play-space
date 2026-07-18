@@ -30,3 +30,6 @@
 - [x] Add support for angled walls
   - [x] In the canvas, users should be able to drag a corner further in/out easily to account for more special room layouts
 
+## Known Disabled Features (kept in code, not exposed in UI)
+- **Corner Dragging** (single-room 2D canvas): the "Enable Corner Dragging" checkbox has been removed from the 2D View Options panel because it caused confusion and could break the app in some ways. The underlying implementation is still in `src/components/planner/canvas/CanvasArea.tsx` (`enableCornerDrag` state, `onCornerPointerDown`, the draggable corner-handle rendering, and `clampOpeningsToWalls`) -- it's just permanently off (`const [enableCornerDrag] = useState(false)`), with no UI control to turn it back on. Revisit this once it's more robust, then reintroduce the checkbox.
+

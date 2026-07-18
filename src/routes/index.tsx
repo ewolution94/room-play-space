@@ -174,6 +174,7 @@ function RoomPlanner() {
           marqueeRect={planner.marqueeRect}
           multiSelectMode={planner.multiSelectMode}
           setMultiSelectMode={planner.setMultiSelectMode}
+          ctrlHeld={planner.ctrlHeld}
           isPanning={planner.isPanning}
           onStagePointerDown={planner.onStagePointerDown}
           onStagePointerMove={planner.onStagePointerMove}

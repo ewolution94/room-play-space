@@ -39,6 +39,7 @@ import { MobileZoomButtons } from "./canvas/MobileZoomButtons";
 import { FloorSwitcher } from "./FloorSwitcher";
 import { CanvasLoadingOverlay } from "./canvas/CanvasLoadingOverlay";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 import {
   Drawer,
   DrawerContent,
@@ -137,6 +138,11 @@ export function MultiRoomCanvas({
   // visible "Layout Options" panel becomes a togglable bottom sheet.
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+
+  // While Control is held, multi-select behaves as if the "Enable
+  // Multi-Select" checkbox were on too, without flipping its persisted
+  // state -- see use-ctrl-held.ts.
+  const ctrlHeld = useCtrlHeld();
 
   // A drag on mobile should only ever pan the floor plan -- never draw a
   // marquee selection box. That toggle is already hidden from the mobile
@@ -266,6 +272,28 @@ export function MultiRoomCanvas({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Scroll-wheel zoom -- see the matching effect in use-room-planner.ts for
+  // why this is a native, non-passive listener attached straight to the
+  // stage element rather than a React onWheel prop (preventDefault() is a
+  // silent no-op on a passive listener, which is what React's onWheel uses
+  // by default). Scoped to the stage div, so it only fires while hovering
+  // the floor plan and never steals scroll from anywhere else in the app.
+  // Skipped in 3D mode, where OrbitControls owns the wheel for camera zoom.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (threeDActive) return;
+      e.preventDefault();
+      const step = 0.05;
+      const direction = e.deltaY > 0 ? -1 : 1;
+      const next = Math.round((zoomFactor + direction * step) * 100) / 100;
+      setZoomFactor(Math.max(0.2, Math.min(2.0, next)));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [threeDActive, zoomFactor, setZoomFactor]);
 
   useEffect(() => {
     return () => {
@@ -418,7 +446,7 @@ export function MultiRoomCanvas({
     if (e.button !== 0) return;
     if (!stageRef.current) return;
 
-    if (multiSelectMode) {
+    if (multiSelectMode || ctrlHeld) {
       setSelectedRoomId(null);
       setSelectedRoomIds(new Set());
       stageRef.current.setPointerCapture(e.pointerId);
@@ -844,7 +872,7 @@ export function MultiRoomCanvas({
       <div
         ref={stageRef}
         className={`relative min-h-0 flex-1 w-full rounded-lg border bg-muted/30 overflow-hidden select-none transition-colors duration-150
-          ${threeDActive ? "" : multiSelectMode ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"}`}
+          ${threeDActive ? "" : multiSelectMode || ctrlHeld ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         style={{ touchAction: "none" }}
         onPointerDown={threeDActive ? undefined : onStagePointerDown}
         onPointerMove={threeDActive ? undefined : onStagePointerMove}
@@ -1130,7 +1158,14 @@ export function MultiRoomCanvas({
               <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+            <label
+              className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1"
+              title={
+                lang === "de"
+                  ? "Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
+                  : "Tip: hold Ctrl to activate multi-select temporarily."
+              }
+            >
               <input
                 type="checkbox"
                 checked={multiSelectMode}
