@@ -14,7 +14,10 @@ import {
   saveActiveFloorId,
   createFloor,
   parseImportedFloors,
+  floorDisplayName,
 } from "@/lib/floors";
+import { ExportImportDialog } from "@/components/planner/ExportImportDialog";
+import { buildExportFilename } from "@/lib/export-filename";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -200,8 +203,6 @@ function MultiRoomOverview() {
   // toggle (see use-room-planner.ts).
   const [threeDActive, setThreeDActive] = useState(false);
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
   // Load the building's initial state. On true app startup (first mount
   // this session) we always generate a single ground floor with the
   // default fully-furnished 6-room apartment (see default-apartment.ts)
@@ -255,52 +256,134 @@ function MultiRoomOverview() {
     saveActiveFloorId(activeFloorId);
   }, [activeFloorId]);
 
-  // Export the whole building (every floor) as one file, not just whichever
-  // floor happens to be active -- otherwise exporting would silently drop
-  // every other floor's rooms.
-  const exportJSON = () => {
-    const dataStr = JSON.stringify(floors, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `multi-room-layout-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(
-      lang === "de" ? "Layout erfolgreich exportiert" : "Floor plan layout exported successfully",
+  // -------- Export / Import --------
+  // Two scopes: just the currently-active floor, or the whole building
+  // (every floor). Both go through the shared ExportImportDialog (see
+  // that component's own doc comment) rather than downloading/replacing
+  // directly, so there's a preview -- and, for import, a chance to back
+  // out -- before anything actually changes. Export/import state
+  // (floors/rooms counts, etc.) always reflects whatever's current at the
+  // moment the dialog is opened, same as the direct-download version this
+  // replaced.
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const floorScopes = [
+    { id: "current", label: lang === "de" ? "Aktuelles Geschoss" : "Current floor" },
+    { id: "all", label: lang === "de" ? "Alle Geschosse" : "All floors" },
+  ];
+
+  // `entries` pairs each floor with the display name it should show in
+  // the preview -- computed by the CALLER, not derived from the floor's
+  // position within `entries` itself, since that position is only the
+  // floor's real index in the building for the "all floors" case. For a
+  // single exported floor it's wherever that floor actually sits in the
+  // full `floors` array (so "2nd Floor" exports as "2nd Floor", not
+  // "Ground Floor"); for freshly-imported data there's no "real" building
+  // position yet, so the imported array's own order is the only sensible
+  // choice there.
+  function summarizeFloors(entries: { floor: Floor; displayName: string }[]): string[] {
+    const totalRooms = entries.reduce((n, e) => n + e.floor.rooms.length, 0);
+    const totalItems = entries.reduce(
+      (n, e) => n + e.floor.rooms.reduce((m, r) => m + r.items.length, 0),
+      0,
     );
+    const totalOpenings = entries.reduce(
+      (n, e) => n + e.floor.rooms.reduce((m, r) => m + r.openings.length, 0),
+      0,
+    );
+    if (entries.length === 1) {
+      return [
+        entries[0].displayName,
+        lang === "de" ? `${totalRooms} Räume` : `${totalRooms} rooms`,
+        lang === "de" ? `${totalItems} Objekte` : `${totalItems} items`,
+        lang === "de" ? `${totalOpenings} Öffnungen` : `${totalOpenings} openings`,
+      ];
+    }
+    return [
+      lang === "de" ? `${entries.length} Geschosse` : `${entries.length} floors`,
+      lang === "de" ? `${totalRooms} Räume insgesamt` : `${totalRooms} rooms total`,
+      lang === "de" ? `${totalItems} Objekte insgesamt` : `${totalItems} items total`,
+      ...entries.map((e) => `· ${e.displayName} (${e.floor.rooms.length})`),
+    ];
+  }
+
+  const buildFloorsExportPreview = (scopeId: string) => {
+    if (scopeId === "current") {
+      const idx = Math.max(
+        0,
+        floors.findIndex((f) => f.id === activeFloorId),
+      );
+      const floor = floors[idx] ?? floors[0];
+      const displayName = floorDisplayName(floor, idx, lang);
+      return {
+        summaryLines: summarizeFloors([{ floor, displayName }]),
+        filename: buildExportFilename(displayName),
+        json: [floor],
+      };
+    }
+    return {
+      summaryLines: summarizeFloors(
+        floors.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
+      ),
+      filename: buildExportFilename(lang === "de" ? "Gebaeude" : "Building"),
+      json: floors,
+    };
   };
 
-  // Import a building layout -- accepts either the current multi-floor
-  // export shape or a legacy flat single-floor export (see
-  // parseImportedFloors in lib/floors.ts), replacing every floor.
-  const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const r = new FileReader();
-    r.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target?.result as string);
-        const imported = parseImportedFloors(parsed);
-        if (!imported) throw new Error("Invalid format");
-        setFloors(imported);
-        setActiveFloorId(imported[0].id);
-        setSelectedRoomId(null);
-        setSelectedRoomIds(new Set());
-        toast.success(
+  // Preview-only: parses the file's shape without touching any app state.
+  // Accepts either the current multi-floor export shape or a legacy flat
+  // single-floor export (see parseImportedFloors in lib/floors.ts).
+  const validateFloorsImport = (scopeId: string, raw: unknown) => {
+    const imported = parseImportedFloors(raw);
+    if (!imported) {
+      return {
+        ok: false as const,
+        error:
           lang === "de"
-            ? "Layout erfolgreich importiert"
-            : "Floor plan layout imported successfully",
-        );
-      } catch (err) {
-        toast.error(
-          lang === "de" ? "Fehler beim Importieren" : "Failed to import file: Invalid format",
-        );
-      }
+            ? "Ungültiges Format -- diese Datei sieht nicht wie ein exportiertes Geschoss-Layout aus."
+            : "Invalid format -- this file doesn't look like an exported floor plan layout.",
+      };
+    }
+    if (scopeId === "current" && imported.length > 1) {
+      return {
+        ok: true as const,
+        summaryLines: [
+          lang === "de"
+            ? `Hinweis: Datei enthält ${imported.length} Geschosse -- nur das erste wird in das aktuelle Geschoss übernommen.`
+            : `Note: file contains ${imported.length} floors -- only the first will replace the current floor.`,
+          ...summarizeFloors([
+            { floor: imported[0], displayName: floorDisplayName(imported[0], 0, lang) },
+          ]),
+        ],
+      };
+    }
+    return {
+      ok: true as const,
+      summaryLines: summarizeFloors(
+        imported.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
+      ),
     };
-    r.readAsText(file);
+  };
+
+  const applyFloorsImport = (scopeId: string, raw: unknown) => {
+    const imported = parseImportedFloors(raw);
+    if (!imported) {
+      toast.error(lang === "de" ? "Fehler beim Importieren" : "Failed to import file");
+      return;
+    }
+    setSelectedRoomId(null);
+    setSelectedRoomIds(new Set());
+    if (scopeId === "current") {
+      setFloors((prev) =>
+        prev.map((f) => (f.id === activeFloorId ? { ...f, rooms: imported[0].rooms } : f)),
+      );
+    } else {
+      setFloors(imported);
+      setActiveFloorId(imported[0].id);
+    }
+    toast.success(
+      lang === "de" ? "Layout erfolgreich importiert" : "Floor plan layout imported successfully",
+    );
   };
 
   // Clears the rooms on the CURRENT floor only -- the floor itself (and
@@ -419,14 +502,6 @@ function MultiRoomOverview() {
                 </Button>
               )}
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                onChange={onImportFile}
-              />
-
               <Button
                 variant="outline"
                 size="sm"
@@ -462,14 +537,19 @@ function MultiRoomOverview() {
                   <Languages className="h-4 w-4" />
                   <span>{lang === "en" ? "Deutsch" : "English"}</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExportOpen(true)}
+                  className="gap-1.5"
+                >
                   <Download className="h-4 w-4" />
                   <span>{t.export}</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => setImportOpen(true)}
                   className="gap-1.5"
                 >
                   <Upload className="h-4 w-4" />
@@ -498,10 +578,10 @@ function MultiRoomOverview() {
                     {lang === "en" ? "Deutsch" : "English"}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={exportJSON}>
+                  <DropdownMenuItem onClick={() => setExportOpen(true)}>
                     <Download className="mr-2 h-4 w-4" /> {t.export}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                  <DropdownMenuItem onClick={() => setImportOpen(true)}>
                     <Upload className="mr-2 h-4 w-4" /> {t.import}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -518,6 +598,36 @@ function MultiRoomOverview() {
           )}
         </div>
       </header>
+
+      <ExportImportDialog
+        lang={lang}
+        mode="export"
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title={lang === "de" ? "Layout exportieren" : "Export Floor Plan"}
+        description={
+          lang === "de"
+            ? "Speichert dein Geschoss oder das gesamte Gebäude als JSON-Datei."
+            : "Saves your floor or the whole building as a JSON file."
+        }
+        scopes={floorScopes}
+        buildExport={buildFloorsExportPreview}
+      />
+      <ExportImportDialog
+        lang={lang}
+        mode="import"
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title={lang === "de" ? "Layout importieren" : "Import Floor Plan"}
+        description={
+          lang === "de"
+            ? "Ersetzt das aktuelle Geschoss oder das gesamte Gebäude durch den Inhalt einer JSON-Datei."
+            : "Replaces the current floor or the whole building with the contents of a JSON file."
+        }
+        scopes={floorScopes}
+        validateImport={validateFloorsImport}
+        applyImport={applyFloorsImport}
+      />
 
       {/* Main floor-plan planner panel */}
       <div

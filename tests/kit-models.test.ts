@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import {
   nativeSize,
   resolveRenderMode,
@@ -164,5 +166,66 @@ describe("kitModel catalog data (planner-presets.ts)", () => {
     const onDisk = fs.readdirSync(KIT_MODELS_DIR).filter((f) => f.endsWith(".glb"));
     const orphaned = onDisk.filter((f) => !referenced.has(f));
     assert.deepEqual(orphaned, []);
+  });
+});
+
+// Regression coverage for a 2026-07 data-entry bug: several kitModel entries
+// (laptop, toilet, wall-sconce, bathroom-cabinet-drawer, shower-round,
+// kitchen-coffee-machine, plant-small-2, plant-small-3) had recorded
+// min/max bounding boxes that didn't match their actual .glb geometry --
+// in most cases inflated by a consistent 1.7x-2.3x factor on every axis,
+// which made computeModelScale divide the target size by a too-large
+// "native size" and render the model visibly smaller than its own item
+// footprint (fine in 2D, which only ever draws the footprint rectangle,
+// wrong in 3D). None of the tests above caught this, since they only check
+// internal consistency (positive size, resolves to "model" against itself,
+// file exists) rather than the recorded numbers against the real mesh.
+describe("kitModel bounding boxes match their actual .glb geometry", () => {
+  const withKitModel = PRESETS.filter((p) => p.kitModel);
+  const loader = new GLTFLoader();
+
+  function loadGltf(filePath: string): Promise<{ scene: THREE.Object3D }> {
+    return new Promise((resolve, reject) => {
+      const data = fs.readFileSync(filePath);
+      const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      loader.parse(arrayBuffer, "", resolve, reject);
+    });
+  }
+
+  const boxCache = new Map<string, THREE.Box3>();
+  async function actualBoxCm(file: string): Promise<THREE.Box3> {
+    const cached = boxCache.get(file);
+    if (cached) return cached;
+    const gltf = await loadGltf(path.join(KIT_MODELS_DIR, file));
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    box.min.multiplyScalar(100);
+    box.max.multiplyScalar(100);
+    boxCache.set(file, box);
+    return box;
+  }
+
+  test("every kitModel's recorded min/max is within rounding tolerance of the real mesh's bounding box", async () => {
+    const TOLERANCE_CM = 0.15;
+    const mismatches: string[] = [];
+    for (const p of withKitModel) {
+      const box = await actualBoxCm(p.kitModel!.file);
+      const axes: Array<["minX" | "maxX" | "minY" | "maxY" | "minZ" | "maxZ", number]> = [
+        ["minX", box.min.x],
+        ["maxX", box.max.x],
+        ["minY", box.min.y],
+        ["maxY", box.max.y],
+        ["minZ", box.min.z],
+        ["maxZ", box.max.z],
+      ];
+      for (const [key, actual] of axes) {
+        const recorded = p.kitModel![key];
+        if (Math.abs(recorded - actual) > TOLERANCE_CM) {
+          mismatches.push(
+            `${p.key} (${p.kitModel!.file}).${key}: recorded ${recorded}, actual ${actual.toFixed(2)}`,
+          );
+        }
+      }
+    }
+    assert.deepEqual(mismatches, []);
   });
 });

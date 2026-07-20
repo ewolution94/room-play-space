@@ -634,14 +634,16 @@ export const PRESETS: Preset[] = [
     color: "#ffffff",
     iconUrl: toiletUrl,
     material: "ceramic",
+    // Corrected 2026-07: recorded bounding box was ~2-3x too large on every
+    // axis vs. the actual toilet.glb mesh, same class of bug as laptop's.
     kitModel: {
       file: "toilet.glb",
       minX: 0,
       minY: 0,
-      minZ: -65.8,
-      maxX: 100.46,
-      maxY: 94.94,
-      maxZ: 13.17,
+      minZ: 0,
+      maxX: 31.26,
+      maxY: 45.1,
+      maxZ: 47.72,
     },
   },
   {
@@ -1442,8 +1444,8 @@ export const PRESETS: Preset[] = [
     nameEn: "Wall sconce",
     nameDe: "Wandleuchte",
     // Bumped up from 15x10 to be closer to lampWall.glb's own native
-    // footprint (~39x26cm) now that it renders as the real model instead
-    // of a procedural cone shade.
+    // footprint now that it renders as the real model instead of a
+    // procedural cone shade.
     w: 35,
     l: 20,
     h: 18,
@@ -1452,14 +1454,17 @@ export const PRESETS: Preset[] = [
     elevation: 160,
     material: "metal",
     isLightSource: true,
+    // Corrected 2026-07: recorded bounding box was ~1.72x too large on
+    // every axis vs. the actual lampWall.glb mesh (native footprint is
+    // really ~22.7x15cm, not ~39x26cm as the old numbers implied).
     kitModel: {
       file: "lampWall.glb",
-      minX: -19.54,
+      minX: -11.33,
       minY: 0,
       minZ: 0,
-      maxX: 19.54,
-      maxY: 16,
-      maxZ: 25.92,
+      maxX: 11.33,
+      maxY: 9.28,
+      maxZ: 15.03,
     },
   },
   {
@@ -1513,12 +1518,15 @@ export const PRESETS: Preset[] = [
     h: 170,
     color: "#f5f5f5",
     material: "wood",
+    // Corrected 2026-07: recorded minX/minY/minZ didn't match the actual
+    // bedBunk.glb mesh, which is flush at X=0/Y=0 (not offset negative)
+    // and only 109.5cm deep (not 189.2cm).
     kitModel: {
       file: "bedBunk.glb",
-      minX: -5.86,
-      minY: -13,
-      minZ: -189.2,
-      maxX: 156.47,
+      minX: 0,
+      minY: 0,
+      minZ: -109.5,
+      maxX: 57.1,
       maxY: 85,
       maxZ: 0,
     },
@@ -1898,12 +1906,19 @@ export const PRESETS: Preset[] = [
     layer: "on-top",
     material: "metal",
     kitModel: {
+      // Corrected 2026-07: the previous values (60 x 36.77 x 54.56) were
+      // ~2.27x too large on every axis vs. the actual laptop.glb mesh --
+      // likely a leftover measurement from a different scale factor. That
+      // inflated "native size" made computeModelScale divide the target
+      // dims by a too-big number, so the rendered model came out visibly
+      // smaller than its own item footprint in 3D (fine in 2D, since 2D
+      // only ever draws the footprint rectangle, never the mesh itself).
       file: "laptop.glb",
       minX: 0,
       minY: 0,
-      minZ: -54.56,
-      maxX: 60,
-      maxY: 36.77,
+      minZ: -24.01,
+      maxX: 26.4,
+      maxY: 16.18,
       maxZ: 0,
     },
   },
@@ -1958,9 +1973,15 @@ export const PRESETS: Preset[] = [
     category: "living",
     nameEn: "Stack of books",
     nameDe: "Bücherstapel",
+    // l/h tightened 2026-07 to match books.glb's own native aspect ratio
+    // (its bounding box, unlike some other kitModel entries, was already
+    // measured correctly) -- the old 25x20x15 stretched the model roughly
+    // 1.66x on X but 2.12x on Z and 1.44x on Y, which is uneven enough to
+    // visibly warp a stack of straight-edged books. w stays 25 so the 2D
+    // footprint doesn't shift; l/h now scale by ~1.66x uniformly instead.
     w: 25,
-    l: 20,
-    h: 15,
+    l: 16,
+    h: 17,
     color: "#7c3f00",
     layer: "on-top",
     material: "leather",
@@ -2381,14 +2402,17 @@ export const PRESETS: Preset[] = [
     h: 85,
     color: "#e5e7eb",
     material: "wood",
+    // Corrected 2026-07: minY/maxZ were off vs. the actual
+    // bathroomCabinetDrawer.glb mesh (real minY is 5.82, not 0; real maxZ
+    // is -13, not 2).
     kitModel: {
       file: "bathroomCabinetDrawer.glb",
       minX: 0,
-      minY: 0,
+      minY: 5.82,
       minZ: -45,
       maxX: 43,
       maxY: 53,
-      maxZ: 2,
+      maxZ: -13,
     },
   },
   {
@@ -2402,14 +2426,17 @@ export const PRESETS: Preset[] = [
     color: "#e0f2fe",
     shape: "circle",
     material: "glass",
+    // Corrected 2026-07: recorded minX/maxZ didn't match the actual
+    // showerRound.glb mesh, which sits corner-flush at X=0/Z=0 (not
+    // centered on X the way the old -37.84..56.18 range implied).
     kitModel: {
       file: "showerRound.glb",
-      minX: -37.84,
+      minX: 0,
       minY: 0,
       minZ: -56.18,
       maxX: 56.18,
       maxY: 109.4,
-      maxZ: 37.84,
+      maxZ: 0,
     },
   },
 
@@ -2424,6 +2451,7 @@ export const PRESETS: Preset[] = [
     h: 85,
     color: "#f1f5f9",
     material: "wood",
+    // maxZ corrected 2026-07: recorded 3, actual mesh is flush at 0.
     kitModel: {
       file: "kitchenCabinet.glb",
       minX: 0,
@@ -2431,7 +2459,7 @@ export const PRESETS: Preset[] = [
       minZ: -45,
       maxX: 43,
       maxY: 45,
-      maxZ: 3,
+      maxZ: 0,
     },
   },
   {
@@ -2444,6 +2472,7 @@ export const PRESETS: Preset[] = [
     h: 85,
     color: "#e2e8f0",
     material: "wood",
+    // maxZ corrected 2026-07: recorded 3, actual mesh is flush at 0.
     kitModel: {
       file: "kitchenCabinetDrawer.glb",
       minX: 0,
@@ -2451,7 +2480,7 @@ export const PRESETS: Preset[] = [
       minZ: -45,
       maxX: 43,
       maxY: 45,
-      maxZ: 3,
+      maxZ: 0,
     },
   },
   {
@@ -2485,14 +2514,16 @@ export const PRESETS: Preset[] = [
     color: "#3f3f46",
     layer: "on-top",
     material: "plastic",
+    // Corrected 2026-07: recorded bounding box didn't match the actual
+    // kitchenCoffeeMachine.glb mesh on any axis.
     kitModel: {
       file: "kitchenCoffeeMachine.glb",
-      minX: -3.38,
+      minX: 0,
       minY: 0,
-      minZ: -30.41,
-      maxX: 24,
-      maxY: 30.34,
-      maxZ: 2.6,
+      minZ: -24.02,
+      maxX: 18.95,
+      maxY: 17.75,
+      maxZ: 0,
     },
   },
 
@@ -2712,14 +2743,16 @@ export const PRESETS: Preset[] = [
     color: "#16a34a",
     shape: "circle",
     material: "plant",
+    // Corrected 2026-07: recorded bounding box was exactly 2x too large on
+    // every axis vs. the actual plantSmall2.glb mesh.
     kitModel: {
       file: "plantSmall2.glb",
-      minX: -9.47,
+      minX: -4.73,
       minY: 0,
-      minZ: -9.47,
-      maxX: 9.47,
-      maxY: 28,
-      maxZ: 9.47,
+      minZ: -4.73,
+      maxX: 4.73,
+      maxY: 14,
+      maxZ: 4.73,
     },
   },
   {
@@ -2733,14 +2766,16 @@ export const PRESETS: Preset[] = [
     color: "#15803d",
     shape: "circle",
     material: "plant",
+    // Corrected 2026-07: recorded bounding box didn't match the actual
+    // plantSmall3.glb mesh (~1.7-2.3x too large per axis).
     kitModel: {
       file: "plantSmall3.glb",
-      minX: -8.49,
+      minX: -4.9,
       minY: 0,
-      minZ: -9.8,
-      maxX: 8.49,
-      maxY: 29,
-      maxZ: 9.8,
+      minZ: -4.24,
+      maxX: 4.9,
+      maxY: 14.5,
+      maxZ: 4.24,
     },
   },
 

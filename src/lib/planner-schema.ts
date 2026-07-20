@@ -49,3 +49,16 @@ export const importSchema = z.object({
   corners: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
   wallColors: z.record(z.string()).optional(),
 });
+
+/** Turns a caught import error (a ZodError from a failed `.parse()`, a
+ * plain Error, or anything else) into one readable string -- shared by
+ * every import path (single-room, floor/building) so the export/import
+ * dialog's error banner and the toast on a failed import always read the
+ * same way. */
+export function formatZodError(err: unknown): string {
+  if (err instanceof z.ZodError) {
+    return err.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
+  }
+  if (err instanceof Error) return err.message;
+  return "Unknown error";
+}

@@ -45,9 +45,9 @@ function RoomPlanner() {
         redo={planner.redo}
         items={planner.items}
         openings={planner.openings}
-        exportJSON={planner.exportJSON}
-        fileInputRef={planner.fileInputRef}
-        onImportFile={planner.onImportFile}
+        buildRoomExportPreview={planner.buildRoomExportPreview}
+        validateRoomImport={planner.validateRoomImport}
+        applyRoomImport={planner.applyRoomImport}
         setResetMode={planner.setResetMode}
         setTourOpen={planner.setTourOpen}
         setTourStep={planner.setTourStep}

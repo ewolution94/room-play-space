@@ -7,13 +7,7 @@ import {
   DEFAULT_ROOM_L,
 } from "@/hooks/use-room-planner";
 import { PRESET_BY_KEY } from "@/lib/planner-presets";
-import type { Item } from "@/types/planner";
-
-function aabbOverlap(a: Item, b: Item, eps = 0.01): boolean {
-  const noOverlapX = a.x + a.width - eps <= b.x || b.x + b.width - eps <= a.x;
-  const noOverlapY = a.y + a.length - eps <= b.y || b.y + b.length - eps <= a.y;
-  return !noOverlapX && !noOverlapY;
-}
+import { rotatedAABB, obbOverlap } from "@/lib/planner-math";
 
 describe("default single-room office layout", () => {
   const items = buildDefaultOfficeItems();
@@ -27,26 +21,46 @@ describe("default single-room office layout", () => {
   });
 
   test("every item's footprint fits within the default room bounds", () => {
+    // Uses the same rotatedAABB the real app's clampPos (planner-math.ts)
+    // constrains a drag to -- a rotated item's true occupied rectangle is
+    // NOT it.x/it.y/it.width/it.length taken at face value (that's the
+    // *unrotated* box; for a 90/270-degree item the true footprint has
+    // width and length swapped). Checking the raw unrotated box here would
+    // reject items that are actually fine on screen -- e.g. the office
+    // credenza sits at rotation:90, so its true footprint is only 45cm
+    // wide (not its unrotated 120cm), comfortably inside the room.
     for (const it of items) {
-      assert.ok(it.x >= 0, `${it.id}: x < 0`);
-      assert.ok(it.y >= 0, `${it.id}: y < 0`);
+      const aabb = rotatedAABB(it.width, it.length, it.rotation);
+      const cx = it.x + it.width / 2;
+      const cy = it.y + it.length / 2;
+      const left = cx - aabb.w / 2;
+      const right = cx + aabb.w / 2;
+      const top = cy - aabb.h / 2;
+      const bottom = cy + aabb.h / 2;
+      assert.ok(left >= -0.01, `${it.id}: left edge (${left}) is outside the room (x < 0)`);
+      assert.ok(top >= -0.01, `${it.id}: top edge (${top}) is outside the room (y < 0)`);
       assert.ok(
-        it.x + it.width <= DEFAULT_ROOM_W + 0.01,
-        `${it.id}: right edge (${it.x + it.width}) exceeds room width (${DEFAULT_ROOM_W})`,
+        right <= DEFAULT_ROOM_W + 0.01,
+        `${it.id}: right edge (${right}) exceeds room width (${DEFAULT_ROOM_W})`,
       );
       assert.ok(
-        it.y + it.length <= DEFAULT_ROOM_L + 0.01,
-        `${it.id}: bottom edge (${it.y + it.length}) exceeds room length (${DEFAULT_ROOM_L})`,
+        bottom <= DEFAULT_ROOM_L + 0.01,
+        `${it.id}: bottom edge (${bottom}) exceeds room length (${DEFAULT_ROOM_L})`,
       );
     }
   });
 
   test("no two main-layer items collide with each other", () => {
+    // obbOverlap is the exact function collidesWithOthers (planner-math.ts)
+    // uses at runtime -- a true rotated-rectangle overlap test via
+    // separating-axis theorem, not an axis-aligned approximation. Matching
+    // it here means this test agrees with what the app itself would
+    // consider a collision, including for items rotated 90/270 degrees.
     const mainItems = items.filter((it) => (it.layer ?? "main") === "main");
     for (let i = 0; i < mainItems.length; i++) {
       for (let j = i + 1; j < mainItems.length; j++) {
         assert.equal(
-          aabbOverlap(mainItems[i], mainItems[j]),
+          obbOverlap(mainItems[i], mainItems[j]),
           false,
           `"${mainItems[i].name}" (${mainItems[i].id}) and "${mainItems[j].name}" (${mainItems[j].id}) collide`,
         );

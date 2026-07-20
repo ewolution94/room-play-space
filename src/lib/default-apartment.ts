@@ -148,14 +148,26 @@ function buildLivingRoom(lang: Lang): RoomLayout {
       windowOpening("left", 60, 120),
     ],
     items: [
+      // Kenney kit models (and the matching procedural furniture families)
+      // are authored facing their own local +Z at rotation:0, which in
+      // this app means "faces toward larger y" -- see the doc comment on
+      // buildDefaultOfficeItems in use-room-planner.ts for how that was
+      // confirmed. The sofa backs up to the top wall (y=30, right under
+      // the window) so it needs no rotation. The armchair and TV/stand
+      // aren't wall-backed the same way, so they're rotated to face the
+      // seating cluster instead of blindly facing south.
       mkItem("sofa", 40, 30),
       mkItem("coffee-table", 90, 140),
-      mkItem("armchair", 280, 40),
-      mkItem("tv-stand", 240, 230),
+      // Angled toward the sofa/coffee-table cluster to the west instead of
+      // facing south.
+      mkItem("armchair", 280, 40, { rotation: 90 }),
+      // Only 20cm from the right wall -- faces west into the room (toward
+      // the seating) instead of south.
+      mkItem("tv-stand", 240, 230, { rotation: 90 }),
       mkItem("rug", 50, 100),
       mkItem("floor-lamp", 380, 140),
       mkItem("plant", 360, 320),
-      mkItem("tv-65", 248, 235, { elevation: 45 }),
+      mkItem("tv-65", 248, 235, { elevation: 45, rotation: 90 }),
       mkItem("table-lamp", 125, 155, { elevation: 45 }),
       mkItem("books-stack", 155, 170, { elevation: 45 }),
     ],
@@ -180,7 +192,8 @@ function buildKitchen(lang: Lang): RoomLayout {
       mkItem("fridge", 160, 15),
       mkItem("kitchen-island", 90, 140),
       mkItem("trash-bin", 240, 20),
-      mkItem("kitchen-wall-cabinet", 20, 90),
+      // Backed up to the left wall (x=20) -- faces east into the room.
+      mkItem("kitchen-wall-cabinet", 20, 90, { rotation: 270 }),
     ],
   });
 }
@@ -220,7 +233,12 @@ function buildBedroom(lang: Lang): RoomLayout {
     openings: [doorOpening("top", 135), windowOpening("bottom", 130, 120)],
     items: [
       mkItem("wardrobe", 225, 20),
-      mkItem("bed-double", 110, 130),
+      // The bed's foot (its unrotated "front") sits only 10cm from the
+      // bottom wall while the headboard end is 130cm out in the open
+      // room -- backwards from how a bed is actually placed. rotation:180
+      // puts the headboard against that wall instead, with the foot (and
+      // walking space toward the door on the opposite wall) in the open.
+      mkItem("bed-double", 110, 130, { rotation: 180 }),
       mkItem("nightstand", 55, 130),
       mkItem("nightstand", 280, 130),
       mkItem("rug-small", 50, 120),
@@ -268,10 +286,14 @@ function buildDiningRoom(lang: Lang): RoomLayout {
     items: [
       mkItem("sideboard", 180, 20),
       mkItem("dining-table-rect", 90, 140),
+      // The table spans y:140-230. These two chairs sit north of it, so
+      // they already face the table (south) at the unrotated default.
       mkItem("dining-chair", 110, 85),
       mkItem("dining-chair", 175, 85),
-      mkItem("dining-chair", 110, 235),
-      mkItem("dining-chair", 175, 235),
+      // These two sit south of the table and need to face north (back
+      // toward it) instead of the unrotated default of facing away.
+      mkItem("dining-chair", 110, 235, { rotation: 180 }),
+      mkItem("dining-chair", 175, 235, { rotation: 180 }),
       mkItem("pendant-light", 155, 170, { elevation: 175 }),
     ],
   });

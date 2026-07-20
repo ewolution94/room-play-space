@@ -31,6 +31,36 @@ export type ItemLayer = "under" | "main" | "on-top" | "wall";
 // ellipse instead of a rectangle). Missing/undefined means "rect".
 export type ItemShape = "rect" | "circle";
 
+// Shared shapes for the ExportImportDialog component (see
+// src/components/planner/ExportImportDialog.tsx) -- kept here rather than
+// defined in that component file so both it and every route/hook that
+// feeds it data (use-room-planner.ts, rooms.index.tsx) can reference the
+// same types without the data layer importing from a UI component.
+
+/** One selectable export/import target the dialog can offer -- e.g. "This
+ * room" vs "Current floor" vs "All floors". A caller with only one valid
+ * scope (the single-room editor) passes an array of length 1; the
+ * dialog's scope picker just doesn't render in that case. */
+export interface ExportImportScope {
+  id: string;
+  label: string;
+}
+
+/** What a `buildExport` function returns: enough for the dialog to show a
+ * human-readable preview AND the exact JSON it'll download, without the
+ * dialog needing to know anything about rooms/items/floors itself. */
+export interface ExportPreviewData {
+  summaryLines: string[];
+  filename: string;
+  json: unknown;
+}
+
+/** What a `validateImport` function returns -- either a preview-ready
+ * summary, or a human-readable reason the file can't be imported. */
+export type ImportValidationResult =
+  | { ok: true; summaryLines: string[] }
+  | { ok: false; error: string };
+
 export interface Item {
   id: string;
   name: string;
@@ -272,9 +302,9 @@ export interface HeaderProps {
   redo: () => void;
   items: Item[];
   openings: Opening[];
-  exportJSON: () => void;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  onImportFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  buildRoomExportPreview: () => ExportPreviewData;
+  validateRoomImport: (raw: unknown) => ImportValidationResult;
+  applyRoomImport: (raw: unknown) => void;
   setResetMode: (mode: "items" | "all" | null) => void;
   setTourOpen: (open: boolean) => void;
   setTourStep: (step: React.SetStateAction<number>) => void;
@@ -493,7 +523,6 @@ export interface UseRoomPlannerReturn {
 
   // Refs
   stageRef: React.RefObject<HTMLDivElement | null>;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
 
   // Helpers / Actions
   cm: (v: number) => number;
@@ -512,8 +541,9 @@ export interface UseRoomPlannerReturn {
   confirmReset: () => void;
   clearRuler: () => void;
   closeTour: () => void;
-  exportJSON: () => void;
-  onImportFile: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  buildRoomExportPreview: () => ExportPreviewData;
+  validateRoomImport: (raw: unknown) => ImportValidationResult;
+  applyRoomImport: (raw: unknown) => void;
   onItemPointerDown: (e: React.PointerEvent, item: Item) => void;
   onRotateHandleDown: (e: React.PointerEvent, item: Item) => void;
   onStagePointerDown: (e: React.PointerEvent) => void;

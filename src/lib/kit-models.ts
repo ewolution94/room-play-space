@@ -1,6 +1,42 @@
 import type { KitModel } from "@/types/planner";
 
 /**
+ * Facing convention for every directional kit model in this catalog
+ * (chairs, sofas, beds, cabinets/credenzas with doors, TVs, ...):
+ *
+ * Every Kenney Furniture Kit .glb is authored with its "front" (the open
+ * side of a chair away from the backrest, the foot of a bed opposite the
+ * headboard, the door side of a cabinet, ...) flush with local Z=0, and
+ * the rest of the object extending backward into negative Z -- i.e.
+ * `kitModel.maxZ` is 0 (or very close to it) and `kitModel.minZ` is
+ * negative for essentially every entry in planner-presets.ts. This isn't
+ * documented anywhere by Kenney; it was confirmed empirically by loading
+ * a spread of directional models (chairDesk, loungeDesignSofa, bedDouble,
+ * bookcaseClosedWide, ...) and checking where their tall/asymmetric
+ * feature (backrest, headboard) actually sits in the mesh's own vertex
+ * data -- consistently at the minZ extreme.
+ *
+ * ThreeDView.tsx applies `outerGroup.rotation.y = -(it.rotation * Math.PI)
+ * / 180` uniformly to every item (kit model, procedural, or plain box), so
+ * this convention translates directly to `Item.rotation`: at
+ * `rotation: 0`, a directional item's front faces toward larger world Z
+ * (i.e. toward larger 2D `y` -- "south"/into the room, away from a wall
+ * the item is backed up against at small y). rotation:90 faces west
+ * (smaller x), rotation:180 faces north (smaller y), rotation:270 faces
+ * east (larger x). The procedural `cabinetBox` family (procedural-
+ * models.ts) was deliberately built to match: its door panel sits at
+ * `+l/2`, the same local-Z-facing-front convention.
+ *
+ * This is why a chair placed at `rotation: 0` right in front of (i.e.
+ * south of) a desk visually faces AWAY from it -- the chair needs
+ * `rotation: 180` to face back north toward the desk. See
+ * buildDefaultOfficeItems (use-room-planner.ts) and
+ * generateDefaultApartmentLayout (default-apartment.ts) for worked
+ * examples of applying this per item based on which wall (if any) it's
+ * backed up against, or what it's meant to face.
+ */
+
+/**
  * How far a placed item's current width/length/height is allowed to drift
  * from its preset's own default size before ThreeDView.tsx gives up on the
  * Kenney model and falls back to the flat box.

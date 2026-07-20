@@ -24,6 +24,7 @@ import {
 import type { HeaderProps } from "@/types/planner";
 import { Link } from "@tanstack/react-router";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { ExportImportDialog } from "./ExportImportDialog";
 
 export function Header({
   t,
@@ -35,9 +36,9 @@ export function Header({
   redo,
   items,
   openings,
-  exportJSON,
-  fileInputRef,
-  onImportFile,
+  buildRoomExportPreview,
+  validateRoomImport,
+  applyRoomImport,
   setResetMode,
   setTourOpen,
   setTourStep,
@@ -58,6 +59,9 @@ export function Header({
   // single `isPortrait` boolean for both instead guarantees exactly one
   // ever renders.
   const { isPortrait } = useMobileViewOnly();
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const roomScopes = [{ id: "room", label: lang === "de" ? "Dieser Raum" : "This room" }];
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
@@ -162,13 +166,6 @@ export function Header({
               <Redo2 className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">{t.redo}</span>
             </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={onImportFile}
-            />
             <Button
               variant="outline"
               size="sm"
@@ -215,14 +212,19 @@ export function Header({
                 <Languages className="h-4 w-4" />
                 <span>{lang === "en" ? "Deutsch" : "English"}</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={exportJSON} className="gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportOpen(true)}
+                className="gap-1.5"
+              >
                 <Download className="h-4 w-4" />
                 <span>{t.export}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setImportOpen(true)}
                 className="gap-1.5"
               >
                 <Upload className="h-4 w-4" />
@@ -271,10 +273,10 @@ export function Header({
                   {lang === "en" ? "Deutsch" : "English"}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={exportJSON}>
+                <DropdownMenuItem onClick={() => setExportOpen(true)}>
                   <Download className="mr-2 h-4 w-4" /> {t.export}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                <DropdownMenuItem onClick={() => setImportOpen(true)}>
                   <Upload className="mr-2 h-4 w-4" /> {t.import}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -295,6 +297,36 @@ export function Header({
           </div>
         )}
       </div>
+
+      <ExportImportDialog
+        lang={lang}
+        mode="export"
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title={lang === "de" ? "Raum exportieren" : "Export Room"}
+        description={
+          lang === "de"
+            ? "Speichert den aktuellen Raum als JSON-Datei."
+            : "Saves the current room as a JSON file."
+        }
+        scopes={roomScopes}
+        buildExport={() => buildRoomExportPreview()}
+      />
+      <ExportImportDialog
+        lang={lang}
+        mode="import"
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title={lang === "de" ? "Raum importieren" : "Import Room"}
+        description={
+          lang === "de"
+            ? "Ersetzt den aktuellen Raum durch den Inhalt einer JSON-Datei."
+            : "Replaces the current room with the contents of a JSON file."
+        }
+        scopes={roomScopes}
+        validateImport={(_scopeId, raw) => validateRoomImport(raw)}
+        applyImport={(_scopeId, raw) => applyRoomImport(raw)}
+      />
     </header>
   );
 }

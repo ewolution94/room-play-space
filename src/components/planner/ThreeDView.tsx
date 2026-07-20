@@ -462,6 +462,18 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   // exact same THREE.Scene the main effect built, instead of needing its
   // own -- see that effect's doc comment for why this exists.
   const sceneRef = useRef<THREE.Scene | null>(null);
+  // Camera position + orbit target from the run of the main effect that's
+  // about to be torn down, captured in that effect's own cleanup (see
+  // below) and reapplied the next time it sets up a camera -- so a scene
+  // rebuild (triggered by e.g. isDark, selectedIds, or anything else in
+  // that effect's dependency list) restores the exact framing the user
+  // had instead of snapping back to the computed default view every time.
+  // Left null only before the very first mount, when there's nothing to
+  // restore yet.
+  const savedCameraStateRef = useRef<{
+    position: THREE.Vector3;
+    target: THREE.Vector3;
+  } | null>(null);
 
   // The overall bounding box of every room instance's real placed shape
   // (each instance's LOCAL corners translated by its own x/y, exactly like
@@ -599,7 +611,14 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     const width = container.clientWidth;
     const height = container.clientHeight;
     const camera = new THREE.PerspectiveCamera(45, width / height, 10, 5000);
-    camera.position.set(totalW * 0.8, Math.max(totalW, totalL) * 1.2, totalL * 1.2);
+    // Restore the view the user had before this rebuild if we have one
+    // saved (see savedCameraStateRef's doc comment); only fall back to the
+    // computed default framing on the very first mount.
+    if (savedCameraStateRef.current) {
+      camera.position.copy(savedCameraStateRef.current.position);
+    } else {
+      camera.position.set(totalW * 0.8, Math.max(totalW, totalL) * 1.2, totalL * 1.2);
+    }
     cameraRef.current = camera;
 
     // --- Renderer Setup ---
@@ -616,7 +635,12 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     controls.maxPolarAngle = Math.PI / 2 - 0.05; // Don't go below floor level
     controls.minDistance = 50;
     controls.maxDistance = 1500;
-    controls.target.set(0, 0, 0);
+    if (savedCameraStateRef.current) {
+      controls.target.copy(savedCameraStateRef.current.target);
+    } else {
+      controls.target.set(0, 0, 0);
+    }
+    controls.update();
     controlsRef.current = controls;
 
     // --- Lighting ---
@@ -1573,6 +1597,14 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
           }
         }
       });
+
+      // Stash the view the user left this scene in so the next setup
+      // (whatever triggers it) can restore it instead of recomputing the
+      // default framing -- see savedCameraStateRef's doc comment.
+      savedCameraStateRef.current = {
+        position: camera.position.clone(),
+        target: controls.target.clone(),
+      };
 
       controls.dispose();
       renderer.dispose();

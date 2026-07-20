@@ -1,6 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 import type {
   Lang,
   Item,
@@ -23,9 +22,10 @@ import {
   findFreeSpot,
   computeOnTopElevation,
 } from "@/lib/planner-math";
-import { importSchema } from "@/lib/planner-schema";
+import { importSchema, formatZodError } from "@/lib/planner-schema";
 import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { loadFloors, saveFloors } from "@/lib/floors";
+import { buildExportFilename } from "@/lib/export-filename";
 import {
   computeAutoOpenIntervals,
   resolveEffectiveOpenIntervals,
@@ -99,19 +99,29 @@ function defaultOfficeItem(
   return item;
 }
 
+// Both functions below reflect the user's own hand-tuned pass over the
+// generated default (exported 2026-07, re-imported here verbatim) --
+// positions/rotations/openings match that export exactly (values just
+// rounded to 2 decimals, since the originals are raw mouse-drag floats
+// with no meaningful extra precision). The one deliberate deviation:
+// books-stack keeps using the *current* preset default width/length
+// instead of the export's literal 25x20 -- that 25x20 was the preset
+// default at export time, before the kitModel aspect-ratio fix (see
+// planner-presets.ts's books-stack entry), and hard-coding the old
+// pre-fix number here would silently reintroduce the same 3D stretch bug.
 export function buildDefaultOfficeOpenings(): Opening[] {
   return [
     {
       id: "default-door-1",
       wall: "bottom",
-      position: 300,
+      position: 310.25,
       width: 90,
       kind: "door",
-      hinge: "start",
+      hinge: "end",
       swing: "in",
     },
     { id: "default-window-1", wall: "top", position: 190, width: 140, kind: "window" },
-    { id: "default-window-2", wall: "right", position: 130, width: 100, kind: "window" },
+    { id: "default-window-2", wall: "right", position: 144.8, width: 100, kind: "window" },
   ];
 }
 
@@ -120,24 +130,48 @@ export function buildDefaultOfficeItems(): Item[] {
   return [
     // Main layer -- desk + seating area, storage along the walls.
     defaultOfficeItem("desk", 170, 15),
-    defaultOfficeItem("chair-office", 220, 100),
-    defaultOfficeItem("bookshelf", 20, 15),
-    defaultOfficeItem("office-credenza", 365, 210),
-    defaultOfficeItem("filing-cabinet", 20, 280),
-    defaultOfficeItem("guest-chair", 105, 300),
-    defaultOfficeItem("side-table", 170, 310),
-    defaultOfficeItem("floor-lamp", 440, 130),
-    defaultOfficeItem("plant", 430, 310),
+    // Every Kenney kit model (and the matching procedural families, like
+    // cabinetBox below) is authored "facing" its own local +Z at
+    // rotation:0 -- confirmed by inspecting the actual mesh geometry (a
+    // chair/sofa/bed's tall backrest/headboard consistently sits at the
+    // model's minZ extreme, its origin flush with maxZ=0 on the open/front
+    // side). In this app, rotation:0 that means "faces toward larger y"
+    // (south/into the room, away from a wall the item is backed up
+    // against at y=0). See kit-models.ts for the general note.
+    //
+    // The desk backs up to the top wall (y=15) and needs no rotation --
+    // its front (drawer side, where the chair goes) already faces south at
+    // rotation:0. The chair sits just south of the desk, so it needs to
+    // face NORTH (back toward the desk) instead of the unrotated default
+    // of facing south (away from it) -- rotation:180.
+    defaultOfficeItem("chair-office", 220, 100, { rotation: 180 }),
+    defaultOfficeItem("bookshelf", 40.26, 6.89),
+    // Backed up to the right wall -- faces west (into the room).
+    defaultOfficeItem("office-credenza", 409.97, 173.65, { rotation: 90 }),
+    // Three filing cabinets stacked flush against the left wall, all
+    // facing east (into the room, away from that wall).
+    defaultOfficeItem("filing-cabinet", -0.98, 233.67, { rotation: 270 }),
+    defaultOfficeItem("filing-cabinet", -0.5, 169.76, { rotation: 270 }),
+    defaultOfficeItem("filing-cabinet", -0.37, 106.89, { rotation: 270 }),
+    // Reading nook near the bottom wall -- faces north, into the room.
+    defaultOfficeItem("guest-chair", 79.24, 338.73, { rotation: 180 }),
+    defaultOfficeItem("side-table", 140.1, 346.21),
+    defaultOfficeItem("floor-lamp", 443.63, 7.06),
+    defaultOfficeItem("plant", 443.92, 343.73),
+    defaultOfficeItem("plant", 5.86, 344.36),
     // Under layer -- rug beneath the desk + chair.
     defaultOfficeItem("rug", 150, 80),
     // On-top layer -- desk surface + side-table surface.
-    defaultOfficeItem("monitor", 195, 25, { elevation: 75 }),
-    defaultOfficeItem("desk-lamp", 270, 25, { elevation: 75 }),
-    defaultOfficeItem("books-stack", 195, 55, { elevation: 75 }),
-    defaultOfficeItem("plant-small", 175, 325, { elevation: 55 }),
+    defaultOfficeItem("monitor", 221.75, 21.85, { elevation: 75 }),
+    defaultOfficeItem("desk-lamp", 302.92, 21.12, { elevation: 75 }),
+    defaultOfficeItem("books-stack", 175.37, 20.01, { elevation: 75 }),
+    // A laptop open next to the monitor, given a slight stylistic tilt
+    // instead of sitting perfectly axis-aligned.
+    defaultOfficeItem("laptop", 180.42, 52.4, { rotation: 333.9, elevation: 75 }),
+    defaultOfficeItem("plant-small", 145.1, 361.21, { elevation: 55 }),
     // Wall layer -- overhead light + a cork board for the "office" feel.
     defaultOfficeItem("pendant-light", 235, 185, { elevation: 175 }),
-    defaultOfficeItem("corkboard", 485, 140, { swapDims: true, elevation: 140 }),
+    defaultOfficeItem("corkboard", 487.88, 45.94, { swapDims: true, elevation: 140 }),
   ];
 }
 
@@ -1085,9 +1119,15 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   }, [roomW, roomL, collisionEnabled, corners]);
 
   // -------- Export / Import --------
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Both entry points below are pure(-ish) functions rather than
+  // click/change handlers -- the ExportImportDialog component owns the
+  // actual file input, drag-drop, and download-trigger mechanics, and
+  // calls these to get preview data (export) or to validate/apply a
+  // file's parsed JSON (import). This is what lets the dialog show a
+  // live preview -- summary + raw JSON -- before anything actually
+  // downloads or gets applied to the room.
 
-  const exportJSON = () => {
+  const buildRoomExportPreview = () => {
     const payload = {
       version: 3,
       room: { width: roomW, length: roomL },
@@ -1096,32 +1136,50 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       corners,
       wallColors,
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `room-planner-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success(t.exported);
+    const summaryLines = [
+      `${roomW} × ${roomL} cm`,
+      lang === "de" ? `${items.length} Objekte` : `${items.length} items`,
+      lang === "de" ? `${openings.length} Öffnungen` : `${openings.length} openings`,
+    ];
+    // Prefer the room's own name (set when it's a room inside a floor --
+    // see RoomLayout.name) as the filename's basis; the standalone
+    // single-room planner (no roomId) has no such name, so falls back to a
+    // generic "Room"/"Raum" label instead. Either way, buildExportFilename
+    // slugifies it and appends today's date -- just the starting point
+    // shown in the dialog's editable filename field, not the final say.
+    const roomLabel = initialRoom?.name || (lang === "de" ? "Raum" : "Room");
+    return {
+      summaryLines,
+      filename: buildExportFilename(roomLabel),
+      json: payload,
+    };
   };
 
-  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error(t.importFail + "File size exceeds 2MB limit.");
-      return;
-    }
-
+  // Preview-only: parses and validates without touching any room state,
+  // so the dialog can show a summary (or a validation error) before the
+  // user commits to importing.
+  const validateRoomImport = (raw: unknown) => {
     try {
-      const text = await file.text();
-      const parsedJSON = JSON.parse(text);
-      const data = importSchema.parse(parsedJSON);
+      const data = importSchema.parse(raw);
+      const summaryLines = [
+        `${Math.round(data.room.width)} × ${Math.round(data.room.length)} cm`,
+        lang === "de" ? `${data.items.length} Objekte` : `${data.items.length} items`,
+        lang === "de" ? `${data.openings.length} Öffnungen` : `${data.openings.length} openings`,
+      ];
+      return { ok: true as const, summaryLines };
+    } catch (err) {
+      return { ok: false as const, error: formatZodError(err) };
+    }
+  };
+
+  // Actually applies an already-validated import to the room -- called
+  // once, on confirm. Re-parses rather than trusting a value threaded
+  // through from validateRoomImport above, since that keeps this function
+  // safely callable on its own (e.g. from a future non-dialog entry
+  // point) without relying on validation having already happened.
+  const applyRoomImport = (raw: unknown) => {
+    try {
+      const data = importSchema.parse(raw);
 
       pushHistory();
       const nextW = Math.max(50, Math.round(data.room.width));
@@ -1189,15 +1247,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       toast.success(t.imported);
     } catch (err) {
       console.error("Import failed:", err);
-      let errorMsg = "";
-      if (err instanceof z.ZodError) {
-        errorMsg = err.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
-      } else if (err instanceof Error) {
-        errorMsg = err.message;
-      } else {
-        errorMsg = "Unknown error";
-      }
-      toast.error(t.importFail + errorMsg);
+      toast.error(t.importFail + formatZodError(err));
     }
   };
 
@@ -1277,7 +1327,6 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
 
     // Refs
     stageRef,
-    fileInputRef,
 
     // Helpers / Actions
     cm,
@@ -1296,8 +1345,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     confirmReset,
     clearRuler,
     closeTour,
-    exportJSON,
-    onImportFile,
+    buildRoomExportPreview,
+    validateRoomImport,
+    applyRoomImport,
     onItemPointerDown,
     onRotateHandleDown,
     onStagePointerDown,
