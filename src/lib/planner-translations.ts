@@ -110,6 +110,7 @@ export const STRINGS = {
       entryway: "Entryway",
       kids: "Kids Room",
       outdoor: "Outdoor",
+      structural: "Structural",
     } as Record<string, string>,
     catalogLayers: {
       main: "Main",
@@ -242,6 +243,7 @@ export const STRINGS = {
       entryway: "Flur",
       kids: "Kinderzimmer",
       outdoor: "Aussenbereich",
+      structural: "Bauelemente",
     } as Record<string, string>,
     catalogLayers: {
       main: "Hauptmöbel",

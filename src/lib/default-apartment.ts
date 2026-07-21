@@ -51,7 +51,19 @@ function mkItem(
   key: string,
   x: number,
   y: number,
-  opts: { rotation?: number; elevation?: number; swapDims?: boolean } = {},
+  opts: {
+    rotation?: number;
+    elevation?: number;
+    swapDims?: boolean;
+    // Rare escape hatches for the handful of items that are a deliberate
+    // resize/recolor away from their catalog default (e.g. a bigger
+    // kitchen island, a narrower wardrobe, a differently-painted PC
+    // tower) -- everything else keeps deriving width/length/color from
+    // the live preset so it never goes stale.
+    width?: number;
+    length?: number;
+    color?: string;
+  } = {},
 ): Item {
   const preset = PRESET_BY_KEY[key];
   if (!preset) throw new Error(`default-apartment.ts: unknown preset key "${key}"`);
@@ -60,14 +72,14 @@ function mkItem(
   // of the preset's own w/l becomes width/length is a safe, cheap way to
   // lay it out rotated 90 degrees (long axis along the room's x instead of
   // its y) without needing an actual THREE.js rotation.
-  const width = opts.swapDims ? preset.l : preset.w;
-  const length = opts.swapDims ? preset.w : preset.l;
+  const width = opts.width ?? (opts.swapDims ? preset.l : preset.w);
+  const length = opts.length ?? (opts.swapDims ? preset.w : preset.l);
   const item: Item = {
     id: nextId(key),
     name: preset.nameEn,
     width,
     length,
-    color: preset.color,
+    color: opts.color ?? preset.color,
     x,
     y,
     rotation: opts.rotation ?? 0,
@@ -148,28 +160,21 @@ function buildLivingRoom(lang: Lang): RoomLayout {
       windowOpening("left", 60, 120),
     ],
     items: [
-      // Kenney kit models (and the matching procedural furniture families)
-      // are authored facing their own local +Z at rotation:0, which in
-      // this app means "faces toward larger y" -- see the doc comment on
-      // buildDefaultOfficeItems in use-room-planner.ts for how that was
-      // confirmed. The sofa backs up to the top wall (y=30, right under
-      // the window) so it needs no rotation. The armchair and TV/stand
-      // aren't wall-backed the same way, so they're rotated to face the
-      // seating cluster instead of blindly facing south.
-      mkItem("sofa", 40, 30),
-      mkItem("coffee-table", 90, 140),
-      // Angled toward the sofa/coffee-table cluster to the west instead of
-      // facing south.
-      mkItem("armchair", 280, 40, { rotation: 90 }),
-      // Only 20cm from the right wall -- faces west into the room (toward
-      // the seating) instead of south.
-      mkItem("tv-stand", 240, 230, { rotation: 90 }),
-      mkItem("rug", 50, 100),
-      mkItem("floor-lamp", 380, 140),
+      mkItem("sofa", 16.5569247483989, 18.069318961573657),
+      mkItem("coffee-table", 79.72209515096066, 151.69165999542543),
+      mkItem("armchair", 293.41913026075025, 33.30741079597439, {
+        rotation: 35.97467566958363,
+      }),
+      mkItem("tv-stand", 13.901032136322058, 325.83928979871916, { rotation: 180 }),
+      mkItem("rug", 28.47452538883806, 121.53905535224152),
+      mkItem("floor-lamp", 379.932096294602, 119.3572735590119),
       mkItem("plant", 360, 320),
-      mkItem("tv-65", 248, 235, { elevation: 45, rotation: 90 }),
-      mkItem("table-lamp", 125, 155, { elevation: 45 }),
-      mkItem("books-stack", 155, 170, { elevation: 45 }),
+      mkItem("tv-65", 22.053136436413524, 338.7541456999085, {
+        rotation: 180,
+        elevation: 45,
+      }),
+      mkItem("table-lamp", 85.55473753430924, 168.16924462488564, { elevation: 45 }),
+      mkItem("books-stack", 146.30017726440988, 160.90769384720952, { elevation: 45 }),
     ],
   });
 }
@@ -185,15 +190,29 @@ function buildKitchen(lang: Lang): RoomLayout {
     length: KITCHEN_L,
     x: OFFSET_X + 500,
     y: OFFSET_Y + HALLWAY_Y - KITCHEN_L,
-    openings: [doorOpening("bottom", 115), windowOpening("top", 100, 100)],
+    openings: [doorOpening("bottom", 115), windowOpening("top", 126.21755758570583, 100)],
     items: [
-      mkItem("stove", 20, 20),
-      mkItem("sink", 90, 20),
-      mkItem("fridge", 160, 15),
-      mkItem("kitchen-island", 90, 140),
-      mkItem("trash-bin", 240, 20),
-      // Backed up to the left wall (x=20) -- faces east into the room.
-      mkItem("kitchen-wall-cabinet", 20, 90, { rotation: 270 }),
+      mkItem("stove", 119.11725182982616, 6.072592634949679),
+      mkItem("sink", 183.01663998170173, 5.22665542086002),
+      mkItem("fridge", 245.98431781793226, 4.369496225983532),
+      // Sized up from the 120x80 catalog default -- a deliberate bigger
+      // island for this layout.
+      mkItem("kitchen-island", 87.77620620526343, 128.45216551854045, {
+        width: 140,
+        length: 100,
+      }),
+      mkItem("trash-bin", 52.28159393331899, 5.9118942064474425),
+      mkItem("kitchen-wall-cabinet", -19.499999999999993, 26.506461573650505, {
+        rotation: 270,
+      }),
+      mkItem("kitchen-wall-cabinet", -19.499999999999993, 107.85857529196491, {
+        rotation: 270,
+      }),
+      mkItem("toaster", 183.16009297131478, 149.75525402292664, {
+        rotation: 28.26814763817356,
+        elevation: 90,
+      }),
+      mkItem("stand-mixer", 99.00658939239007, 191.3829583983639, { elevation: 90 }),
     ],
   });
 }
@@ -211,10 +230,12 @@ function buildBathroom(lang: Lang): RoomLayout {
     y: OFFSET_Y + HALLWAY_Y - BATH_L,
     openings: [doorOpening("bottom", 70, 80)],
     items: [
-      mkItem("shower-stall", 15, 15),
-      mkItem("bathroom-sink-vanity", 120, 15),
-      mkItem("toilet", 130, 80),
-      mkItem("bath-mat", 125, 85),
+      mkItem("shower-stall", 3.5072621225983482, 3.491822964318388),
+      mkItem("bathroom-sink-vanity", 118.62076852698993, 7.7676120768527),
+      mkItem("toilet", 159.06593092406223, 176.93218206770356, { rotation: 90 }),
+      mkItem("bath-mat", 128.09040484903934, 62.0145242451967),
+      mkItem("vanity-mirror", 122.65433440073195, 3),
+      mkItem("towel-rack", -20.78573879231473, 160.99062214089665, { rotation: 270 }),
     ],
   });
 }
@@ -232,18 +253,17 @@ function buildBedroom(lang: Lang): RoomLayout {
     y: OFFSET_Y + HALLWAY_BOTTOM_Y,
     openings: [doorOpening("top", 135), windowOpening("bottom", 130, 120)],
     items: [
-      mkItem("wardrobe", 225, 20),
-      // The bed's foot (its unrotated "front") sits only 10cm from the
-      // bottom wall while the headboard end is 130cm out in the open
-      // room -- backwards from how a bed is actually placed. rotation:180
-      // puts the headboard against that wall instead, with the foot (and
-      // walking space toward the door on the opposite wall) in the open.
-      mkItem("bed-double", 110, 130, { rotation: 180 }),
-      mkItem("nightstand", 55, 130),
-      mkItem("nightstand", 280, 130),
-      mkItem("rug-small", 50, 120),
-      mkItem("table-lamp", 65, 140, { elevation: 55 }),
-      mkItem("plant-small", 290, 140, { elevation: 55 }),
+      // Narrowed from the 150cm catalog default -- a deliberate slimmer
+      // wardrobe for this layout.
+      mkItem("wardrobe", 4.8179322964318345, 4.688286253430924, { width: 130 }),
+      mkItem("bed-double", 142.3160881747484, 135.04395871454713, { rotation: 180 }),
+      mkItem("nightstand", 95.1681867566331, 294.29015610704477, { rotation: 180 }),
+      mkItem("nightstand", 304.88442074565415, 294.7081570219579, { rotation: 180 }),
+      mkItem("rug-small", 72.11151932753887, 185.2044973696249, { rotation: 90 }),
+      mkItem("table-lamp", 97.69399016468435, 307.83951852698993, { elevation: 55 }),
+      mkItem("plant-small", 327.2385349954254, 312.86768069533395, { elevation: 55 }),
+      mkItem("rug-small", 280.17726440988105, 183.72764181152792, { rotation: 90 }),
+      mkItem("bedside-bench", 169.299962831656, 94.44134549405305),
     ],
   });
 }
@@ -261,12 +281,30 @@ function buildOffice(lang: Lang): RoomLayout {
     y: OFFSET_Y + HALLWAY_BOTTOM_Y,
     openings: [doorOpening("top", 115), windowOpening("bottom", 100, 120)],
     items: [
-      mkItem("bookshelf", 20, 20),
-      mkItem("chair-office", 130, 110),
-      mkItem("desk", 80, 180),
-      mkItem("monitor", 100, 190, { elevation: 75 }),
-      mkItem("desk-lamp", 200, 190, { elevation: 75 }),
-      mkItem("books-stack", 140, 220, { elevation: 75 }),
+      mkItem("bookshelf", 4.738534995425432, 4.600440301921317),
+      mkItem("chair-office", 142.38443915087268, 128.4569419030192, {
+        rotation: 14.556701930061536,
+      }),
+      mkItem("desk", 97.41193961573649, 198.50644013037513, { rotation: 180 }),
+      mkItem("monitor", 148.111490736505, 246.2568261093321, {
+        rotation: 180,
+        elevation: 75,
+      }),
+      mkItem("desk-lamp", 230.31929037053982, 243.9622526875572, { elevation: 75 }),
+      mkItem("bookshelf", 235.1445276761208, 4.821248856358647),
+      mkItem("planter-tall", 274.2483417200366, 234.67586344922233),
+      // Recolored from the catalog's dark-slate default to a lighter gray
+      // metal for this layout.
+      mkItem("pc-tower", 72.71707742451967, 206.05834715233306, { color: "#6c757d" }),
+      mkItem("computer-keyboard", 166.08558011207685, 211.06392240393413, {
+        rotation: 180,
+        elevation: 75,
+      }),
+      mkItem("computer-mouse", 144.20432582342175, 213.21915027447395, {
+        rotation: 159.9423079725584,
+        elevation: 75,
+      }),
+      mkItem("filing-cabinet", -4.499999999999993, 81.84156278591034, { rotation: 270 }),
     ],
   });
 }
@@ -284,7 +322,7 @@ function buildDiningRoom(lang: Lang): RoomLayout {
     y: OFFSET_Y + HALLWAY_BOTTOM_Y,
     openings: [doorOpening("top", 20), windowOpening("bottom", 110, 140)],
     items: [
-      mkItem("sideboard", 180, 20),
+      mkItem("sideboard", 196.0996111619396, 4.439687214089663),
       mkItem("dining-table-rect", 90, 140),
       // The table spans y:140-230. These two chairs sit north of it, so
       // they already face the table (south) at the unrotated default.
@@ -315,9 +353,12 @@ function buildHallway(lang: Lang): RoomLayout {
     color: "#94a3b8",
     items: [
       mkItem("runner-rug", 455, 35, { swapDims: true }),
-      mkItem("coat-rack", 30, 50),
-      mkItem("wall-sconce", 210, 2),
-      mkItem("wall-sconce", 900, 2),
+      mkItem("coat-rack", 108.46185200668899, 7.895746237458194),
+      mkItem("wall-sconce", 300.45678302675583, 3),
+      mkItem("wall-sconce", 839.2570025083612, 3),
+      mkItem("shoe-rack", 361.47794732441474, 3),
+      mkItem("router-box", 414.7072533444816, 9.40739966555184, { elevation: 60 }),
+      mkItem("table-lamp", 364.7437813545151, 4.03051839464883, { elevation: 60 }),
     ],
     openings: [
       doorOpening("left", Math.round((HALLWAY_WIDTH - doorWidth) / 2), doorWidth),

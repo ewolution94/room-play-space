@@ -554,6 +554,45 @@ const hingedScreen: ProceduralGenerator = (dims) => {
   ];
 };
 
+/** A flat handheld body with two raised thumbstick nubs and a small accent
+ * button cluster -- game controller silhouette. */
+const gamepadShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const bodyH = h * 0.55;
+  const stickDiam = Math.max(1.5, Math.min(w, l) * 0.16);
+  const stickH = Math.max(1, h - bodyH);
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: bodyH / 2, z: 0, sx: w, sy: bodyH, sz: l },
+  ];
+
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "cylinder",
+      x: sx * w * 0.22,
+      y: bodyH + stickH / 2,
+      z: -l * 0.08,
+      sx: stickDiam,
+      sy: stickH,
+      sz: stickDiam,
+      colorOffset: -0.25,
+    });
+  }
+
+  parts.push({
+    shape: "box",
+    x: 0,
+    y: bodyH + Math.max(0.5, h * 0.02),
+    z: l * 0.28,
+    sx: w * 0.26,
+    sy: Math.max(0.5, h * 0.03),
+    sz: l * 0.22,
+    colorOffset: 0.2,
+  });
+
+  return parts;
+};
+
 /** A cylindrical body with either a narrower neck (vase) or a small flame cone (candle). */
 const taperedVessel: ProceduralGenerator = (dims, params) => {
   const { w, h, l } = dims;
@@ -604,6 +643,7 @@ export const PROCEDURAL_GENERATORS: Record<string, ProceduralGenerator> = {
   domedCart,
   standAndPole,
   hingedScreen,
+  gamepadShape,
   taperedVessel,
 };
 

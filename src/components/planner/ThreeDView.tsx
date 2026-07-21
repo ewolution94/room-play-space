@@ -38,6 +38,47 @@ const kitModelCache = new Map<string, THREE.Group>();
 const kitModelLoading = new Set<string>();
 const kitGltfLoader = new GLTFLoader();
 
+// Kenney kit materials are flat-shaded MeshStandardMaterials with no baked
+// color texture (confirmed by inspecting the actual .glb files -- no
+// material anywhere in this kit has a `.map`), so "tinting" a model to an
+// item's chosen 2D color is just swapping each material's own `.color`,
+// no texture math needed. Every placed instance of a given kit file shares
+// the SAME material objects as the cached template above (Object3D.clone()
+// deep-clones the node graph but not geometry/material), so a tinted
+// material has to be its own clone -- cached here per (original material,
+// target color) pair so re-tinting the same combination across multiple
+// instances/rebuilds reuses one object instead of leaking a fresh
+// MeshStandardMaterial every time. Lives for the app session, same as
+// kitModelCache -- never explicitly disposed, which is safe for the same
+// reason skipping disposal of the cached template's own materials is safe
+// (see `sharedFromKitCache` below): a small, bounded, frequently-reused set
+// of (file's material x recolor) combinations, not one-off garbage.
+const tintedMaterialCache = new Map<string, THREE.Material>();
+
+function hasColorProp(m: THREE.Material): m is THREE.Material & { color: THREE.Color } {
+  return "color" in m;
+}
+
+/** Returns a version of `material` (or, for a multi-material mesh, each
+ * entry in the array) with its `.color` set to `colorHex` -- everything
+ * else (metalness, roughness, and so on) is left exactly as Kenney
+ * authored it, so a tinted metal part still reads as metal, just a
+ * different hue, rather than being flattened to a flat matte color. */
+function tintKitMaterial(
+  material: THREE.Material | THREE.Material[],
+  colorHex: string,
+): THREE.Material | THREE.Material[] {
+  if (Array.isArray(material))
+    return material.map((m) => tintKitMaterial(m, colorHex) as THREE.Material);
+  const key = `${material.uuid}|${colorHex}`;
+  const cached = tintedMaterialCache.get(key);
+  if (cached) return cached;
+  const tinted = material.clone();
+  if (hasColorProp(tinted)) tinted.color.set(colorHex);
+  tintedMaterialCache.set(key, tinted);
+  return tinted;
+}
+
 // RectAreaLight needs its LTC (linearly transformed cosine) lookup tables
 // registered once before any RectAreaLight is used, per the three.js manual
 // (https://threejs.org/manual/#en/lights) -- done once at module load
@@ -1151,14 +1192,26 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
                 scaleVec.y * KIT_MODEL_UNIT_SCALE,
                 scaleVec.z * KIT_MODEL_UNIT_SCALE,
               );
+              // Only tint when the item's color has actually been changed
+              // away from the preset's own default -- an untouched item
+              // should keep looking exactly like the kit model's real
+              // authored materials, not get a same-color "tint" that's a
+              // slightly-off match to begin with.
+              const tintColor =
+                it.color.toLowerCase() !== preset!.color.toLowerCase() ? it.color : null;
               instance.traverse((node) => {
                 if ((node as THREE.Mesh).isMesh) {
                   const mesh = node as THREE.Mesh;
                   mesh.castShadow = true;
                   mesh.receiveShadow = true;
+                  if (tintColor) {
+                    mesh.material = tintKitMaterial(mesh.material, tintColor);
+                  }
                   // Never disposed by this component's cleanup below --
-                  // geometry/material are owned by kitModelCache, shared
-                  // with every other instance and every future rebuild.
+                  // geometry/material are owned by kitModelCache (or, for a
+                  // tinted mesh, by tintedMaterialCache -- see its own doc
+                  // comment), shared with every other instance and every
+                  // future rebuild.
                   mesh.userData.sharedFromKitCache = true;
                 }
               });

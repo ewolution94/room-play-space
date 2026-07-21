@@ -515,6 +515,16 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     selectedIdsRef.current = selectedIds;
   }, [selectedIds]);
 
+  // Switching into 3D clears any 2D selection -- ThreeDView renders a
+  // purple wireframe highlight box around every selected item (see its
+  // `selectedIds.has(it.id)` check), which has no real equivalent
+  // interaction in 3D (there's no way to select/deselect an item there) and
+  // just reads as a stray, unexplained highlight left over from whatever
+  // was selected in 2D a moment ago.
+  useEffect(() => {
+    if (threeDActive) setSelectedIds(new Set());
+  }, [threeDActive]);
+
   // Scroll the selected item's row into view inside the right-column scroller
   useEffect(() => {
     if (typeof window === "undefined") return;

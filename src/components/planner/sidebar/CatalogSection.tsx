@@ -83,12 +83,17 @@ function CatalogGrid({
                   type="button"
                   disabled={threeDActive}
                   onClick={() => addPreset(p)}
-                  className="group relative flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border border-border/40 bg-background/50 p-1 text-center transition-all duration-200 hover:border-primary hover:bg-accent/50 disabled:opacity-50 disabled:pointer-events-none"
+                  className="group relative flex aspect-square flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md border border-border/40 bg-background/50 p-1 text-center transition-all duration-200 hover:border-primary hover:bg-accent/50 disabled:opacity-50 disabled:pointer-events-none"
                   title={`${lang === "de" ? p.nameDe : p.nameEn} (${p.w}×${p.l}cm)${has3dModel ? (lang === "de" ? " — echtes 3D-Modell" : " — real 3D model") : ""}`}
                 >
                   {has3dModel && (
+                    // A small folded-corner "ribbon" instead of a plain dot
+                    // (which read too much like a notification badge) --
+                    // a rotated square straddling the top-right corner,
+                    // clipped by the button's own overflow-hidden + rounded
+                    // corner into a subtle diagonal flag.
                     <span
-                      className="pointer-events-none absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary/70"
+                      className="pointer-events-none absolute -right-2.5 -top-2.5 h-5 w-5 rotate-45 bg-primary/70 shadow-sm"
                       aria-hidden="true"
                     />
                   )}

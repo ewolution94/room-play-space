@@ -2,28 +2,9 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { generateDefaultApartmentLayout } from "@/lib/default-apartment";
 import { computeRoomConnectivity, globalCorners } from "@/lib/room-adjacency";
-import { rectilinearPolygonsOverlap } from "@/lib/planner-math";
+import { rectilinearPolygonsOverlap, rotatedAABB, obbOverlap } from "@/lib/planner-math";
 import { PRESET_BY_KEY } from "@/lib/planner-presets";
-import type { Item, RoomLayout } from "@/types/planner";
-
-// A simplified re-implementation of collidesWithOthers' obbOverlap check,
-// specialized to axis-aligned (rotation 0) rectangles -- every "main" layer
-// item in the default apartment is placed unrotated, so a plain AABB
-// overlap test is exact here (not an approximation) and doesn't need to
-// import planner-math's private obbOverlap.
-function aabbOverlap(a: Item, b: Item, eps = 0.01): boolean {
-  const aMinX = a.x,
-    aMaxX = a.x + a.width;
-  const aMinY = a.y,
-    aMaxY = a.y + a.length;
-  const bMinX = b.x,
-    bMaxX = b.x + b.width;
-  const bMinY = b.y,
-    bMaxY = b.y + b.length;
-  const noOverlapX = aMaxX - eps <= bMinX || bMaxX - eps <= aMinX;
-  const noOverlapY = aMaxY - eps <= bMinY || bMaxY - eps <= aMinY;
-  return !noOverlapX && !noOverlapY;
-}
+import type { RoomLayout } from "@/types/planner";
 
 describe("generateDefaultApartmentLayout", () => {
   const rooms = generateDefaultApartmentLayout("en");
@@ -87,26 +68,49 @@ describe("generateDefaultApartmentLayout", () => {
       });
 
       test("every item's footprint fits within the room's own bounds", () => {
+        // Uses the same rotatedAABB the real app's clampPos (planner-math.ts)
+        // constrains a drag to -- a rotated item's true occupied rectangle
+        // is NOT it.x/it.y/it.width/it.length taken at face value (that's
+        // the *unrotated* box; for an angled item like the living-room
+        // armchair (rotation ~36°) or the office chair (~14.5°) the true
+        // footprint is a different size). Checking the raw unrotated box
+        // here would reject items that are actually fine on screen.
         for (const it of room.items) {
-          assert.ok(it.x >= 0, `${room.name}/${it.id}: x < 0`);
-          assert.ok(it.y >= 0, `${room.name}/${it.id}: y < 0`);
+          const aabb = rotatedAABB(it.width, it.length, it.rotation);
+          const cx = it.x + it.width / 2;
+          const cy = it.y + it.length / 2;
+          const left = cx - aabb.w / 2;
+          const right = cx + aabb.w / 2;
+          const top = cy - aabb.h / 2;
+          const bottom = cy + aabb.h / 2;
           assert.ok(
-            it.x + it.width <= room.width + 0.01,
-            `${room.name}/${it.id}: right edge (${it.x + it.width}) exceeds room width (${room.width})`,
+            left >= -0.01,
+            `${room.name}/${it.id}: left edge (${left}) is outside the room (x < 0)`,
           );
           assert.ok(
-            it.y + it.length <= room.length + 0.01,
-            `${room.name}/${it.id}: bottom edge (${it.y + it.length}) exceeds room length (${room.length})`,
+            top >= -0.01,
+            `${room.name}/${it.id}: top edge (${top}) is outside the room (y < 0)`,
+          );
+          assert.ok(
+            right <= room.width + 0.01,
+            `${room.name}/${it.id}: right edge (${right}) exceeds room width (${room.width})`,
+          );
+          assert.ok(
+            bottom <= room.length + 0.01,
+            `${room.name}/${it.id}: bottom edge (${bottom}) exceeds room length (${room.length})`,
           );
         }
       });
 
       test("no two main-layer items collide with each other", () => {
+        // obbOverlap is the exact function collidesWithOthers (planner-math.ts)
+        // uses at runtime -- a true rotated-rectangle overlap test via
+        // separating-axis theorem, not an axis-aligned approximation.
         const mainItems = room.items.filter((it) => (it.layer ?? "main") === "main");
         for (let i = 0; i < mainItems.length; i++) {
           for (let j = i + 1; j < mainItems.length; j++) {
             assert.equal(
-              aabbOverlap(mainItems[i], mainItems[j]),
+              obbOverlap(mainItems[i], mainItems[j]),
               false,
               `${room.name}: "${mainItems[i].name}" (${mainItems[i].id}) and "${mainItems[j].name}" (${mainItems[j].id}) collide`,
             );

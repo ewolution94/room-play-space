@@ -74,6 +74,9 @@ import {
   Radio,
   Package,
   PawPrint,
+  Cpu,
+  Gamepad,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import chairBaseUrl from "@/assets/chair-base.png";
@@ -2822,6 +2825,40 @@ export const PRESETS: Preset[] = [
       maxZ: 0,
     },
   },
+  {
+    // No matching Kenney Furniture Kit model for a PC case -- reuses the
+    // panelAccentBox procedural family (a box with a single recessed front
+    // panel) with a tall, dark accent strip standing in for the front
+    // mesh/RGB strip of a mid-tower gaming PC.
+    key: "pc-tower",
+    category: "office",
+    nameEn: "Tower PC",
+    nameDe: "PC-Gehäuse",
+    w: 20,
+    l: 45,
+    h: 45,
+    color: "#1f2937",
+    material: "metal",
+    proceduralModel: {
+      family: "panelAccentBox",
+      params: { panelWFrac: 0.55, panelHFrac: 0.92, colorOffset: -0.35 },
+    },
+  },
+  {
+    // No matching Kenney model either -- custom gamepadShape (see
+    // procedural-models.ts): a flat body with two raised thumbstick nubs.
+    key: "gamepad",
+    category: "office",
+    nameEn: "Gamepad",
+    nameDe: "Controller",
+    w: 15,
+    l: 10,
+    h: 6,
+    color: "#27272a",
+    layer: "on-top",
+    material: "plastic",
+    proceduralModel: { family: "gamepadShape" },
+  },
 
   // Kids
   {
@@ -2842,6 +2879,96 @@ export const PRESETS: Preset[] = [
       minZ: -24.75,
       maxX: 38.97,
       maxY: 45,
+      maxZ: 0,
+    },
+  },
+
+  // ---------------------------------------------------------------------
+  // Structural -- stair models from the same Kenney Furniture Kit, left
+  // out of the original catalog expansion because there was no multi-floor
+  // feature yet to make them meaningful (see resources/kenney_furniture-
+  // kit/). Now that floors exist (src/lib/floors.ts), they're worth having
+  // even though there's no functional floor-to-floor linkage in this app
+  // yet -- placing one is purely decorative/visual, same as any other
+  // furniture piece, not an actual passage between floors.
+  // ---------------------------------------------------------------------
+  {
+    key: "stairs-straight",
+    category: "structural",
+    nameEn: "Staircase",
+    nameDe: "Treppe",
+    w: 182,
+    l: 79,
+    h: 134,
+    color: "#b08968",
+    material: "wood",
+    kitModel: {
+      file: "stairs.glb",
+      minX: 0,
+      minY: 0,
+      minZ: -79,
+      maxX: 182.34,
+      maxY: 133.95,
+      maxZ: 0,
+    },
+  },
+  {
+    key: "stairs-corner",
+    category: "structural",
+    nameEn: "Corner staircase",
+    nameDe: "Ecktreppe",
+    w: 177,
+    l: 143,
+    h: 134,
+    color: "#b08968",
+    material: "wood",
+    kitModel: {
+      file: "stairsCorner.glb",
+      minX: 16.39,
+      minY: 0,
+      minZ: -142.58,
+      maxX: 193.76,
+      maxY: 133.95,
+      maxZ: 0,
+    },
+  },
+  {
+    key: "stairs-open",
+    category: "structural",
+    nameEn: "Open staircase",
+    nameDe: "Offene Treppe",
+    w: 182,
+    l: 79,
+    h: 134,
+    color: "#b08968",
+    material: "wood",
+    kitModel: {
+      file: "stairsOpen.glb",
+      minX: 0,
+      minY: 0,
+      minZ: -79,
+      maxX: 182.34,
+      maxY: 133.95,
+      maxZ: 0,
+    },
+  },
+  {
+    key: "stairs-open-single",
+    category: "structural",
+    nameEn: "Open staircase, single rail",
+    nameDe: "Offene Treppe, einseitig",
+    w: 182,
+    l: 79,
+    h: 134,
+    color: "#b08968",
+    material: "wood",
+    kitModel: {
+      file: "stairsOpenSingle.glb",
+      minX: 0,
+      minY: 0,
+      minZ: -79,
+      maxX: 182.34,
+      maxY: 133.95,
       maxZ: 0,
     },
   },
@@ -3001,6 +3128,12 @@ export const PRESET_ICON: Record<string, LucideIcon> = {
   "computer-keyboard": Keyboard,
   "computer-mouse": Mouse,
   "plush-bear": PawPrint,
+  "pc-tower": Cpu,
+  gamepad: Gamepad,
+  "stairs-straight": TrendingUp,
+  "stairs-corner": TrendingUp,
+  "stairs-open": TrendingUp,
+  "stairs-open-single": TrendingUp,
 };
 
 export function iconUrlForItem(it: Item): string | undefined {
