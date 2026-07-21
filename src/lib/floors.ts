@@ -1,4 +1,5 @@
 import type { Floor, Lang, RoomLayout } from "@/types/planner";
+import { floorsArrayImportSchema, roomLayoutArrayImportSchema } from "@/lib/planner-schema";
 
 /**
  * Floor persistence + migration.
@@ -161,9 +162,20 @@ export function saveActiveFloorId(id: string): void {
  * RoomLayout[] export (wrapped into a single, auto-named floor),
  * mirroring loadFloors()'s own migration so an old exported file still
  * imports cleanly.
+ *
+ * Unlike loadFloors() above (which only ever reads back this app's own
+ * previously-saved localStorage data, so a shallow shape check is enough),
+ * this is the entry point for a user-supplied file -- it needs the same
+ * bounds/count-cap/color-format rigor the single-room import already has
+ * via planner-schema.ts's importSchema, or a corrupted/hostile file could
+ * carry e.g. tens of thousands of items on one room and freeze the tab.
+ * See roomLayoutSchema's doc comment in planner-schema.ts for the full
+ * reasoning.
  */
 export function parseImportedFloors(parsed: unknown): Floor[] | null {
-  if (isFloorArray(parsed)) return parsed;
-  if (isRoomLayoutArray(parsed)) return [createFloor(parsed)];
+  const asFloors = floorsArrayImportSchema.safeParse(parsed);
+  if (asFloors.success) return asFloors.data as Floor[];
+  const asRooms = roomLayoutArrayImportSchema.safeParse(parsed);
+  if (asRooms.success) return [createFloor(asRooms.data as RoomLayout[])];
   return null;
 }

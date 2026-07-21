@@ -395,18 +395,14 @@ export interface SidebarProps {
   removeItem: (id: string) => void;
   threeDActive?: boolean;
   corners: Point[];
-  setCorners: React.Dispatch<React.SetStateAction<Point[]>>;
-  wallColors: Record<string, string>;
-  setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   openWalls: Map<string, WallOpenInterval[]>;
-  flooring: RoomFlooring;
-  setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
 }
 
 export interface CanvasAreaProps {
   t: TranslationStrings;
+  lang: Lang;
   stageRef: React.RefObject<HTMLDivElement | null>;
   stageReady: boolean;
   scale: number;

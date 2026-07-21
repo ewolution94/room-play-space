@@ -34,6 +34,7 @@ import {
 
 export function CanvasArea({
   t,
+  lang,
   stageRef,
   stageReady,
   scale,
@@ -271,7 +272,6 @@ export function CanvasArea({
   );
 
   const selectedLabel = selectedIds.size > 0 ? t.selectedCount(selectedIds.size) : undefined;
-  const lang = t.title === "Raumplaner" ? "de" : "en";
   const scaleKey = Math.round(scale * 1000);
   const resolvedFlooringColor = resolveFlooring(flooring).color;
 
@@ -366,7 +366,7 @@ export function CanvasArea({
           (the RotateHint below covers the one thing worth telling a mobile
           viewer). */}
       {!isMobileViewOnly && (
-        <HintBanner t={t} scale={scale} rulerMode={rulerMode} threeDActive={threeDActive} />
+        <HintBanner t={t} lang={lang} scale={scale} rulerMode={rulerMode} threeDActive={threeDActive} />
       )}
       <div
         ref={stageRef}
@@ -399,7 +399,7 @@ export function CanvasArea({
         <CanvasLoadingOverlay ready={stageReady} />
 
         {threeDActive ? (
-          <ThreeDView t={t} rooms={threeDRooms} selectedIds={selectedIds} isDark={isDark} />
+          <ThreeDView t={t} lang={lang} rooms={threeDRooms} selectedIds={selectedIds} isDark={isDark} />
         ) : (
           scale > 0 && (
             <>

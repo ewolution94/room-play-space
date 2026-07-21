@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import type { Item, Opening } from "@/types/planner";
+import { wallLabel } from "@/lib/hallway-shapes";
 
 interface ElementsListSectionProps {
   t: any;
@@ -137,7 +138,7 @@ export function ElementsListSection({
                     }`}
                   >
                     <span className="truncate min-w-0 capitalize">
-                      {o.kind === "door" ? t.door : t.window} · {t[o.wall]} ·{" "}
+                      {o.kind === "door" ? t.door : t.window} · {wallLabel(o.wall, t, lang)} ·{" "}
                       {Math.round(o.position)}cm
                     </span>
                     <div className="flex items-center gap-1 shrink-0">

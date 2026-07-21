@@ -40,6 +40,8 @@ import { FloorSwitcher } from "./FloorSwitcher";
 import { CanvasLoadingOverlay } from "./canvas/CanvasLoadingOverlay";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
+import { FloorPatternDef } from "@/lib/floor-pattern-svg";
+import { resolveFlooring } from "@/lib/floor-materials";
 import {
   Drawer,
   DrawerContent,
@@ -47,11 +49,32 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface MultiRoomCanvasProps {
   t: TranslationStrings;
   rooms: RoomLayout[];
   setRooms: React.Dispatch<React.SetStateAction<RoomLayout[]>>;
+  // Undo/redo for `rooms` -- see the doc comment on rooms.index.tsx's own
+  // pushRoomsHistory/undoRooms/redoRooms for the full reasoning (mirrors
+  // the single-room planner's historyRef/futureRef pattern, scoped to
+  // whichever floor is currently active). `pushRoomsHistory` is called
+  // once at the start of every discrete room-mutating action below --
+  // never inside a setRooms(prev => ...) updater itself, and never on
+  // every pointermove tick of a drag (only once at drag-start), same
+  // convention use-room-planner.ts already uses for single-room items.
+  pushRoomsHistory: () => void;
+  undoRooms: () => void;
+  redoRooms: () => void;
   selectedRoomId: string | null;
   setSelectedRoomId: (id: string | null) => void;
   selectedRoomIds: Set<string>;
@@ -91,6 +114,9 @@ export function MultiRoomCanvas({
   t,
   rooms,
   setRooms,
+  pushRoomsHistory,
+  undoRooms,
+  redoRooms,
   selectedRoomId,
   setSelectedRoomId,
   selectedRoomIds,
@@ -138,6 +164,17 @@ export function MultiRoomCanvas({
   // visible "Layout Options" panel becomes a togglable bottom sheet.
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+
+  // Whether each room's flooring pattern renders in its 2D thumbnail here --
+  // mirrors CanvasArea.tsx's own "Show Flooring" toggle for the single-room
+  // view, but defaults OFF here: at the whole-floor-plan zoom level the
+  // per-room patterns add visual noise across many rooms at once, so it's
+  // an opt-in rather than an opt-out like the single-room view. Local to
+  // this component, same as CanvasArea's version, since it's purely a
+  // 2D-thumbnail display preference and doesn't need to persist or be
+  // shared with the 3D whole-apartment view (which has its own independent
+  // "Show Flooring" toggle in ThreeDView.tsx, on by default there).
+  const [showFlooring, setShowFlooring] = useState(false);
 
   // While Control is held, multi-select behaves as if the "Enable
   // Multi-Select" checkbox were on too, without flipping its persisted
@@ -571,6 +608,7 @@ export function MultiRoomCanvas({
       if (r) startPos.set(id, { x: r.x, y: r.y });
     }
 
+    pushRoomsHistory();
     dragRef.current = {
       roomIds: ids,
       startX: e.clientX,
@@ -688,17 +726,36 @@ export function MultiRoomCanvas({
   };
 
   const rotateRoom = (roomId: string) => {
+    pushRoomsHistory();
     setRooms((prev) => rotateRoomLayout(prev, roomId, collisionEnabled));
   };
 
   const duplicateRoom = (roomId: string) => {
     const newRoom = duplicateRoomLayout(rooms, roomId, lang);
     if (!newRoom) return;
+    pushRoomsHistory();
     setRooms((prev) => [...prev, newRoom]);
     setSelectedRoomId(newRoom.id);
   };
 
+  // Deleting a room deletes everything inside it (furniture, doors,
+  // windows) with no undo available in this view (see AUDIT.md) -- so
+  // unlike every other room action here, this one is gated behind an
+  // explicit confirm step instead of firing immediately on click. `deleteRoom`/
+  // `deleteSelectedRooms` (passed to MultiRoomInspector) only ever open that
+  // confirmation; the actual mutation lives in performDeleteRoom/
+  // performDeleteSelectedRooms below, run from the AlertDialog's confirm
+  // button.
+  const [deleteConfirm, setDeleteConfirm] = useState<
+    { mode: "single"; roomId: string } | { mode: "bulk" } | null
+  >(null);
+
   const deleteRoom = (roomId: string) => {
+    setDeleteConfirm({ mode: "single", roomId });
+  };
+
+  const performDeleteRoom = (roomId: string) => {
+    pushRoomsHistory();
     setRooms((prev) => removeRoomLayout(prev, roomId));
     if (selectedRoomId === roomId) {
       setSelectedRoomId(null);
@@ -707,6 +764,7 @@ export function MultiRoomCanvas({
 
   const updateSelectedRoom = (patch: Partial<RoomLayout>) => {
     if (!selectedRoomId) return;
+    pushRoomsHistory();
     setRooms((prev) =>
       prev.map((r) => {
         if (r.id !== selectedRoomId) return r;
@@ -763,8 +821,20 @@ export function MultiRoomCanvas({
 
   // Bulk actions for a marquee-selected group of rooms.
   const deleteSelectedRooms = () => {
+    setDeleteConfirm({ mode: "bulk" });
+  };
+
+  const performDeleteSelectedRooms = () => {
+    pushRoomsHistory();
     setRooms((prev) => prev.filter((r) => !selectedRoomIds.has(r.id)));
     setSelectedRoomIds(new Set());
+  };
+
+  const confirmPendingDelete = () => {
+    if (!deleteConfirm) return;
+    if (deleteConfirm.mode === "single") performDeleteRoom(deleteConfirm.roomId);
+    else performDeleteSelectedRooms();
+    setDeleteConfirm(null);
   };
 
   const duplicateSelectedRooms = () => {
@@ -776,6 +846,8 @@ export function MultiRoomCanvas({
       working = [...working, newRoom];
       newIds.push(newRoom.id);
     }
+    if (newIds.length === 0) return;
+    pushRoomsHistory();
     setRooms(working);
     setSelectedRoomIds(new Set(newIds));
   };
@@ -793,6 +865,21 @@ export function MultiRoomCanvas({
           target.tagName === "SELECT" ||
           target.isContentEditable)
       ) {
+        return;
+      }
+
+      // Ctrl/Cmd+Z (Shift for redo) and Ctrl/Cmd+Y -- same shortcuts as the
+      // single-room planner (see use-room-planner.ts), now that this view
+      // has undo/redo history too (see pushRoomsHistory's doc comment).
+      if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        if (e.shiftKey) redoRooms();
+        else undoRooms();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+        e.preventDefault();
+        redoRooms();
         return;
       }
 
@@ -814,6 +901,7 @@ export function MultiRoomCanvas({
       else return;
 
       e.preventDefault();
+      pushRoomsHistory();
       setRooms((prev) => {
         const next = prev.map((r) => {
           if (!ids.has(r.id)) return r;
@@ -848,7 +936,17 @@ export function MultiRoomCanvas({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedRoomId, selectedRoomIds, collisionEnabled, floorW, floorL, setRooms]);
+  }, [
+    selectedRoomId,
+    selectedRoomIds,
+    collisionEnabled,
+    floorW,
+    floorL,
+    setRooms,
+    pushRoomsHistory,
+    undoRooms,
+    redoRooms,
+  ]);
 
   // flex-1 min-h-0 apply unconditionally below (not just lg:) -- see the
   // matching comment in canvas/CanvasArea.tsx for why: without it, <main>
@@ -856,6 +954,41 @@ export function MultiRoomCanvas({
   // ~0px instead of filling the mobile flex wrapper.
   return (
     <main className="min-w-0 flex-1 min-h-0 lg:h-full flex flex-col gap-2">
+      {/* Confirm-before-delete -- unlike every other room action here
+          (drag/rotate/duplicate), deleting a room deletes everything
+          inside it (furniture, doors, windows), so it stays gated behind
+          an explicit confirmation instead of firing immediately on click
+          (mirrors the single-room planner's Reset confirm flow in
+          routes/index.tsx) even now that Ctrl+Z can undo it too -- a
+          confirmation up front is still cheaper than relying on someone
+          remembering undo exists after the fact. */}
+      <AlertDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(o) => !o && setDeleteConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteConfirm?.mode === "bulk" ? t.deleteRoomsTitle : t.deleteRoomTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirm?.mode === "bulk"
+                ? t.confirmDeleteRooms(selectedRoomIds.size)
+                : t.confirmDeleteRoom}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPendingDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {lang === "de" ? "Löschen" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Hint banner -- hidden in mobile view-only mode (see
           useMobileViewOnly): it's a room-dragging instruction for a tool
           that's disabled there, so the space goes back to the canvas
@@ -988,7 +1121,7 @@ export function MultiRoomCanvas({
             generalization) rather than a separate implementation. */}
         {threeDActive && (
           <div className="absolute inset-0 z-10">
-            <ThreeDView t={t} rooms={roomInstances} selectedIds={new Set()} isDark={isDark} />
+            <ThreeDView t={t} lang={lang} rooms={roomInstances} selectedIds={new Set()} isDark={isDark} />
           </div>
         )}
 
@@ -1042,6 +1175,16 @@ export function MultiRoomCanvas({
                     className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
                   />
                   <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={showFlooring}
+                    onChange={(e) => setShowFlooring(e.target.checked)}
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                  />
+                  <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
                 </label>
 
                 <div className="flex flex-col gap-1.5 border-t border-border/20 pt-3 mt-1">
@@ -1157,6 +1300,16 @@ export function MultiRoomCanvas({
                 className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
               />
               <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+              <input
+                type="checkbox"
+                checked={showFlooring}
+                onChange={(e) => setShowFlooring(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+              />
+              <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
             </label>
 
             <label
@@ -1407,11 +1560,37 @@ export function MultiRoomCanvas({
                           chrome layer above just clipped away. Pixel-
                           identical to the old <rect> for a plain
                           rectangular room, since its polygon points ARE its
-                          4 rect corners. */}
+                          4 rect corners. When "Show Flooring" is on, this
+                          becomes the room's own flooring color instead of
+                          the plain card background, with the actual
+                          material pattern (wood/tile/carpet/etc, see
+                          floor-pattern-svg.tsx) layered on top -- mirrors
+                          CanvasArea.tsx's single-room 2D floor rendering
+                          exactly. The viewBox here is already in real cm
+                          units (see the <svg> above), so `cm` is the
+                          identity function -- no separate pixel-per-cm
+                          scale factor to thread through like the single-
+                          room canvas has. */}
+                        {showFlooring && (
+                          <defs>
+                            <FloorPatternDef
+                              flooring={room.flooring}
+                              cm={(v) => v}
+                              patternId={`floorPattern-${room.id}`}
+                            />
+                          </defs>
+                        )}
                         <polygon
                           points={roomCorners.map((c) => `${c.x},${c.y}`).join(" ")}
-                          className="fill-card"
+                          fill={showFlooring ? resolveFlooring(room.flooring).color : undefined}
+                          className={showFlooring ? "" : "fill-card"}
                         />
+                        {showFlooring && (
+                          <polygon
+                            points={roomCorners.map((c) => `${c.x},${c.y}`).join(" ")}
+                            fill={`url(#floorPattern-${room.id})`}
+                          />
+                        )}
 
                         {/* Thick CAD outer walls (8cm thickness), drawn as
                           independent per-wall segments (rather than one

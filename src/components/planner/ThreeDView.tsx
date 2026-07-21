@@ -147,6 +147,7 @@ export interface RoomInstance3D {
 
 interface ThreeDViewProps {
   t: TranslationStrings;
+  lang: string;
   rooms: RoomInstance3D[];
   selectedIds: Set<string>;
   isDark?: boolean;
@@ -444,7 +445,7 @@ function buildProceduralGroup(
   return group;
 }
 
-export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDViewProps) {
+export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: ThreeDViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -596,6 +597,25 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!cameraRef.current || !controlsRef.current) return;
+
+      // Don't hijack arrow keys away from a focused form control -- the
+      // "3D View Controls" panel has real <input type="range"> sliders
+      // (sunlight angle, wall fade opacity) that natively respond to
+      // arrow keys themselves. Without this check, focusing one of those
+      // and pressing an arrow key panned the camera AND (since the key is
+      // always preventDefault()'d below) silently ate the slider's own
+      // native arrow-key nudge -- mirrors the same focused-input guard
+      // use-room-planner.ts's 2D keyboard handler already has.
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
 
       const camera = cameraRef.current;
       const controls = controlsRef.current;
@@ -1983,7 +2003,7 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   ]);
 
   // Is German language active?
-  const isDe = t.title === "Raumplaner";
+  const isDe = lang === "de";
 
   // Shared body for both the desktop always-visible panel and the mobile
   // bottom sheet (see useMobileViewOnly) -- every one of these is a genuine

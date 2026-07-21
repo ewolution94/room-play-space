@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
@@ -127,6 +127,59 @@ function MultiRoomOverview() {
 
     [activeFloorId, floors],
   );
+
+  // -------- Rooms history (undo / redo) --------
+  // Mirrors the single-room planner's historyRef/futureRef pattern (see
+  // use-room-planner.ts) -- previously the multi-room view had no undo at
+  // all (AUDIT.md section 1), so dragging, resizing, rotating, or deleting
+  // a room here was permanent. Scoped to the CURRENTLY ACTIVE floor's
+  // rooms only: a snapshot is just a RoomLayout[], and history is cleared
+  // whenever the active floor changes (below) since a snapshot from a
+  // different floor's rooms wouldn't make sense to restore here.
+  const roomsRef = useRef<RoomLayout[]>(rooms);
+  useEffect(() => {
+    roomsRef.current = rooms;
+  }, [rooms]);
+
+  const historyRef = useRef<RoomLayout[][]>([]);
+  const futureRef = useRef<RoomLayout[][]>([]);
+  const [, forceHistoryTick] = useState(0);
+
+  useEffect(() => {
+    historyRef.current = [];
+    futureRef.current = [];
+    forceHistoryTick((n) => n + 1);
+  }, [activeFloorId]);
+
+  const pushRoomsHistory = useCallback(() => {
+    const snap: RoomLayout[] = JSON.parse(JSON.stringify(roomsRef.current));
+    const top = historyRef.current[historyRef.current.length - 1];
+    if (top && JSON.stringify(top) === JSON.stringify(snap)) return;
+    historyRef.current = [...historyRef.current.slice(-99), snap];
+    futureRef.current = [];
+    forceHistoryTick((n) => n + 1);
+  }, []);
+
+  const undoRooms = useCallback(() => {
+    if (!historyRef.current.length) return;
+    const prev = historyRef.current[historyRef.current.length - 1];
+    futureRef.current = [...futureRef.current, JSON.parse(JSON.stringify(roomsRef.current))];
+    historyRef.current = historyRef.current.slice(0, -1);
+    setRooms(prev);
+    forceHistoryTick((n) => n + 1);
+  }, [setRooms]);
+
+  const redoRooms = useCallback(() => {
+    if (!futureRef.current.length) return;
+    const next = futureRef.current[futureRef.current.length - 1];
+    historyRef.current = [...historyRef.current, JSON.parse(JSON.stringify(roomsRef.current))];
+    futureRef.current = futureRef.current.slice(0, -1);
+    setRooms(next);
+    forceHistoryTick((n) => n + 1);
+  }, [setRooms]);
+
+  const canUndoRooms = historyRef.current.length > 0;
+  const canRedoRooms = futureRef.current.length > 0;
 
   const addFloor = useCallback(() => {
     // No name passed -- a freshly-added floor is auto-named from its
@@ -374,6 +427,7 @@ function MultiRoomOverview() {
     setSelectedRoomId(null);
     setSelectedRoomIds(new Set());
     if (scopeId === "current") {
+      pushRoomsHistory();
       setFloors((prev) =>
         prev.map((f) => (f.id === activeFloorId ? { ...f, rooms: imported[0].rooms } : f)),
       );
@@ -397,6 +451,7 @@ function MultiRoomOverview() {
           : "Are you sure you want to delete all rooms on this floor?",
       )
     ) {
+      pushRoomsHistory();
       setRooms([]);
       setSelectedRoomId(null);
       setSelectedRoomIds(new Set());
@@ -531,6 +586,28 @@ function MultiRoomOverview() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={undoRooms}
+                  disabled={!canUndoRooms}
+                  title="Ctrl+Z"
+                  className="px-2 sm:px-3"
+                >
+                  <Undo2 className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline">{t.undo}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={redoRooms}
+                  disabled={!canRedoRooms}
+                  title="Ctrl+Shift+Z"
+                  className="px-2 sm:px-3"
+                >
+                  <Redo2 className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline">{t.redo}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => changeLanguage(lang === "en" ? "de" : "en")}
                   className="gap-1.5"
                 >
@@ -573,6 +650,15 @@ function MultiRoomOverview() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={undoRooms} disabled={!canUndoRooms}>
+                    <Undo2 className="mr-2 h-4 w-4" />
+                    {t.undo}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={redoRooms} disabled={!canRedoRooms}>
+                    <Redo2 className="mr-2 h-4 w-4" />
+                    {t.redo}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => changeLanguage(lang === "en" ? "de" : "en")}>
                     <Languages className="mr-2 h-4 w-4" />
                     {lang === "en" ? "Deutsch" : "English"}
@@ -645,6 +731,7 @@ function MultiRoomOverview() {
             t={t}
             rooms={rooms}
             setRooms={setRooms}
+            pushRoomsHistory={pushRoomsHistory}
             selectedRoomId={selectedRoomId}
             setSelectedRoomId={setSelectedRoomId}
             selectedRoomIds={selectedRoomIds}
@@ -658,6 +745,9 @@ function MultiRoomOverview() {
           t={t}
           rooms={rooms}
           setRooms={setRooms}
+          pushRoomsHistory={pushRoomsHistory}
+          undoRooms={undoRooms}
+          redoRooms={redoRooms}
           selectedRoomId={selectedRoomId}
           setSelectedRoomId={setSelectedRoomId}
           selectedRoomIds={selectedRoomIds}

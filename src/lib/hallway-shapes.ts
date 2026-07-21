@@ -107,6 +107,22 @@ export function wallColorKey(index: number, cornersLen: number): string {
 }
 
 /**
+ * Friendly display label for an Opening's `wall` field -- named
+ * ("Top"/"Right"/...) for a plain rectangular room, "Wall N" for a polygon
+ * (hallway) room where there's no natural top/bottom/left/right concept once
+ * it has 6-8 walls. Shared by every place that lists/labels an opening's
+ * wall (InspectorSection.tsx, ElementsListSection.tsx, ...) so the numeric-
+ * wall case can't be forgotten independently in each one -- it was, once:
+ * a naive `t[wall]` lookup renders as `undefined` for a hallway's numeric
+ * wall index, since TranslationStrings only has "top"/"right"/"bottom"/
+ * "left" keys.
+ */
+export function wallLabel(wall: string | number, t: Record<string, string>, lang: string): string {
+  if (typeof wall === "number") return lang === "de" ? `Wand ${wall + 1}` : `Wall ${wall + 1}`;
+  return t[wall] || wall;
+}
+
+/**
  * Builds a CSS `clip-path: polygon(...)` value that traces `corners`
  * exactly, expressed as percentages of `width`/`length` so it applies
  * correctly to an element regardless of its current on-screen scale.

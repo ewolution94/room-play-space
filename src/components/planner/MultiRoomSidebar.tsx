@@ -19,6 +19,11 @@ interface MultiRoomSidebarProps {
   t: TranslationStrings;
   rooms: RoomLayout[];
   setRooms: React.Dispatch<React.SetStateAction<RoomLayout[]>>;
+  // Records an undo snapshot of `rooms` -- see the matching doc comment on
+  // rooms.index.tsx's pushRoomsHistory. Called once before every discrete
+  // room-adding action below (never inside a setRooms updater itself, same
+  // convention as the single-room planner's pushHistory calls).
+  pushRoomsHistory: () => void;
   selectedRoomId: string | null;
   setSelectedRoomId: (id: string | null) => void;
   selectedRoomIds: Set<string>;
@@ -66,6 +71,7 @@ export function MultiRoomSidebar({
   t,
   rooms,
   setRooms,
+  pushRoomsHistory,
   selectedRoomId,
   setSelectedRoomId,
   selectedRoomIds,
@@ -95,6 +101,7 @@ export function MultiRoomSidebar({
 
     const room = createRoomLayout(rooms, { name, width: newRoomW, length: newRoomL, color });
 
+    pushRoomsHistory();
     setRooms((prev) => [...prev, room]);
     setSelectedRoomId(room.id);
     setNewRoomName("");
@@ -116,6 +123,7 @@ export function MultiRoomSidebar({
       color,
     });
 
+    pushRoomsHistory();
     setRooms((prev) => [...prev, hallway]);
     setSelectedRoomId(hallway.id);
     setNewRoomName("");

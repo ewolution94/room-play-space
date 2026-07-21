@@ -33,6 +33,7 @@ import {
   resolveEffectiveOpenIntervals,
   type WallOpenInterval,
 } from "@/lib/room-adjacency";
+import { resolveWallSegment } from "@/lib/hallway-shapes";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 
 // Typical desk/table/counter height (cm) -- the default elevation a
@@ -681,20 +682,55 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
   };
 
   const updateItem = (id: string, patch: Partial<Item>, options?: { history?: boolean }) => {
+    // Read against the current (render-closure) `items` rather than inside
+    // the setItems updater -- this mirrors addPreset/addCustomBox's own
+    // findFreeSpot check below, and (unlike a functional update) lets this
+    // decide up front whether the edit is going to be rejected, so it can
+    // tell the user why instead of the field just silently reverting. Only
+    // ever called from discrete, one-shot actions (Inspector field commits),
+    // never a continuous per-frame drag loop, so reading the closure value
+    // instead of `prev` carries none of the staleness risk it would for a
+    // pointermove handler.
+    const current = items.find((i) => i.id === id);
+    if (!current) return;
+    const merged = { ...current, ...patch };
+    const c = clampPos(merged, corners, merged.x, merged.y);
+    const candidate = { ...merged, x: c.x, y: c.y };
+    // Respects the "Enable Collision" toggle exactly like the mouse-drag
+    // path already does -- this used to always enforce collision here
+    // regardless of the checkbox, which was the source of a confusing bug:
+    // dragging one item onto another worked fine with collision disabled,
+    // but editing that same overlap via a number field or arrow-key nudge
+    // silently refused it.
+    if (collidesWithOthers(candidate, items, undefined, collisionEnabled)) {
+      toast.error(t.itemOverlap);
+      return;
+    }
     if (options?.history !== false) pushHistory();
-    setItems((p) =>
-      p.map((i) => {
-        if (i.id !== id) return i;
-        const merged = { ...i, ...patch };
-        const c = clampPos(merged, corners, merged.x, merged.y);
-        const candidate = { ...merged, x: c.x, y: c.y };
-        if (collidesWithOthers(candidate, p)) return i;
-        return candidate;
-      }),
-    );
+    setItems((p) => p.map((i) => (i.id === id ? candidate : i)));
   };
 
   const addOpening = () => {
+    // Reject placements that don't actually fit on the chosen wall, or that
+    // overlap an opening already there -- previously neither was checked,
+    // so a door/window could be placed hanging off the end of a short wall
+    // or stacked directly on top of another door with no feedback at all.
+    const seg = resolveWallSegment(corners, oWall);
+    const wallLength = seg ? Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y) : Infinity;
+    if (oPos < 0 || oWidth <= 0 || oPos + oWidth > wallLength + 0.01) {
+      toast.error(t.openingOutOfBounds);
+      return;
+    }
+    const overlapsExisting = openings.some(
+      (o) =>
+        String(o.wall) === String(oWall) &&
+        oPos < o.position + o.width &&
+        o.position < oPos + oWidth,
+    );
+    if (overlapsExisting) {
+      toast.error(t.openingOverlap);
+      return;
+    }
     pushHistory();
     setOpenings((p) => [
       ...p,
@@ -713,8 +749,39 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     setOpenings((p) => p.filter((o) => o.id !== id));
   };
   const updateOpening = (id: string, patch: Partial<Opening>) => {
+    const current = openings.find((o) => o.id === id);
+    if (!current) return;
+    const merged = { ...current, ...patch };
+    // Only re-validate when the edit actually touches placement -- a color
+    // or hinge/swing change can't push a door/window out of bounds or into
+    // an overlap, so it skips straight to committing (same reasoning as the
+    // position/width fields being the only inspector inputs that can
+    // reintroduce the addOpening bug this mirrors).
+    if (patch.position !== undefined || patch.width !== undefined || patch.wall !== undefined) {
+      const seg = resolveWallSegment(corners, merged.wall);
+      const wallLength = seg ? Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y) : Infinity;
+      if (
+        merged.position < 0 ||
+        merged.width <= 0 ||
+        merged.position + merged.width > wallLength + 0.01
+      ) {
+        toast.error(t.openingOutOfBounds);
+        return;
+      }
+      const overlapsExisting = openings.some(
+        (o) =>
+          o.id !== id &&
+          String(o.wall) === String(merged.wall) &&
+          merged.position < o.position + o.width &&
+          o.position < merged.position + merged.width,
+      );
+      if (overlapsExisting) {
+        toast.error(t.openingOverlap);
+        return;
+      }
+    }
     pushHistory();
-    setOpenings((p) => p.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+    setOpenings((p) => p.map((o) => (o.id === id ? merged : o)));
   };
 
   // -------- Reset --------
@@ -989,7 +1056,12 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
           let anyCollision = false;
           for (const i of prev) {
             if (!idsSet.has(i.id)) continue;
-            if (collidesWithOthers(i, prev, idsSet)) {
+            // Must respect collisionEnabled here too -- this used to always
+            // re-check collision on drop regardless of the toggle, which
+            // meant a drag that was allowed to overlap mid-drag (collision
+            // disabled) would snap right back to its start position the
+            // instant the mouse was released, as if collision were still on.
+            if (collidesWithOthers(i, prev, idsSet, collisionEnabled)) {
               anyCollision = true;
               break;
             }
@@ -1103,7 +1175,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
             const merged = { ...i, rotation: (((i.rotation + dir) % 360) + 360) % 360 };
             const c = clampPos(merged, corners, merged.x, merged.y);
             const candidate = { ...merged, x: c.x, y: c.y };
-            if (collidesWithOthers(candidate, prev, ids)) return i;
+            if (collidesWithOthers(candidate, prev, ids, collisionEnabled)) return i;
             return candidate;
           }),
         );
@@ -1132,7 +1204,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
         });
         for (const i of next) {
           if (!ids.has(i.id)) continue;
-          if (collidesWithOthers(i, next, ids)) return prev;
+          if (collidesWithOthers(i, next, ids, collisionEnabled)) return prev;
         }
         return next;
       });

@@ -130,11 +130,6 @@ function RoomPlanner() {
             removeItem={planner.removeItem}
             threeDActive={planner.threeDActive}
             corners={planner.corners}
-            setCorners={planner.setCorners}
-            wallColors={planner.wallColors}
-            setWallColors={planner.setWallColors}
-            flooring={planner.flooring}
-            setFlooring={planner.setFlooring}
             selectedOpeningId={planner.selectedOpeningId}
             setSelectedOpeningId={planner.setSelectedOpeningId}
             openWalls={planner.openWalls}
@@ -144,6 +139,7 @@ function RoomPlanner() {
         {/* Right column: Drawing Stage */}
         <CanvasArea
           t={planner.t}
+          lang={planner.lang}
           stageRef={planner.stageRef}
           stageReady={planner.stageReady}
           scale={planner.scale}

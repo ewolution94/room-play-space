@@ -24,19 +24,11 @@ import {
 } from "lucide-react";
 import type { Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import { getDefaultHeight } from "../ThreeDView";
-import { wallColorKey } from "@/lib/hallway-shapes";
+import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import { FLOOR_MATERIALS } from "@/lib/floor-materials";
 import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
 import { PRESET_BY_KEY } from "@/lib/planner-presets";
 import { LayoutGrid } from "lucide-react";
-
-// Friendly display label for a wall identity -- named ("top"/"right"/...)
-// for a plain rectangular room, "Wall N" for a polygon (hallway) room where
-// there's no natural top/bottom/left/right concept once it has 6-8 walls.
-function wallLabel(wall: Opening["wall"], t: any, lang: string): string {
-  if (typeof wall === "number") return lang === "de" ? `Wand ${wall + 1}` : `Wall ${wall + 1}`;
-  return t[wall] || wall;
-}
 
 const SWATCHES = [
   { name: "Charcoal", value: "#343a40" },

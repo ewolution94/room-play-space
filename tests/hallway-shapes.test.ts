@@ -4,6 +4,7 @@ import {
   wallSegments,
   resolveWallSegment,
   wallColorKey,
+  wallLabel,
   wallOutwardNormal,
   polygonBoundingBox,
   rotatePolygonCorners,
@@ -93,6 +94,37 @@ describe("wallColorKey", () => {
   test("uses the stringified index for a polygon room", () => {
     assert.equal(wallColorKey(0, 6), "0");
     assert.equal(wallColorKey(5, 6), "5");
+  });
+});
+
+describe("wallLabel", () => {
+  // Regression coverage for the bug flagged in the audit: a naive `t[wall]`
+  // lookup renders "undefined" for a hallway's numeric wall index, since
+  // TranslationStrings only ever has "top"/"right"/"bottom"/"left" keys.
+  // wallLabel() is the shared fix, now used by both InspectorSection.tsx
+  // and ElementsListSection.tsx instead of each hand-rolling (or in
+  // ElementsListSection's case, forgetting) the numeric-wall fallback.
+  const t = { top: "Top", right: "Right", bottom: "Bottom", left: "Left" };
+
+  test("looks up the friendly name for a named (rectangular-room) wall", () => {
+    assert.equal(wallLabel("top", t, "en"), "Top");
+    assert.equal(wallLabel("right", t, "en"), "Right");
+    assert.equal(wallLabel("bottom", t, "en"), "Bottom");
+    assert.equal(wallLabel("left", t, "en"), "Left");
+  });
+
+  test("falls back to 'Wall N' (1-indexed) for a numeric polygon wall, in English", () => {
+    assert.equal(wallLabel(0, t, "en"), "Wall 1");
+    assert.equal(wallLabel(5, t, "en"), "Wall 6");
+  });
+
+  test("falls back to 'Wand N' (1-indexed) for a numeric polygon wall, in German", () => {
+    assert.equal(wallLabel(0, t, "de"), "Wand 1");
+    assert.equal(wallLabel(5, t, "de"), "Wand 6");
+  });
+
+  test("a named wall missing from the translation table falls back to the raw key, not 'undefined'", () => {
+    assert.equal(wallLabel("top", {}, "en"), "top");
   });
 });
 
