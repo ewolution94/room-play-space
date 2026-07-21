@@ -99,6 +99,42 @@ export type PresetMaterial =
   | "rug"
   | "plastic";
 
+// A room's floor surface -- fully separate from the pre-existing "Floor"
+// building-level concept (Floor.rooms in this same file, edited via the
+// FloorSwitcher). This is the visual floor MATERIAL rendered under a
+// room's furniture in both the 2D canvas and 3D view. See
+// src/lib/floor-materials.ts for the actual catalog (FLOOR_MATERIALS) of
+// family x pattern combinations this `key` can reference, and
+// src/lib/floor-pattern-svg.tsx / src/lib/floor-textures.ts for the
+// procedural 2D SVG / 3D canvas-texture renderers keyed off `family` +
+// `pattern`.
+export type FloorFamily = "wood" | "concrete" | "tile" | "carpet" | "plain";
+
+export type FloorPattern =
+  | "laminate"
+  | "hardwood"
+  | "herringbone"
+  | "polished"
+  | "raw"
+  | "square-tile"
+  | "large-tile"
+  | "checkerboard"
+  | "plush"
+  | "flat";
+
+// A room's chosen floor material + a freely-picked tint color. `key` looks
+// up a FloorMaterialOption in FLOOR_MATERIALS (floor-materials.ts) for its
+// family/pattern; `color` is applied on top (the pattern's linework/grain
+// is derived from this color via shadeColor(), not baked into the option
+// itself), which is what lets every material be recolored freely rather
+// than only offering a fixed palette. Optional on RoomLayout so rooms
+// saved before this feature existed keep rendering (see
+// DEFAULT_FLOORING in floor-materials.ts for the fallback).
+export interface RoomFlooring {
+  key: string;
+  color: string;
+}
+
 // A real, extracted Kenney Furniture Kit (CC0) model available to render in
 // place of the flat procedural box, for presets where a kit model is a good
 // silhouette/proportion match (see the mapping built into PRESETS in
@@ -201,6 +237,7 @@ export interface Snapshot {
   roomL: number;
   corners?: Point[];
   wallColors?: Record<string, string>;
+  flooring?: RoomFlooring;
 }
 
 export interface RoomLayout {
@@ -216,6 +253,10 @@ export interface RoomLayout {
   openings: Opening[];
   corners?: Point[];
   wallColors?: Record<string, string>;
+  // Floor surface material + tint -- see RoomFlooring above. Missing/
+  // undefined (rooms saved before this field existed) falls back to
+  // DEFAULT_FLOORING (floor-materials.ts) wherever this is rendered.
+  flooring?: RoomFlooring;
   // "hallway" rooms are otherwise ordinary rooms (same data, same
   // furniture/collision/3D handling) -- this only affects labeling/icons in
   // the UI. A hallway may still be a plain rectangle (corners.length === 4,
@@ -360,6 +401,8 @@ export interface SidebarProps {
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   openWalls: Map<string, WallOpenInterval[]>;
+  flooring: RoomFlooring;
+  setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
 }
 
 export interface CanvasAreaProps {
@@ -415,6 +458,8 @@ export interface CanvasAreaProps {
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
+  flooring: RoomFlooring;
+  setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
   zoomFactor: number;
   setZoomFactor: React.Dispatch<React.SetStateAction<number>>;
   isDark: boolean;
@@ -557,4 +602,6 @@ export interface UseRoomPlannerReturn {
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   openWalls: Map<string, WallOpenInterval[]>;
+  flooring: RoomFlooring;
+  setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
 }

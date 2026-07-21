@@ -3,13 +3,14 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
-import type { Item, KitModel, Opening, Point, PresetMaterial } from "@/types/planner";
+import type { Item, KitModel, Opening, Point, PresetMaterial, RoomFlooring } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
 import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/lib/kit-models";
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
+import { getFloorTexture } from "@/lib/floor-textures";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { SlidersHorizontal } from "lucide-react";
@@ -138,6 +139,10 @@ export interface RoomInstance3D {
   // even a wide doorway), a true archway through to whatever is on the
   // other side; the rest of that same wall still extrudes normally.
   openWalls: Map<string, WallOpenInterval[]>;
+  // Floor surface material + tint -- see RoomFlooring in types/planner.ts.
+  // Missing/undefined (rooms saved before this feature existed) falls back
+  // to DEFAULT_FLOORING wherever this is read (see getFloorTexture below).
+  flooring?: RoomFlooring;
 }
 
 interface ThreeDViewProps {
@@ -448,6 +453,12 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
   const [wallFadeOpacity, setWallFadeOpacity] = useState(0.25);
   const [sunlightEnabled, setSunlightEnabled] = useState(true);
   const [sunlightAngle, setSunlightAngle] = useState(45);
+  // Whether each room's floor mesh (see the flooring feature) renders at
+  // all -- on by default, an escape hatch for anyone who prefers the bare
+  // grid. Session-only view setting, like every other toggle in this
+  // panel, and shared by both the single-room and whole-apartment 3D
+  // views since they're both this same component (see RoomInstance3D).
+  const [showFlooring, setShowFlooring] = useState(true);
 
   // Toggleable "mood lighting" for lamp/ceiling-light/sconce-style items
   // (see Preset.isLightSource) -- an opt-in accent on top of the ambient/
@@ -727,7 +738,13 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
       gridColor1,
       gridColor2,
     );
-    gridHelper.position.y = 0.01;
+    // Pushed well below true floor level (0) rather than just barely below
+    // it -- "under" layer items (rugs/mats, see Preset.h in
+    // planner-presets.ts) sit as low as 0.5cm tall starting right at y=0,
+    // so the floor mesh below needs to stay just barely above 0 to clear
+    // them, which only leaves room for the grid if the grid moves further
+    // down instead of the floor moving further up.
+    gridHelper.position.y = -2;
     scene.add(gridHelper);
 
     // --- Draw segmented walls with door/window openings ---
@@ -791,6 +808,59 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     // untouched.
     for (const [roomIndex, room] of rooms.entries()) {
       const isPolygonRoom = room.corners.length !== 4;
+
+      // --- Floor mesh (wood/tile/concrete/carpet/etc, see floor-textures.ts) ---
+      // Built directly from this room's own corners (works for both plain
+      // rectangles and polygon hallways alike), positioned flush with the
+      // wall footprint the same way every wall segment below is: offset by
+      // this instance's own room.x/y, then re-centered against the OVERALL
+      // scene bounds (centerX/centerZ), never its own half-width/length.
+      if (showFlooring) {
+        const shape = new THREE.Shape(room.corners.map((c) => new THREE.Vector2(c.x, c.y)));
+        const floorGeo = new THREE.ShapeGeometry(shape);
+        // ShapeGeometry's default UVs are the shape's own (x,y) in its local
+        // units (cm here) -- NOT normalized to 0..1 -- so repeat must divide
+        // by the texture's tile size in cm to land one tile per tileW/tileH
+        // block, matching the 2D SVG view's own tiling.
+        const { texture, tileW, tileH } = getFloorTexture(room.flooring);
+        const floorMat = new THREE.MeshStandardMaterial({
+          map: texture,
+          roughness: 0.85,
+          metalness: 0.02,
+          side: THREE.DoubleSide,
+          // NOTE: deliberately no polygonOffset here. It was added earlier
+          // to fight z-fighting against the grid helper, but polygonOffset
+          // scales with each polygon's own screen-space depth slope --
+          // for a large floor plane viewed at an oblique/grazing angle
+          // that slope is much bigger than a small rug's, so it pulled
+          // the floor's effective depth in front of the (geometrically
+          // higher) rug and hid it, except when looking straight down
+          // (slope ~0). The grid helper now sits 2 full units below the
+          // floor (gridHelper.position.y, set earlier in this effect),
+          // which is plenty of real separation on its own -- no
+          // artificial offset needed.
+        });
+        const floorTex = floorMat.map!;
+        floorTex.repeat.set(1 / tileW, 1 / tileH);
+        floorTex.needsUpdate = true;
+        const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+        // Shape lives in the XY plane by default; rotate +90 about X so it
+        // lies flat with shape-Y mapping to world +Z -- matching every
+        // other room-local-y -> world-Z conversion in this file (e.g.
+        // buildWallSegments below uses `room.y + pt.y - centerZ` with no
+        // sign flip).
+        floorMesh.rotation.x = Math.PI / 2;
+        // Just barely above true floor level (0), NOT pulled up toward the
+        // grid -- the thinnest "under" layer items (rugs/mats) are only
+        // 0.5cm tall and sit right at y=0, so anything much higher than
+        // this would sit level with or above their top surface and hide
+        // them under the opaque floor plane (the actual bug report this
+        // fixes). The grid helper moved down to y=-2 instead (see above)
+        // to keep a large, z-fighting-safe gap on the other side.
+        floorMesh.position.set(room.x - centerX, 0.05, room.y - centerZ);
+        floorMesh.receiveShadow = true;
+        scene.add(floorMesh);
+      }
 
       // Rectangular rooms (the overwhelming common case) keep the exact
       // original precise-miter math: each corner's offset is
@@ -1676,6 +1746,7 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
     sunlightAngle,
     sunlightEnabled,
     kitModelVersion,
+    showFlooring,
     // lightingEnabled/lightsOff deliberately NOT here -- see the separate
     // "Toggleable Light Sources" effect right below, which handles those
     // without rebuilding this entire (expensive) scene.
@@ -1930,6 +2001,16 @@ export function ThreeDView({ t, rooms, selectedIds, isDark = false }: ThreeDView
             className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
           />
           <span>{isDe ? "Beschriftungen anzeigen" : "Show Item Labels"}</span>
+        </label>
+
+        <label className="flex items-center gap-2 cursor-pointer font-medium">
+          <input
+            type="checkbox"
+            checked={showFlooring}
+            onChange={(e) => setShowFlooring(e.target.checked)}
+            className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+          />
+          <span>{isDe ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
         </label>
 
         <label className="flex items-center gap-2 cursor-pointer font-medium">

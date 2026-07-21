@@ -115,7 +115,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 60,
     h: 85,
-    color: "#556270",
+    color: "#5e7777",
     iconUrl: chairBaseUrl,
     material: "leather",
     kitModel: {
@@ -136,7 +136,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 90,
     h: 80,
-    color: "#d97706",
+    color: "#f15e57",
     iconUrl: armchairUrl,
     material: "fabric",
     kitModel: {
@@ -157,7 +157,7 @@ export const PRESETS: Preset[] = [
     w: 220,
     l: 95,
     h: 80,
-    color: "#cbd5e1",
+    color: "#5b84dd",
     iconUrl: sofaUrl,
     material: "fabric",
     kitModel: {
@@ -178,7 +178,7 @@ export const PRESETS: Preset[] = [
     w: 150,
     l: 90,
     h: 80,
-    color: "#b8c4d0",
+    color: "#f15e57",
     material: "fabric",
     kitModel: { file: "loungeSofa.glb", minX: 0, minY: 0, minZ: -41, maxX: 98, maxY: 46, maxZ: 0 },
   },
@@ -190,7 +190,7 @@ export const PRESETS: Preset[] = [
     w: 70,
     l: 70,
     h: 80,
-    color: "#b45309",
+    color: "#f15e57",
     material: "fabric",
     kitModel: { file: "loungeChair.glb", minX: 0, minY: 0, minZ: -41, maxX: 49, maxY: 46, maxZ: 0 },
   },
@@ -203,7 +203,7 @@ export const PRESETS: Preset[] = [
     w: 160,
     l: 200,
     h: 45,
-    color: "#f5f5f5",
+    color: "#f8ffff",
     iconUrl: bedUrl,
     material: "fabric",
     kitModel: {
@@ -224,7 +224,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 200,
     h: 45,
-    color: "#f5f5f5",
+    color: "#f8ffff",
     iconUrl: bedUrl,
     material: "fabric",
     kitModel: {
@@ -245,7 +245,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 40,
     h: 55,
-    color: "#c9a86a",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "cabinetBedDrawer.glb",
@@ -317,7 +317,7 @@ export const PRESETS: Preset[] = [
     w: 100,
     l: 40,
     h: 45,
-    color: "#a9744f",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "benchCushionLow.glb",
@@ -338,7 +338,7 @@ export const PRESETS: Preset[] = [
     w: 160,
     l: 75,
     h: 75,
-    color: "#c28a5e",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "desk.glb",
@@ -358,7 +358,7 @@ export const PRESETS: Preset[] = [
     w: 110,
     l: 110,
     h: 75,
-    color: "#d4a574",
+    color: "#e59964",
     iconUrl: roundTableUrl,
     shape: "circle",
     material: "wood",
@@ -380,7 +380,7 @@ export const PRESETS: Preset[] = [
     w: 100,
     l: 55,
     h: 45,
-    color: "#c28a5e",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "tableCoffee.glb",
@@ -400,7 +400,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 45,
     h: 55,
-    color: "#c9a86a",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "sideTable.glb",
@@ -421,7 +421,7 @@ export const PRESETS: Preset[] = [
     w: 80,
     l: 30,
     h: 180,
-    color: "#a07855",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "bookcaseOpen.glb",
@@ -441,7 +441,7 @@ export const PRESETS: Preset[] = [
     w: 150,
     l: 60,
     h: 200,
-    color: "#b5835a",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "bookcaseClosedWide.glb",
@@ -478,7 +478,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 60,
     h: 90,
-    color: "#c0c0c0",
+    color: "#bdd2d6",
     iconUrl: stoveUrl,
     material: "metal",
     kitModel: {
@@ -499,7 +499,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 50,
     h: 90,
-    color: "#c0c0c0",
+    color: "#bdd2d6",
     iconUrl: sinkUrl,
     material: "metal",
     kitModel: { file: "kitchenSink.glb", minX: 0, minY: 0, minZ: -45, maxX: 43, maxY: 49, maxZ: 0 },
@@ -512,7 +512,7 @@ export const PRESETS: Preset[] = [
     w: 70,
     l: 70,
     h: 180,
-    color: "#e8e8e8",
+    color: "#effaf4",
     iconUrl: fridgeUrl,
     material: "metal",
     kitModel: {
@@ -593,7 +593,7 @@ export const PRESETS: Preset[] = [
     w: 40,
     l: 30,
     h: 65,
-    color: "#94a3b8",
+    color: "#bdd2d6",
     material: "metal",
     kitModel: {
       file: "trashcan.glb",
@@ -613,7 +613,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 55,
     h: 82,
-    color: "#18181b",
+    color: "#effaf4",
     material: "glass",
     kitModel: {
       file: "kitchenFridgeSmall.glb",
@@ -634,7 +634,7 @@ export const PRESETS: Preset[] = [
     w: 40,
     l: 70,
     h: 75,
-    color: "#ffffff",
+    color: "#f8ffff",
     iconUrl: toiletUrl,
     material: "ceramic",
     // Corrected 2026-07: recorded bounding box was ~2-3x too large on every
@@ -662,7 +662,7 @@ export const PRESETS: Preset[] = [
     w: 170,
     l: 75,
     h: 60,
-    color: "#ffffff",
+    color: "#f8ffff",
     iconUrl: bathtubUrl,
     material: "ceramic",
     kitModel: {
@@ -683,7 +683,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 90,
     h: 200,
-    color: "#e0f2fe",
+    color: "#b2d3c4",
     material: "glass",
     kitModel: {
       file: "shower.glb",
@@ -703,7 +703,7 @@ export const PRESETS: Preset[] = [
     w: 80,
     l: 50,
     h: 85,
-    color: "#f1f5f9",
+    color: "#f8ffff",
     material: "stone",
     kitModel: {
       file: "bathroomSinkSquare.glb",
@@ -756,7 +756,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 60,
     h: 85,
-    color: "#cbd5e1",
+    color: "#effaf4",
     material: "metal",
     kitModel: { file: "washer.glb", minX: 0, minY: 0, minZ: -35, maxX: 39, maxY: 47, maxZ: 4 },
   },
@@ -822,7 +822,7 @@ export const PRESETS: Preset[] = [
     w: 50,
     l: 50,
     h: 80,
-    color: "#4ade80",
+    color: "#2ed193",
     iconUrl: plantUrl,
     material: "plant",
     kitModel: {
@@ -843,7 +843,7 @@ export const PRESETS: Preset[] = [
     w: 30,
     l: 30,
     h: 160,
-    color: "#e8c97c",
+    color: "#bdd2d6",
     material: "metal",
     isLightSource: true,
     kitModel: {
@@ -864,7 +864,7 @@ export const PRESETS: Preset[] = [
     w: 40,
     l: 40,
     h: 90,
-    color: "#16a34a",
+    color: "#2ed193",
     shape: "circle",
     material: "plant",
     kitModel: {
@@ -925,7 +925,7 @@ export const PRESETS: Preset[] = [
     w: 160,
     l: 40,
     h: 45,
-    color: "#3f3f46",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "cabinetTelevision.glb",
@@ -945,7 +945,7 @@ export const PRESETS: Preset[] = [
     w: 85,
     l: 95,
     h: 100,
-    color: "#78350f",
+    color: "#f15e57",
     material: "leather",
     kitModel: {
       file: "loungeChairRelax.glb",
@@ -965,7 +965,7 @@ export const PRESETS: Preset[] = [
     w: 55,
     l: 55,
     h: 40,
-    color: "#a8a29e",
+    color: "#e59964",
     shape: "circle",
     material: "fabric",
     kitModel: {
@@ -986,7 +986,7 @@ export const PRESETS: Preset[] = [
     w: 120,
     l: 35,
     h: 75,
-    color: "#b08968",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "sideTable.glb",
@@ -1033,7 +1033,7 @@ export const PRESETS: Preset[] = [
     w: 30,
     l: 30,
     h: 35,
-    color: "#3f3f46",
+    color: "#ffe996",
     shape: "circle",
     layer: "wall",
     elevation: 175,
@@ -1058,7 +1058,7 @@ export const PRESETS: Preset[] = [
     w: 160,
     l: 90,
     h: 75,
-    color: "#a9744f",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "table.glb",
@@ -1078,7 +1078,7 @@ export const PRESETS: Preset[] = [
     w: 120,
     l: 120,
     h: 75,
-    color: "#b98a5e",
+    color: "#e59964",
     shape: "circle",
     material: "wood",
     kitModel: {
@@ -1099,7 +1099,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 50,
     h: 90,
-    color: "#6b7280",
+    color: "#e59964",
     material: "fabric",
     kitModel: {
       file: "chairCushion.glb",
@@ -1119,7 +1119,7 @@ export const PRESETS: Preset[] = [
     w: 140,
     l: 45,
     h: 85,
-    color: "#8b5e3c",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "bookcaseClosedWide.glb",
@@ -1139,7 +1139,7 @@ export const PRESETS: Preset[] = [
     w: 38,
     l: 38,
     h: 75,
-    color: "#57534e",
+    color: "#e59964",
     shape: "circle",
     material: "leather",
     kitModel: {
@@ -1160,7 +1160,7 @@ export const PRESETS: Preset[] = [
     w: 120,
     l: 40,
     h: 180,
-    color: "#7c5a3a",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "bookcaseClosedDoors.glb",
@@ -1180,7 +1180,7 @@ export const PRESETS: Preset[] = [
     w: 140,
     l: 40,
     h: 45,
-    color: "#6b7280",
+    color: "#e59964",
     material: "wood",
     kitModel: { file: "bench.glb", minX: 0, minY: 0, minZ: -20, maxX: 40, maxY: 47, maxZ: 0 },
   },
@@ -1209,7 +1209,7 @@ export const PRESETS: Preset[] = [
     w: 180,
     l: 150,
     h: 75,
-    color: "#c28a5e",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "deskCorner.glb",
@@ -1264,7 +1264,7 @@ export const PRESETS: Preset[] = [
     w: 120,
     l: 45,
     h: 75,
-    color: "#8b5e3c",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "bookcaseClosedWide.glb",
@@ -1284,7 +1284,7 @@ export const PRESETS: Preset[] = [
     w: 55,
     l: 55,
     h: 85,
-    color: "#64748b",
+    color: "#bdd2d6",
     material: "fabric",
     kitModel: {
       file: "chairModernCushion.glb",
@@ -1329,7 +1329,7 @@ export const PRESETS: Preset[] = [
     w: 80,
     l: 30,
     h: 60,
-    color: "#92702e",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "bookcaseOpenLow.glb",
@@ -1349,7 +1349,7 @@ export const PRESETS: Preset[] = [
     w: 40,
     l: 40,
     h: 180,
-    color: "#57534e",
+    color: "#e59964",
     shape: "circle",
     material: "metal",
     kitModel: {
@@ -1370,7 +1370,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 40,
     h: 45,
-    color: "#a9744f",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "benchCushion.glb",
@@ -1393,7 +1393,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 8,
     h: 20,
-    color: "#78716c",
+    color: "#5e7777",
     layer: "wall",
     elevation: 160,
     material: "metal",
@@ -1427,7 +1427,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 4,
     h: 80,
-    color: "#cbd5e1",
+    color: "#e59964",
     layer: "wall",
     elevation: 140,
     material: "glass",
@@ -1452,7 +1452,7 @@ export const PRESETS: Preset[] = [
     w: 35,
     l: 20,
     h: 18,
-    color: "#d4af37",
+    color: "#bdd2d6",
     layer: "wall",
     elevation: 160,
     material: "metal",
@@ -1478,7 +1478,7 @@ export const PRESETS: Preset[] = [
     w: 22,
     l: 22,
     h: 28,
-    color: "#27272a",
+    color: "#ffe996",
     shape: "circle",
     layer: "wall",
     elevation: 195,
@@ -1519,7 +1519,7 @@ export const PRESETS: Preset[] = [
     w: 140,
     l: 195,
     h: 170,
-    color: "#f5f5f5",
+    color: "#f8ffff",
     material: "wood",
     // Corrected 2026-07: recorded minX/minY/minZ didn't match the actual
     // bedBunk.glb mesh, which is flush at X=0/Y=0 (not offset negative)
@@ -1554,7 +1554,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 50,
     h: 55,
-    color: "#93c5fd",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "desk.glb",
@@ -1574,7 +1574,7 @@ export const PRESETS: Preset[] = [
     w: 35,
     l: 35,
     h: 50,
-    color: "#fca5a5",
+    color: "#e59964",
     material: "plastic",
     kitModel: {
       file: "chairRounded.glb",
@@ -1606,7 +1606,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 80,
     h: 90,
-    color: "#f9a8d4",
+    color: "#f15e57",
     material: "wood",
     kitModel: { file: "loungeChair.glb", minX: 0, minY: 0, minZ: -41, maxX: 49, maxY: 46, maxZ: 0 },
   },
@@ -1619,7 +1619,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 90,
     h: 72,
-    color: "#52525b",
+    color: "#e59964",
     shape: "circle",
     material: "metal",
     kitModel: {
@@ -1640,7 +1640,7 @@ export const PRESETS: Preset[] = [
     w: 50,
     l: 50,
     h: 85,
-    color: "#44403c",
+    color: "#e59964",
     material: "plastic",
     kitModel: { file: "chair.glb", minX: 0, minY: 0, minZ: -20, maxX: 20, maxY: 47, maxZ: 0 },
   },
@@ -1711,7 +1711,7 @@ export const PRESETS: Preset[] = [
     w: 200,
     l: 140,
     h: 0.5,
-    color: "#b7806f",
+    color: "#f15e57",
     layer: "under",
     material: "rug",
     kitModel: {
@@ -1732,7 +1732,7 @@ export const PRESETS: Preset[] = [
     w: 160,
     l: 160,
     h: 0.5,
-    color: "#c99383",
+    color: "#f15e57",
     layer: "under",
     shape: "circle",
     material: "rug",
@@ -1746,7 +1746,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 60,
     h: 0.5,
-    color: "#a8917e",
+    color: "#e59964",
     layer: "under",
     material: "rug",
     kitModel: {
@@ -1767,7 +1767,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 40,
     h: 1,
-    color: "#78716c",
+    color: "#e59964",
     layer: "under",
     material: "rug",
     kitModel: {
@@ -1812,7 +1812,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 45,
     h: 1,
-    color: "#93c5fd",
+    color: "#e59964",
     layer: "under",
     material: "rug",
     kitModel: {
@@ -1833,7 +1833,7 @@ export const PRESETS: Preset[] = [
     w: 150,
     l: 150,
     h: 1.5,
-    color: "#86efac",
+    color: "#f15e57",
     layer: "under",
     material: "plastic",
     kitModel: { file: "rugSquare.glb", minX: 0, minY: 0, minZ: -92, maxX: 90.43, maxY: 1, maxZ: 0 },
@@ -1858,7 +1858,7 @@ export const PRESETS: Preset[] = [
     w: 20,
     l: 20,
     h: 40,
-    color: "#f4d35e",
+    color: "#ffe996",
     layer: "on-top",
     material: "metal",
     isLightSource: true,
@@ -1880,7 +1880,7 @@ export const PRESETS: Preset[] = [
     w: 25,
     l: 25,
     h: 45,
-    color: "#fbbf24",
+    color: "#bdd2d6",
     layer: "on-top",
     shape: "circle",
     material: "fabric",
@@ -1905,7 +1905,7 @@ export const PRESETS: Preset[] = [
     w: 35,
     l: 24,
     h: 22,
-    color: "#52525b",
+    color: "#4e6363",
     layer: "on-top",
     material: "metal",
     kitModel: {
@@ -1933,7 +1933,7 @@ export const PRESETS: Preset[] = [
     w: 55,
     l: 20,
     h: 40,
-    color: "#27272a",
+    color: "#4e6363",
     layer: "on-top",
     material: "metal",
     kitModel: {
@@ -1985,7 +1985,7 @@ export const PRESETS: Preset[] = [
     w: 25,
     l: 16,
     h: 17,
-    color: "#7c3f00",
+    color: "#9b4c49",
     layer: "on-top",
     material: "leather",
     kitModel: {
@@ -2032,7 +2032,7 @@ export const PRESETS: Preset[] = [
     w: 20,
     l: 20,
     h: 30,
-    color: "#4ade80",
+    color: "#2ed193",
     layer: "on-top",
     shape: "circle",
     material: "plant",
@@ -2097,7 +2097,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 35,
     h: 30,
-    color: "#6b7280",
+    color: "#5e7777",
     layer: "on-top",
     material: "metal",
     kitModel: {
@@ -2118,7 +2118,7 @@ export const PRESETS: Preset[] = [
     w: 25,
     l: 15,
     h: 20,
-    color: "#a1a1aa",
+    color: "#5e7777",
     layer: "on-top",
     material: "metal",
     kitModel: { file: "toaster.glb", minX: -9.4, minY: 0, minZ: -5, maxX: 9.4, maxY: 13, maxZ: 5 },
@@ -2147,7 +2147,7 @@ export const PRESETS: Preset[] = [
     w: 22,
     l: 22,
     h: 30,
-    color: "#b91c1c",
+    color: "#b2d3c4",
     layer: "on-top",
     material: "metal",
     kitModel: {
@@ -2192,7 +2192,7 @@ export const PRESETS: Preset[] = [
     w: 122,
     l: 15,
     h: 68,
-    color: "#18181b",
+    color: "#4e6363",
     layer: "on-top",
     material: "metal",
     kitModel: {
@@ -2213,7 +2213,7 @@ export const PRESETS: Preset[] = [
     w: 144,
     l: 16,
     h: 81,
-    color: "#18181b",
+    color: "#4e6363",
     layer: "on-top",
     material: "metal",
     kitModel: {
@@ -2234,7 +2234,7 @@ export const PRESETS: Preset[] = [
     w: 166,
     l: 18,
     h: 93,
-    color: "#18181b",
+    color: "#4e6363",
     layer: "on-top",
     material: "metal",
     kitModel: {
@@ -2291,7 +2291,7 @@ export const PRESETS: Preset[] = [
     w: 80,
     l: 35,
     h: 70,
-    color: "#b5835a",
+    color: "#e59964",
     layer: "wall",
     elevation: 145,
     material: "wood",
@@ -2313,7 +2313,7 @@ export const PRESETS: Preset[] = [
     w: 60,
     l: 35,
     h: 40,
-    color: "#71717a",
+    color: "#5e7777",
     layer: "wall",
     elevation: 160,
     material: "metal",
@@ -2348,7 +2348,7 @@ export const PRESETS: Preset[] = [
     w: 70,
     l: 4,
     h: 60,
-    color: "#cbd5e1",
+    color: "#e59964",
     layer: "wall",
     elevation: 140,
     material: "glass",
@@ -2370,7 +2370,7 @@ export const PRESETS: Preset[] = [
     w: 50,
     l: 15,
     h: 65,
-    color: "#e2e8f0",
+    color: "#e59964",
     layer: "wall",
     elevation: 130,
     material: "glass",
@@ -2403,7 +2403,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 40,
     h: 85,
-    color: "#e5e7eb",
+    color: "#e59964",
     material: "wood",
     // Corrected 2026-07: minY/maxZ were off vs. the actual
     // bathroomCabinetDrawer.glb mesh (real minY is 5.82, not 0; real maxZ
@@ -2426,7 +2426,7 @@ export const PRESETS: Preset[] = [
     w: 90,
     l: 90,
     h: 200,
-    color: "#e0f2fe",
+    color: "#ffffff",
     shape: "circle",
     material: "glass",
     // Corrected 2026-07: recorded minX/maxZ didn't match the actual
@@ -2452,7 +2452,7 @@ export const PRESETS: Preset[] = [
     w: 50,
     l: 55,
     h: 85,
-    color: "#f1f5f9",
+    color: "#bdd2d6",
     material: "wood",
     // maxZ corrected 2026-07: recorded 3, actual mesh is flush at 0.
     kitModel: {
@@ -2473,7 +2473,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 55,
     h: 85,
-    color: "#e2e8f0",
+    color: "#bdd2d6",
     material: "wood",
     // maxZ corrected 2026-07: recorded 3, actual mesh is flush at 0.
     kitModel: {
@@ -2494,7 +2494,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 42,
     h: 100,
-    color: "#8b5e34",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "kitchenBar.glb",
@@ -2514,7 +2514,7 @@ export const PRESETS: Preset[] = [
     w: 25,
     l: 30,
     h: 32,
-    color: "#3f3f46",
+    color: "#5e7777",
     layer: "on-top",
     material: "plastic",
     // Corrected 2026-07: recorded bounding box didn't match the actual
@@ -2539,7 +2539,7 @@ export const PRESETS: Preset[] = [
     w: 200,
     l: 200,
     h: 85,
-    color: "#78716c",
+    color: "#f15e57",
     material: "fabric",
     kitModel: {
       file: "loungeSofaCorner.glb",
@@ -2559,7 +2559,7 @@ export const PRESETS: Preset[] = [
     w: 100,
     l: 55,
     h: 40,
-    color: "#cbd5e1",
+    color: "#bdd2d6",
     material: "glass",
     kitModel: {
       file: "tableCoffeeGlass.glb",
@@ -2579,7 +2579,7 @@ export const PRESETS: Preset[] = [
     w: 150,
     l: 85,
     h: 75,
-    color: "#dbeafe",
+    color: "#bdd2d6",
     material: "glass",
     kitModel: {
       file: "tableGlass.glb",
@@ -2599,7 +2599,7 @@ export const PRESETS: Preset[] = [
     w: 18,
     l: 18,
     h: 65,
-    color: "#18181b",
+    color: "#e59964",
     material: "plastic",
     kitModel: {
       file: "speaker.glb",
@@ -2619,7 +2619,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 45,
     h: 15,
-    color: "#f472b6",
+    color: "#f15e57",
     layer: "on-top",
     material: "fabric",
     kitModel: {
@@ -2640,7 +2640,7 @@ export const PRESETS: Preset[] = [
     w: 55,
     l: 20,
     h: 15,
-    color: "#60a5fa",
+    color: "#f15e57",
     layer: "on-top",
     material: "fabric",
     kitModel: {
@@ -2661,7 +2661,7 @@ export const PRESETS: Preset[] = [
     w: 45,
     l: 45,
     h: 45,
-    color: "#78716c",
+    color: "#e59964",
     layer: "on-top",
     material: "plastic",
     kitModel: {
@@ -2682,7 +2682,7 @@ export const PRESETS: Preset[] = [
     w: 32,
     l: 12,
     h: 20,
-    color: "#78716c",
+    color: "#5e7777",
     layer: "on-top",
     material: "plastic",
     kitModel: {
@@ -2703,7 +2703,7 @@ export const PRESETS: Preset[] = [
     w: 40,
     l: 40,
     h: 35,
-    color: "#c4a482",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "cardboardBoxClosed.glb",
@@ -2723,7 +2723,7 @@ export const PRESETS: Preset[] = [
     w: 40,
     l: 40,
     h: 32,
-    color: "#c4a482",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "cardboardBoxOpen.glb",
@@ -2743,7 +2743,7 @@ export const PRESETS: Preset[] = [
     w: 20,
     l: 20,
     h: 30,
-    color: "#16a34a",
+    color: "#2ed193",
     shape: "circle",
     material: "plant",
     // Corrected 2026-07: recorded bounding box was exactly 2x too large on
@@ -2766,7 +2766,7 @@ export const PRESETS: Preset[] = [
     w: 18,
     l: 20,
     h: 32,
-    color: "#15803d",
+    color: "#2ed193",
     shape: "circle",
     material: "plant",
     // Corrected 2026-07: recorded bounding box didn't match the actual
@@ -2791,7 +2791,7 @@ export const PRESETS: Preset[] = [
     w: 30,
     l: 12,
     h: 3,
-    color: "#3f3f46",
+    color: "#4e6363",
     layer: "on-top",
     material: "plastic",
     kitModel: {
@@ -2812,7 +2812,7 @@ export const PRESETS: Preset[] = [
     w: 6,
     l: 10,
     h: 3,
-    color: "#27272a",
+    color: "#4e6363",
     layer: "on-top",
     material: "plastic",
     kitModel: {
@@ -2869,7 +2869,7 @@ export const PRESETS: Preset[] = [
     w: 25,
     l: 20,
     h: 45,
-    color: "#a16207",
+    color: "#a5754c",
     layer: "on-top",
     material: "fabric",
     kitModel: {
@@ -2900,7 +2900,7 @@ export const PRESETS: Preset[] = [
     w: 182,
     l: 79,
     h: 134,
-    color: "#b08968",
+    color: "#e59964",
     material: "wood",
     kitModel: {
       file: "stairs.glb",
@@ -2920,7 +2920,7 @@ export const PRESETS: Preset[] = [
     w: 177,
     l: 143,
     h: 134,
-    color: "#b08968",
+    color: "#ad744c",
     material: "wood",
     kitModel: {
       file: "stairsCorner.glb",
@@ -2940,7 +2940,7 @@ export const PRESETS: Preset[] = [
     w: 182,
     l: 79,
     h: 134,
-    color: "#b08968",
+    color: "#bdd2d6",
     material: "wood",
     kitModel: {
       file: "stairsOpen.glb",
@@ -2960,7 +2960,7 @@ export const PRESETS: Preset[] = [
     w: 182,
     l: 79,
     h: 134,
-    color: "#b08968",
+    color: "#bdd2d6",
     material: "wood",
     kitModel: {
       file: "stairsOpenSingle.glb",

@@ -114,6 +114,8 @@ function RoomPlannerWrapper() {
           setCorners={planner.setCorners}
           wallColors={planner.wallColors}
           setWallColors={planner.setWallColors}
+          flooring={planner.flooring}
+          setFlooring={planner.setFlooring}
           selectedOpeningId={planner.selectedOpeningId}
           setSelectedOpeningId={planner.setSelectedOpeningId}
           openWalls={planner.openWalls}
@@ -168,6 +170,8 @@ function RoomPlannerWrapper() {
           setCorners={planner.setCorners}
           wallColors={planner.wallColors}
           setWallColors={planner.setWallColors}
+          flooring={planner.flooring}
+          setFlooring={planner.setFlooring}
           selectedOpeningId={planner.selectedOpeningId}
           setSelectedOpeningId={planner.setSelectedOpeningId}
           zoomFactor={planner.zoomFactor}

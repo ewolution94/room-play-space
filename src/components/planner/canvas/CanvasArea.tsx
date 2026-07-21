@@ -21,6 +21,8 @@ import { ToolbarOverlay } from "./ToolbarOverlay";
 import { MobileZoomButtons } from "./MobileZoomButtons";
 import { CanvasLoadingOverlay } from "./CanvasLoadingOverlay";
 import { InspectorSection } from "../sidebar/InspectorSection";
+import { FloorPatternDef } from "@/lib/floor-pattern-svg";
+import { resolveFlooring } from "@/lib/floor-materials";
 import { ArrowLeft, HelpCircle, SlidersHorizontal } from "lucide-react";
 import {
   Drawer,
@@ -80,6 +82,8 @@ export function CanvasArea({
   setWallColors,
   selectedOpeningId,
   setSelectedOpeningId,
+  flooring,
+  setFlooring,
   zoomFactor,
   setZoomFactor,
   isDark,
@@ -100,6 +104,10 @@ export function CanvasArea({
   // there's no checkbox left to toggle it.
   const [enableCornerDrag] = useState(false);
   const [showWallIds, setShowWallIds] = useState(false);
+  // Whether the room's flooring pattern renders in 2D/3D, or the room
+  // falls back to its plain background -- on by default, off is an escape
+  // hatch for anyone who prefers the flat pre-flooring look.
+  const [showFlooring, setShowFlooring] = useState(true);
 
   // Mobile "view only" mode (see useMobileViewOnly): canvas-only, tools
   // disabled, the always-visible "2D View Options" panel becomes a
@@ -161,9 +169,10 @@ export function CanvasArea({
         openings,
         wallColors,
         openWalls,
+        flooring,
       },
     ],
-    [roomW, roomL, corners, items, openings, wallColors, openWalls],
+    [roomW, roomL, corners, items, openings, wallColors, openWalls, flooring],
   );
 
   // Auto-expand inspector when selection changes
@@ -264,6 +273,7 @@ export function CanvasArea({
   const selectedLabel = selectedIds.size > 0 ? t.selectedCount(selectedIds.size) : undefined;
   const lang = t.title === "Raumplaner" ? "de" : "en";
   const scaleKey = Math.round(scale * 1000);
+  const resolvedFlooringColor = resolveFlooring(flooring).color;
 
   // Map-like scale calculation
   const targetCm = 80 / scale;
@@ -408,19 +418,11 @@ export function CanvasArea({
                   style={{ zIndex: 0 }}
                 >
                   <defs>
-                    <pattern
-                      id={`canvasGridPattern-${scaleKey}`}
-                      width={cm(50)}
-                      height={cm(50)}
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <circle
-                        cx={1.5}
-                        cy={1.5}
-                        r={1.5}
-                        className="fill-foreground/10 dark:fill-foreground/15"
-                      />
-                    </pattern>
+                    <FloorPatternDef
+                      flooring={flooring}
+                      cm={cm}
+                      patternId={`floorPattern-${scaleKey}`}
+                    />
                     <pattern
                       id={`canvasLineGridPattern-${scaleKey}`}
                       width={cm(50)}
@@ -434,25 +436,60 @@ export function CanvasArea({
                         className="stroke-foreground/10 dark:stroke-foreground/15"
                       />
                     </pattern>
+                    {/* Punches the room's own footprint out of the
+                      background grid (used below only while flooring is
+                      shown) -- SVG mask luminance: white = visible, black =
+                      hidden, so a white full-canvas rect with the room
+                      polygon painted black over it hides the grid exactly
+                      where the floor pattern already covers it, while
+                      leaving the grid intact everywhere outside the room. */}
+                    <mask id={`gridRoomCutout-${scaleKey}`}>
+                      <rect
+                        x={cm(-2000)}
+                        y={cm(-2000)}
+                        width={cm(6000)}
+                        height={cm(6000)}
+                        fill="white"
+                      />
+                      <polygon
+                        points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
+                        fill="black"
+                      />
+                    </mask>
                   </defs>
 
-                  {/* Polygonal Floor plane shadow & background */}
+                  {/* Polygonal Floor plane shadow & background -- filled
+                    with the room's own flooring color as a solid base
+                    coat underneath the pattern (see below), so there's
+                    never a background-colored sliver at a polygon edge. */}
                   <polygon
                     points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
-                    className="fill-background stroke-none"
+                    fill={showFlooring ? resolvedFlooringColor : undefined}
+                    className={showFlooring ? "stroke-none" : "fill-background stroke-none"}
                     style={{
                       filter: "drop-shadow(0px 4px 16px rgba(0,0,0,0.06))",
                     }}
                   />
 
-                  {/* Floor grid dot texture */}
-                  <polygon
-                    points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
-                    fill={`url(#canvasGridPattern-${scaleKey})`}
-                    className="stroke-none"
-                  />
+                  {/* Floor material texture (wood/tile/concrete/carpet/etc,
+                    see floor-pattern-svg.tsx) -- skipped entirely when the
+                    "Show Flooring" view option is off, leaving the plain
+                    background fill above as the room's floor. */}
+                  {showFlooring && (
+                    <polygon
+                      points={corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ")}
+                      fill={`url(#floorPattern-${scaleKey})`}
+                      className="stroke-none"
+                    />
+                  )}
 
-                  {/* Background Grid Lines (Symmetrical Mesh) */}
+                  {/* Background Grid Lines (Symmetrical Mesh) -- this rect
+                    spans the whole canvas, not just the area outside the
+                    room, so while flooring is shown it's masked to cut out
+                    the room's own footprint (see gridRoomCutout above):
+                    grid lines still show anywhere outside the room for
+                    scale/reference, but don't render on top of the floor
+                    pattern itself, which got too busy layered together. */}
                   {showGrid2D && (
                     <rect
                       x={cm(-2000)}
@@ -461,6 +498,7 @@ export function CanvasArea({
                       height={cm(6000)}
                       fill={`url(#canvasLineGridPattern-${scaleKey})`}
                       className="stroke-none"
+                      mask={showFlooring ? `url(#gridRoomCutout-${scaleKey})` : undefined}
                     />
                   )}
 
@@ -702,6 +740,16 @@ export function CanvasArea({
                         <span>{lang === "de" ? "Wandnummern anzeigen" : "Show Wall Numbers"}</span>
                       </label>
 
+                      <label className="flex items-center gap-2.5 cursor-pointer font-medium">
+                        <input
+                          type="checkbox"
+                          checked={showFlooring}
+                          onChange={(e) => setShowFlooring(e.target.checked)}
+                          className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                        />
+                        <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
+                      </label>
+
                       <div className="flex flex-col gap-1.5 border-t border-border/20 pt-3 mt-1">
                         <div className="flex items-center justify-between font-medium text-xs">
                           <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
@@ -785,6 +833,16 @@ export function CanvasArea({
                           <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
                         </span>
                       </span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={showFlooring}
+                        onChange={(e) => setShowFlooring(e.target.checked)}
+                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                      />
+                      <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
                     </label>
 
                     <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
@@ -931,6 +989,12 @@ export function CanvasArea({
               top: 0,
               transform: `translate3d(${inspectorPos.x}px, ${inspectorPos.y}px, 0)`,
               willChange: "transform",
+              // The parent canvas stage sets cursor:grab/grabbing for
+              // panning -- since cursor is CSS-inherited, this floating
+              // panel would otherwise show the same "drag" hand everywhere
+              // that isn't itself an interactive element. Reset it here so
+              // the panel reads as a normal UI surface.
+              cursor: "default",
             }}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerMove={(e) => e.stopPropagation()}
@@ -952,6 +1016,8 @@ export function CanvasArea({
               setSelectedOpeningId={setSelectedOpeningId}
               wallColors={wallColors}
               setWallColors={setWallColors}
+              flooring={flooring}
+              setFlooring={setFlooring}
               corners={corners}
               items={items}
               updateItem={updateItem}

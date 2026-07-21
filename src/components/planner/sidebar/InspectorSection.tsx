@@ -19,10 +19,16 @@ import {
   ChevronDown,
   ChevronUp,
   GripVertical,
+  PaintBucket,
+  Wand2,
 } from "lucide-react";
-import type { Item, Opening, Point } from "@/types/planner";
+import type { Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import { getDefaultHeight } from "../ThreeDView";
 import { wallColorKey } from "@/lib/hallway-shapes";
+import { FLOOR_MATERIALS } from "@/lib/floor-materials";
+import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
+import { PRESET_BY_KEY } from "@/lib/planner-presets";
+import { LayoutGrid } from "lucide-react";
 
 // Friendly display label for a wall identity -- named ("top"/"right"/...)
 // for a plain rectangular room, "Wall N" for a polygon (hallway) room where
@@ -66,6 +72,8 @@ interface InspectorSectionProps {
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   wallColors: Record<string, string>;
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  flooring: RoomFlooring;
+  setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
   corners: Point[];
   items: Item[];
   updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
@@ -97,6 +105,8 @@ export function InspectorSection({
   setSelectedOpeningId,
   wallColors,
   setWallColors,
+  flooring,
+  setFlooring,
   corners,
   items,
   updateItem,
@@ -493,43 +503,81 @@ export function InspectorSection({
               </div>
 
               {/* Color & Finish Section */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  {lang === "de" ? "Farbe & Finish" : "Color & Finish"}
-                </Label>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {SWATCHES.map((sw) => {
-                    const isSelected = selectedItem.color.toLowerCase() === sw.value.toLowerCase();
-                    return (
-                      <button
-                        key={sw.value}
-                        type="button"
-                        disabled={threeDActive}
-                        onClick={() => updateItem(selectedItem.id, { color: sw.value })}
-                        className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
-                          isSelected
-                            ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
-                            : "border-border/60"
-                        }`}
-                        style={{ backgroundColor: sw.value }}
-                        title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
-                      />
-                    );
-                  })}
-                  {/* Custom picker */}
-                  <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
-                    <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="color"
-                      value={selectedItem.color}
-                      onChange={(e) => updateItem(selectedItem.id, { color: e.target.value })}
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      title={t.color}
-                      disabled={threeDActive}
-                    />
+              {(() => {
+                // A real Kenney 3D model (Preset.kitModel) whose color has
+                // been changed away from the preset's own default gets its
+                // original materials recolored to match (see
+                // tintKitMaterial in ThreeDView.tsx) -- easy to forget was
+                // done since this panel otherwise looks identical to a
+                // plain procedural box's color picker. `kitTintOriginal`
+                // drives a prominent banner (below) with a one-click
+                // revert, rather than a small tag easy to miss.
+                const preset = selectedItem.icon ? PRESET_BY_KEY[selectedItem.icon] : undefined;
+                const kitTintOriginal =
+                  preset?.kitModel &&
+                  selectedItem.color.toLowerCase() !== preset.color.toLowerCase()
+                    ? preset.color
+                    : null;
+                return (
+                  <div className={kitTintOriginal ? "space-y-2.5" : "space-y-1.5"}>
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      {lang === "de" ? "Farbe & Finish" : "Color & Finish"}
+                    </Label>
+                    {kitTintOriginal && (
+                      <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-2">
+                        <span className="flex items-center gap-2 text-[11px] font-medium text-primary leading-tight">
+                          <Wand2 className="h-3.5 w-3.5 shrink-0" />
+                          {lang === "de"
+                            ? "3D-Modellfarbe wurde überschrieben"
+                            : "3D model color overridden"}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={threeDActive}
+                          onClick={() => updateItem(selectedItem.id, { color: kitTintOriginal })}
+                          title={`Original: ${kitTintOriginal}`}
+                          className="shrink-0 cursor-pointer rounded-md bg-primary px-2 py-1 text-[10.5px] font-semibold text-primary-foreground hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
+                        >
+                          {lang === "de" ? "Zurücksetzen" : "Reset"}
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {SWATCHES.map((sw) => {
+                        const isSelected =
+                          selectedItem.color.toLowerCase() === sw.value.toLowerCase();
+                        return (
+                          <button
+                            key={sw.value}
+                            type="button"
+                            disabled={threeDActive}
+                            onClick={() => updateItem(selectedItem.id, { color: sw.value })}
+                            className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
+                              isSelected
+                                ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                                : "border-border/60"
+                            }`}
+                            style={{ backgroundColor: sw.value }}
+                            title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                          />
+                        );
+                      })}
+                      {/* Custom picker */}
+                      <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
+                        <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                        <input
+                          type="color"
+                          value={selectedItem.color}
+                          onChange={(e) => updateItem(selectedItem.id, { color: e.target.value })}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          title={t.color}
+                          disabled={threeDActive}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Dimensions Grid */}
               <div className="space-y-1.5">
@@ -820,7 +868,7 @@ export function InspectorSection({
                             disabled={threeDActive}
                           />
                         </div>
-                        <div className="flex flex-col min-w-0">
+                        <div className="flex flex-col min-w-0 flex-1">
                           <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
                             {label}
                           </span>
@@ -828,9 +876,97 @@ export function InspectorSection({
                             {currentColor}
                           </span>
                         </div>
+                        {/* Quick action: apply this exact wall's color to
+                          every other wall in the room, instead of having
+                          to open the color picker N times to match one
+                          color across all walls. */}
+                        <button
+                          type="button"
+                          disabled={threeDActive}
+                          title={
+                            lang === "de"
+                              ? "Diese Farbe auf alle Wände anwenden"
+                              : "Apply this color to all walls"
+                          }
+                          onClick={() => {
+                            const allKeys = Array.from({ length: corners.length }, (_, j) =>
+                              wallColorKey(j, corners.length),
+                            );
+                            setWallColors((prev) => {
+                              const next = { ...prev };
+                              for (const k of allKeys) next[k] = currentColor;
+                              return next;
+                            });
+                          }}
+                          className="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                        >
+                          <PaintBucket className="h-3 w-3" />
+                        </button>
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="h-px bg-border/20 my-3" />
+
+              {/* Flooring Section -- material/pattern swatch grid (each
+                tile a live miniature of that material's actual pattern,
+                see floor-pattern-svg.tsx) plus a native color picker that
+                tints whichever material is currently selected. Mirrors the
+                Wall Colors section's swatch+picker convention above. */}
+              <div className="space-y-2">
+                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <LayoutGrid className="h-3 w-3 text-muted-foreground" />
+                  {lang === "de" ? "Bodenbelag" : "Flooring"}
+                </Label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {FLOOR_MATERIALS.map((mat) => {
+                    const isSelected = flooring.key === mat.key;
+                    const previewColor = isSelected ? flooring.color : mat.defaultColor;
+                    return (
+                      <button
+                        key={mat.key}
+                        type="button"
+                        disabled={threeDActive}
+                        title={lang === "de" ? mat.nameDe : mat.nameEn}
+                        onClick={() => setFlooring({ key: mat.key, color: mat.defaultColor })}
+                        className={`aspect-square w-full block rounded-md overflow-hidden border transition-all duration-150 active:scale-95 ${
+                          isSelected
+                            ? "border-primary ring-1 ring-primary"
+                            : "border-border/40 hover:border-border/80"
+                        }`}
+                      >
+                        <FloorSwatchPreview materialKey={mat.key} color={previewColor} size={32} />
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200">
+                  <div
+                    className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
+                    style={{ backgroundColor: flooring.color }}
+                  >
+                    <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
+                    <input
+                      type="color"
+                      value={flooring.color}
+                      onChange={(e) => setFlooring((prev) => ({ ...prev, color: e.target.value }))}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      title={lang === "de" ? "Bodenfarbe" : "Floor color"}
+                      disabled={threeDActive}
+                    />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
+                      {lang === "de"
+                        ? (FLOOR_MATERIALS.find((m) => m.key === flooring.key)?.nameDe ?? "")
+                        : (FLOOR_MATERIALS.find((m) => m.key === flooring.key)?.nameEn ?? "")}
+                    </span>
+                    <span className="text-[8.5px] text-muted-foreground font-mono truncate uppercase leading-none">
+                      {flooring.color}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import React from "react";
-import { RotateCw } from "lucide-react";
+import { RotateCw, Wand2 } from "lucide-react";
 import { readableText } from "@/lib/planner-math";
+import { PRESET_BY_KEY } from "@/lib/planner-presets";
 import type { Item } from "@/types/planner";
 
 interface CanvasItemsProps {
@@ -39,6 +40,16 @@ export function CanvasItems({
         const layer = it.layer ?? "main";
         const shape = it.shape ?? "rect";
         const baseZ = LAYER_BASE_Z[layer] ?? LAYER_BASE_Z.main;
+        // A real Kenney 3D model (see Preset.kitModel) whose color has been
+        // changed away from the preset's own default is "tinted" -- the 3D
+        // view recolors the model's original materials to match (see
+        // tintKitMaterial in ThreeDView.tsx), which is easy to forget was
+        // done since the 2D box here always just shows it.color regardless.
+        // A quiet corner marker (see below) is the only 2D-side hint that
+        // what's rendered in 3D isn't the model's stock appearance.
+        const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
+        const isKitTinted =
+          !!preset?.kitModel && it.color.toLowerCase() !== preset.color.toLowerCase();
         return (
           <div
             key={it.id}
@@ -71,6 +82,14 @@ export function CanvasItems({
                 borderRadius: shape === "circle" ? "50%" : "2px",
               }}
             />
+            {isKitTinted && (
+              <span
+                className="pointer-events-none absolute -right-1.5 -top-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-background bg-primary text-primary-foreground shadow-sm"
+                aria-hidden="true"
+              >
+                <Wand2 className="h-2.5 w-2.5" strokeWidth={3} />
+              </span>
+            )}
             {(() => {
               const minDim = Math.min(it.width, it.length);
               const fontSize = minDim < 35 ? 8 : minDim < 55 ? 10 : 12;

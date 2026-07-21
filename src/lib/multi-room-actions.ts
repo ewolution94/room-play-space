@@ -1,6 +1,7 @@
 import type { Lang, Opening, Point, RoomLayout } from "@/types/planner";
 import { rectCorners, rectilinearPolygonsOverlap } from "@/lib/planner-math";
 import { globalCorners } from "@/lib/room-adjacency";
+import { DEFAULT_FLOORING } from "@/lib/floor-materials";
 import {
   rotatePolygonCorners,
   polygonBoundingBox,
@@ -255,6 +256,7 @@ export function createRoomLayout(
       bottom: "#f1f5f9",
       left: "#f1f5f9",
     },
+    flooring: { ...DEFAULT_FLOORING },
   };
 }
 
@@ -344,6 +346,7 @@ export function createHallwayLayout(
     openings,
     corners,
     wallColors: {},
+    flooring: { ...DEFAULT_FLOORING },
     roomKind: "hallway",
   };
 }

@@ -14,6 +14,7 @@ import type {
   DragState,
   UseRoomPlannerReturn,
   RoomLayout,
+  RoomFlooring,
 } from "@/types/planner";
 import { STRINGS } from "@/lib/planner-translations";
 import {
@@ -25,6 +26,7 @@ import {
 import { importSchema, formatZodError } from "@/lib/planner-schema";
 import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { loadFloors, saveFloors } from "@/lib/floors";
+import { DEFAULT_FLOORING } from "@/lib/floor-materials";
 import { buildExportFilename } from "@/lib/export-filename";
 import {
   computeAutoOpenIntervals,
@@ -261,6 +263,9 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
         left: "#f1f5f9",
       },
   );
+  const [flooring, setFlooring] = useState<RoomFlooring>(
+    () => initialRoom?.flooring ?? { ...DEFAULT_FLOORING },
+  );
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
   // Fully-furnished home office default -- see buildDefaultOfficeItems above.
@@ -285,19 +290,27 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
         ...floor,
         rooms: floor.rooms.map((r) =>
           r.id === roomId
-            ? { ...r, width: roomW, length: roomL, items, openings, corners, wallColors }
+            ? { ...r, width: roomW, length: roomL, items, openings, corners, wallColors, flooring }
             : r,
         ),
       };
     });
     saveFloors(updatedFloors);
-  }, [roomId, roomW, roomL, items, openings, corners, wallColors]);
+  }, [roomId, roomW, roomL, items, openings, corners, wallColors, flooring]);
 
   // -------- History (undo / redo) --------
-  const stateRef = useRef<Snapshot>({ items, openings, roomW, roomL, corners, wallColors });
+  const stateRef = useRef<Snapshot>({
+    items,
+    openings,
+    roomW,
+    roomL,
+    corners,
+    wallColors,
+    flooring,
+  });
   useEffect(() => {
-    stateRef.current = { items, openings, roomW, roomL, corners, wallColors };
-  }, [items, openings, roomW, roomL, corners, wallColors]);
+    stateRef.current = { items, openings, roomW, roomL, corners, wallColors, flooring };
+  }, [items, openings, roomW, roomL, corners, wallColors, flooring]);
 
   const historyRef = useRef<Snapshot[]>([]);
   const futureRef = useRef<Snapshot[]>([]);
@@ -343,6 +356,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
         left: "#f1f5f9",
       });
     }
+    setFlooring(s.flooring ?? { ...DEFAULT_FLOORING });
   };
 
   const undo = () => {
@@ -1145,6 +1159,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       items,
       corners,
       wallColors,
+      flooring,
     };
     const summaryLines = [
       `${roomW} × ${roomL} cm`,
@@ -1222,6 +1237,8 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
           left: "#f1f5f9",
         });
       }
+
+      setFlooring(data.flooring ?? { ...DEFAULT_FLOORING });
 
       setOpenings(
         data.openings.map((o) => ({
@@ -1368,6 +1385,8 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     setCorners,
     wallColors,
     setWallColors,
+    flooring,
+    setFlooring,
     selectedOpeningId,
     setSelectedOpeningId,
     openWalls,

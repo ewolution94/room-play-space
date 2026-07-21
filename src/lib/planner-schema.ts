@@ -48,6 +48,12 @@ export const importSchema = z.object({
     .max(1000), // Capped at 1000 items to prevent tab freezing
   corners: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
   wallColors: z.record(z.string()).optional(),
+  flooring: z
+    .object({
+      key: z.string(),
+      color: z.string(),
+    })
+    .optional(),
 });
 
 /** Turns a caught import error (a ZodError from a failed `.parse()`, a

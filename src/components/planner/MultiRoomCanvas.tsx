@@ -225,6 +225,7 @@ export function MultiRoomCanvas({
           openings: room.openings,
           wallColors: room.wallColors ?? {},
           openWalls: effectiveOpenWalls,
+          flooring: room.flooring,
         };
       }),
     [rooms, autoOpenWalls],
@@ -1861,6 +1862,12 @@ export function MultiRoomCanvas({
               top: 0,
               transform: `translate3d(${inspectorPos.x}px, ${inspectorPos.y}px, 0)`,
               willChange: "transform",
+              // The parent canvas stage sets cursor:grab/grabbing for
+              // panning -- since cursor is CSS-inherited, this floating
+              // panel would otherwise show the same "drag" hand everywhere
+              // that isn't itself an interactive element. Reset it here so
+              // the panel reads as a normal UI surface.
+              cursor: "default",
             }}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerMove={(e) => e.stopPropagation()}

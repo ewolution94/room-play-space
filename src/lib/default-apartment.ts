@@ -1,6 +1,15 @@
-import type { Item, ItemLayer, Lang, Opening, Point, RoomLayout } from "@/types/planner";
+import type {
+  Item,
+  ItemLayer,
+  Lang,
+  Opening,
+  Point,
+  RoomFlooring,
+  RoomLayout,
+} from "@/types/planner";
 import { PRESET_BY_KEY } from "@/lib/planner-presets";
 import { buildStraightHallwayCorners } from "@/lib/hallway-shapes";
+import { DEFAULT_FLOORING } from "@/lib/floor-materials";
 
 /**
  * A deliberately-designed, fully-furnished 6-room apartment (plus a
@@ -118,6 +127,7 @@ interface RoomSpec {
   y: number;
   openings: Opening[];
   items: Item[];
+  flooring?: RoomFlooring;
 }
 
 function buildRoom(spec: RoomSpec): RoomLayout {
@@ -139,6 +149,7 @@ function buildRoom(spec: RoomSpec): RoomLayout {
       { x: 0, y: spec.length },
     ],
     wallColors: { top: "#f1f5f9", right: "#f1f5f9", bottom: "#f1f5f9", left: "#f1f5f9" },
+    flooring: spec.flooring ?? { ...DEFAULT_FLOORING },
   };
 }
 
@@ -176,6 +187,7 @@ function buildLivingRoom(lang: Lang): RoomLayout {
       mkItem("table-lamp", 85.55473753430924, 168.16924462488564, { elevation: 45 }),
       mkItem("books-stack", 146.30017726440988, 160.90769384720952, { elevation: 45 }),
     ],
+    flooring: { key: "wood-herringbone", color: "#a9744f" },
   });
 }
 
@@ -214,6 +226,7 @@ function buildKitchen(lang: Lang): RoomLayout {
       }),
       mkItem("stand-mixer", 99.00658939239007, 191.3829583983639, { elevation: 90 }),
     ],
+    flooring: { key: "tile-large", color: "#dcdad5" },
   });
 }
 
@@ -237,6 +250,7 @@ function buildBathroom(lang: Lang): RoomLayout {
       mkItem("vanity-mirror", 122.65433440073195, 3),
       mkItem("towel-rack", -20.78573879231473, 160.99062214089665, { rotation: 270 }),
     ],
+    flooring: { key: "tile-square", color: "#e8e6e1" },
   });
 }
 
@@ -265,6 +279,7 @@ function buildBedroom(lang: Lang): RoomLayout {
       mkItem("rug-small", 280.17726440988105, 183.72764181152792, { rotation: 90 }),
       mkItem("bedside-bench", 169.299962831656, 94.44134549405305),
     ],
+    flooring: { key: "carpet-plush", color: "#a9998a" },
   });
 }
 
@@ -306,6 +321,7 @@ function buildOffice(lang: Lang): RoomLayout {
       }),
       mkItem("filing-cabinet", -4.499999999999993, 81.84156278591034, { rotation: 270 }),
     ],
+    flooring: { key: "concrete-polished", color: "#a8adb4" },
   });
 }
 
@@ -334,6 +350,7 @@ function buildDiningRoom(lang: Lang): RoomLayout {
       mkItem("dining-chair", 175, 235, { rotation: 180 }),
       mkItem("pendant-light", 155, 170, { elevation: 175 }),
     ],
+    flooring: { key: "wood-hardwood", color: "#8b5a2b" },
   });
 }
 
@@ -367,6 +384,7 @@ function buildHallway(lang: Lang): RoomLayout {
     corners,
     wallColors: {},
     roomKind: "hallway",
+    flooring: { key: "wood-laminate", color: "#c9a06b" },
   };
 }
 

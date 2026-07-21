@@ -58,6 +58,8 @@ export function Sidebar({
   setCorners,
   wallColors,
   setWallColors,
+  flooring,
+  setFlooring,
   selectedOpeningId,
   setSelectedOpeningId,
   openWalls,
