@@ -10,6 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function NotFoundComponent() {
   return (
@@ -155,8 +156,16 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
-      <Toaster />
+      {/* Shared across every Tooltip in the app so hovering from one
+          tooltipped element straight to another shows the next one
+          almost instantly (Radix's skipDelayDuration) instead of
+          re-waiting the full delayDuration each time -- only works when
+          they all share one provider. delayDuration itself is deliberately
+          much shorter than a native browser tooltip's (~1000ms+). */}
+      <TooltipProvider delayDuration={150}>
+        <Outlet />
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

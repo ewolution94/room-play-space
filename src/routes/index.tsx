@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
 import type { CatalogSaveDraft } from "@/types/planner";
 import { SWATCHES } from "@/lib/swatches";
@@ -32,6 +33,7 @@ function RoomPlanner() {
   const planner = useRoomPlanner();
   const { t, resetMode, setResetMode, confirmReset } = planner;
   const { isMobileViewOnly } = useMobileViewOnly();
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebarCollapsed } = useSidebarCollapsed();
 
   // "My Own Catalog" -- owned here (not by Sidebar or CanvasArea) because
   // both the Add tab's My Catalog list (inside Sidebar) and the Inspector's
@@ -177,7 +179,9 @@ function RoomPlanner() {
         className={
           isMobileViewOnly
             ? "flex flex-1 min-h-0 w-full flex-col p-2"
-            : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+            : sidebarCollapsed
+              ? "grid w-full gap-4 px-4 py-4 lg:grid-cols-[64px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+              : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
         }
       >
         {/* Left column: Unified Tabbed Sidebar -- hidden entirely in mobile
@@ -226,6 +230,8 @@ function RoomPlanner() {
             openWalls={planner.openWalls}
             customCatalog={customCatalog}
             openSaveDialog={openSaveDialog}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebarCollapsed}
           />
         )}
 

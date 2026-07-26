@@ -31,6 +31,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 export function CanvasArea({
   t,
@@ -679,20 +680,23 @@ export function CanvasArea({
                 {enableCornerDrag &&
                   !isMobileViewOnly &&
                   corners.map((c, idx) => (
-                    <div
+                    <HoverTooltip
                       key={idx}
-                      onPointerDown={(e) => onCornerPointerDown(e, idx)}
-                      className="absolute w-3.5 h-3.5 -ml-[7px] -mt-[7px] rounded-full border border-primary bg-background shadow-md hover:scale-125 cursor-move active:bg-primary transition-[transform,background-color] duration-150 flex items-center justify-center group"
-                      style={{
-                        left: cm(c.x),
-                        top: cm(c.y),
-                        touchAction: "none",
-                        zIndex: 20,
-                      }}
-                      title={lang === "de" ? "Wandecke anpassen" : "Adjust corner"}
+                      content={lang === "de" ? "Wandecke anpassen" : "Adjust corner"}
                     >
-                      <span className="w-1 h-1 rounded-full bg-primary group-active:bg-background group-hover:bg-primary/80 transition-colors" />
-                    </div>
+                      <div
+                        onPointerDown={(e) => onCornerPointerDown(e, idx)}
+                        className="absolute w-3.5 h-3.5 -ml-[7px] -mt-[7px] rounded-full border border-primary bg-background shadow-md hover:scale-125 cursor-move active:bg-primary transition-[transform,background-color] duration-150 flex items-center justify-center group"
+                        style={{
+                          left: cm(c.x),
+                          top: cm(c.y),
+                          touchAction: "none",
+                          zIndex: 20,
+                        }}
+                      >
+                        <span className="w-1 h-1 rounded-full bg-primary group-active:bg-background group-hover:bg-primary/80 transition-colors" />
+                      </div>
+                    </HoverTooltip>
                   ))}
               </div>
 
@@ -717,15 +721,16 @@ export function CanvasArea({
                   active there anyway. */}
               {isMobileViewOnly ? (
                 <Drawer open={mobileOptionsOpen} onOpenChange={setMobileOptionsOpen}>
-                  <DrawerTrigger asChild>
-                    <button
-                      onPointerDown={(e) => e.stopPropagation()}
-                      className="absolute top-3 right-3 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
-                      title={lang === "de" ? "Ansichtsoptionen" : "View Options"}
-                    >
-                      <SlidersHorizontal className="h-4 w-4" />
-                    </button>
-                  </DrawerTrigger>
+                  <HoverTooltip content={lang === "de" ? "Ansichtsoptionen" : "View Options"}>
+                    <DrawerTrigger asChild>
+                      <button
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="absolute top-3 right-3 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
+                      >
+                        <SlidersHorizontal className="h-4 w-4" />
+                      </button>
+                    </DrawerTrigger>
+                  </HoverTooltip>
                   <DrawerContent>
                     <DrawerHeader>
                       <DrawerTitle>
@@ -835,16 +840,17 @@ export function CanvasArea({
                       />
                       <span className="flex items-center gap-1">
                         {lang === "de" ? "Wandnummern anzeigen" : "Show Wall Numbers"}
-                        <span
-                          title={
+                        <HoverTooltip
+                          content={
                             lang === "de"
                               ? "Zeigt die Wand-ID neben jeder Wand an -- praktisch, um die richtige Wand im Tür-/Fenster-Dialog auszuwählen."
                               : "Shows each wall's id next to it on the canvas -- handy for picking the right wall in the Add Door/Window dialog."
                           }
-                          className="cursor-help inline-flex items-center"
                         >
-                          <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
-                        </span>
+                          <span className="cursor-help inline-flex items-center">
+                            <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
+                          </span>
+                        </HoverTooltip>
                       </span>
                     </label>
 
@@ -877,16 +883,17 @@ export function CanvasArea({
                       />
                       <span className="flex items-center gap-1">
                         {lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}
-                        <span
-                          title={
+                        <HoverTooltip
+                          content={
                             lang === "de"
                               ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf. Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
                               : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead. Tip: hold Ctrl to activate multi-select temporarily."
                           }
-                          className="cursor-help inline-flex items-center"
                         >
-                          <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
-                        </span>
+                          <span className="cursor-help inline-flex items-center">
+                            <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
+                          </span>
+                        </HoverTooltip>
                       </span>
                     </label>
                   </div>
@@ -900,15 +907,16 @@ export function CanvasArea({
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <button
-                        onClick={() =>
-                          setZoomFactor((z) => Math.max(0.1, Math.round((z - 0.1) * 10) / 10))
-                        }
-                        className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
-                        title={lang === "de" ? "Herauszoomen" : "Zoom out"}
-                      >
-                        -
-                      </button>
+                      <HoverTooltip content={lang === "de" ? "Herauszoomen" : "Zoom out"}>
+                        <button
+                          onClick={() =>
+                            setZoomFactor((z) => Math.max(0.1, Math.round((z - 0.1) * 10) / 10))
+                          }
+                          className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          -
+                        </button>
+                      </HoverTooltip>
                       <input
                         type="range"
                         min="0.1"
@@ -918,15 +926,16 @@ export function CanvasArea({
                         onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
                         className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
                       />
-                      <button
-                        onClick={() =>
-                          setZoomFactor((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))
-                        }
-                        className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
-                        title={lang === "de" ? "Hineinzoomen" : "Zoom in"}
-                      >
-                        +
-                      </button>
+                      <HoverTooltip content={lang === "de" ? "Hineinzoomen" : "Zoom in"}>
+                        <button
+                          onClick={() =>
+                            setZoomFactor((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))
+                          }
+                          className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          +
+                        </button>
+                      </HoverTooltip>
                     </div>
                   </div>
                 </div>

@@ -21,6 +21,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 // Module-level (not per-component-instance) cache of parsed Kenney Furniture
 // Kit models, keyed by filename -- shared across every ThreeDView mount and
@@ -1045,6 +1046,10 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             const glassGeo = new THREE.BoxGeometry(o.width - 8, windowHeight - 8, 4);
             const glassMesh = new THREE.Mesh(glassGeo, localGlassMat);
             glassMesh.position.set(opCenterLocal, sillHeight + windowHeight / 2, 0);
+            // Flagged so the wall-fade animation loop below can also fade
+            // this mesh's `transmission`, not just its `opacity` -- see that
+            // loop for why `opacity` alone doesn't visibly fade glass.
+            glassMesh.userData.isGlassPane = true;
             wallGroup.add(glassMesh);
 
             // Solid Frame for high visibility and color reflection
@@ -1628,6 +1633,9 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     // comment for the full reasoning.
 
     // --- Animation Loop ---
+    // Captured once, before anything can mutate it, so the fade loop below
+    // has the glass's original "not faded" transmission to scale down from.
+    const baseGlassTransmission = glassMat.transmission;
     let animationFrameId: number;
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
@@ -1688,6 +1696,18 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
               mats.forEach((mat) => {
                 mat.transparent = true;
                 mat.opacity = w.currentOpacity;
+                // A window's glass pane is a MeshPhysicalMaterial with
+                // `transmission` > 0 (see localGlassMat above) -- that
+                // property renders real refraction through a dedicated pass
+                // and stays visually solid almost regardless of `opacity`,
+                // so without this the glass looked untouched by the fade
+                // while the wall around it vanished. Scaling transmission
+                // down in step with currentOpacity makes it behave like a
+                // plain alpha-blended surface once it's faded, so it
+                // recedes along with its wall instead of standing out.
+                if (child.userData.isGlassPane && mat instanceof THREE.MeshPhysicalMaterial) {
+                  mat.transmission = baseGlassTransmission * w.currentOpacity;
+                }
                 child.castShadow = w.currentOpacity > 0.45;
                 child.receiveShadow = w.currentOpacity > 0.45;
               });
@@ -2118,16 +2138,19 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
       </div>
 
       {/* Reset Camera Button */}
-      <button
-        onClick={resetCamera}
-        className="mt-1.5 w-full h-8 text-[11px] bg-primary text-primary-foreground font-semibold rounded-lg shadow hover:bg-primary/95 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
-        title={isDe ? "Kamera zurücksetzen (Taste 0 / Esc)" : "Reset camera target (Key 0 / Esc)"}
+      <HoverTooltip
+        content={isDe ? "Kamera zurücksetzen (Taste 0 / Esc)" : "Reset camera target (Key 0 / Esc)"}
       >
-        {isDe ? "Ansicht zurücksetzen" : "Reset Camera View"}
-        <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[9px] bg-primary-foreground/20 text-primary-foreground rounded border border-primary-foreground/10">
-          Esc / 0
-        </kbd>
-      </button>
+        <button
+          onClick={resetCamera}
+          className="mt-1.5 w-full h-8 text-[11px] bg-primary text-primary-foreground font-semibold rounded-lg shadow hover:bg-primary/95 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
+        >
+          {isDe ? "Ansicht zurücksetzen" : "Reset Camera View"}
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[9px] bg-primary-foreground/20 text-primary-foreground rounded border border-primary-foreground/10">
+            Esc / 0
+          </kbd>
+        </button>
+      </HoverTooltip>
 
       {/* Keyboard instructions -- not applicable on mobile (no keyboard/
           right-click), so this block is skipped there entirely. */}
@@ -2165,14 +2188,13 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
 
       {isMobileViewOnly ? (
         <Drawer open={mobileControlsOpen} onOpenChange={setMobileControlsOpen}>
-          <DrawerTrigger asChild>
-            <button
-              className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
-              title={isDe ? "3D-Steuerung" : "3D View Controls"}
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </button>
-          </DrawerTrigger>
+          <HoverTooltip content={isDe ? "3D-Steuerung" : "3D View Controls"}>
+            <DrawerTrigger asChild>
+              <button className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors">
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+            </DrawerTrigger>
+          </HoverTooltip>
           <DrawerContent>
             <DrawerHeader>
               <DrawerTitle>{isDe ? "3D-Steuerung" : "3D View Controls"}</DrawerTitle>

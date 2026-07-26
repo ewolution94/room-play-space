@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
+import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
 import type { CatalogSaveDraft } from "@/types/planner";
 import { SWATCHES } from "@/lib/swatches";
@@ -31,6 +32,7 @@ function RoomPlannerWrapper() {
   const { theme, toggleTheme, isDark } = useTheme();
   const planner = useRoomPlanner(roomId);
   const { t, resetMode, setResetMode, confirmReset } = planner;
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebarCollapsed } = useSidebarCollapsed();
 
   // "My Own Catalog" -- see routes/index.tsx's matching block for why this
   // is owned at the route level rather than by Sidebar or CanvasArea.
@@ -156,7 +158,13 @@ function RoomPlannerWrapper() {
         swatches={SWATCHES}
       />
 
-      <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
+      <div
+        className={
+          sidebarCollapsed
+            ? "grid w-full gap-4 px-4 py-4 lg:grid-cols-[64px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+            : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+        }
+      >
         {/* Left column: Unified Tabbed Sidebar */}
         <Sidebar
           t={planner.t}
@@ -199,6 +207,8 @@ function RoomPlannerWrapper() {
           openWalls={planner.openWalls}
           customCatalog={customCatalog}
           openSaveDialog={openSaveDialog}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={toggleSidebarCollapsed}
         />
 
         {/* Right column: Drawing Stage */}

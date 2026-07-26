@@ -630,6 +630,104 @@ const taperedVessel: ProceduralGenerator = (dims, params) => {
   return parts;
 };
 
+/** A rail-and-spindle barrier: top rail, bottom rail, corner posts, and
+ * evenly spaced thin spindles between them -- the middle stays open (just
+ * borders), unlike every other box/cabinet family here. Baby gate / low
+ * fence silhouette. */
+const railGate: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const railH = Math.max(2, h * 0.09);
+  const postDiam = Math.max(2, l * 0.7);
+  const spindleCount = Math.max(2, Math.round(num(params, "spindleCount", 7)));
+  const spindleDiam = Math.max(1, postDiam * 0.4);
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: railH / 2, z: 0, sx: w, sy: railH, sz: l },
+    { shape: "box", x: 0, y: h - railH / 2, z: 0, sx: w, sy: railH, sz: l, colorOffset: -0.05 },
+  ];
+
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "cylinder",
+      x: sx * (w / 2 - postDiam / 2),
+      y: h / 2,
+      z: 0,
+      sx: postDiam,
+      sy: h,
+      sz: postDiam,
+      colorOffset: -0.15,
+    });
+  }
+
+  for (let i = 1; i <= spindleCount; i++) {
+    const frac = i / (spindleCount + 1);
+    parts.push({
+      shape: "cylinder",
+      x: (frac - 0.5) * w,
+      y: h / 2,
+      z: 0,
+      sx: spindleDiam,
+      sy: Math.max(1, h - railH * 2),
+      sz: spindleDiam,
+      colorOffset: -0.05,
+    });
+  }
+
+  return parts;
+};
+
+/** A shallow rimmed basin with a lighter recessed floor and a scatter of
+ * small ball accents piled up over the rim -- kids' ball pit. */
+const ballPit: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const wallThickness = Math.min(w, l) * 0.12;
+
+  const parts: ProceduralPart[] = [
+    // Outer rim, full height.
+    { shape: "cylinder", x: 0, y: h / 2, z: 0, sx: w, sy: h, sz: l, colorOffset: -0.1 },
+    // Recessed "floor": same top height as the rim (like tubShape's basin
+    // trick) so a thin ring of the darker rim stays visible around this
+    // lighter, narrower disc instead of this being fully buried inside the
+    // outer rim's solid body and never seen.
+    {
+      shape: "cylinder",
+      x: 0,
+      y: h * 0.6 + (h * 0.4) / 2,
+      z: 0,
+      sx: Math.max(1, w - wallThickness * 2),
+      sy: h * 0.4,
+      sz: Math.max(1, l - wallThickness * 2),
+      colorOffset: 0.25,
+    },
+  ];
+
+  // Balls centered just above the rim's top so roughly the top half of each
+  // pokes up above the solid basin instead of being buried inside it.
+  const ballSpots = [
+    { fx: -0.22, fz: 0.18 },
+    { fx: 0.2, fz: -0.15 },
+    { fx: 0.02, fz: 0.28 },
+    { fx: -0.12, fz: -0.28 },
+    { fx: 0.28, fz: 0.05 },
+    { fx: -0.3, fz: -0.02 },
+  ];
+  const ballDiam = Math.max(1, Math.min(w, l) * 0.16);
+  ballSpots.forEach((spot, i) => {
+    parts.push({
+      shape: "sphere",
+      x: w * spot.fx,
+      y: h + ballDiam * (0.15 + (i % 3) * 0.12),
+      z: l * spot.fz,
+      sx: ballDiam,
+      sy: ballDiam,
+      sz: ballDiam,
+      colorOffset: i % 3 === 0 ? 0.35 : i % 3 === 1 ? -0.2 : 0.1,
+    });
+  });
+
+  return parts;
+};
+
 export const PROCEDURAL_GENERATORS: Record<string, ProceduralGenerator> = {
   legFrame,
   cabinetBox,
@@ -645,6 +743,8 @@ export const PROCEDURAL_GENERATORS: Record<string, ProceduralGenerator> = {
   hingedScreen,
   gamepadShape,
   taperedVessel,
+  railGate,
+  ballPit,
 };
 
 /** Every family name a Preset.proceduralModel is allowed to reference. */

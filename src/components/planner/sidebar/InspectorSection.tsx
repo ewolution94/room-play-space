@@ -24,6 +24,7 @@ import {
   BookmarkPlus,
 } from "lucide-react";
 import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { getDefaultHeight } from "../ThreeDView";
 import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import { FLOOR_MATERIALS } from "@/lib/floor-materials";
@@ -262,14 +263,8 @@ export function InspectorSection({
             </span>
           ) : null}
           {onToggleCollapse && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCollapse();
-              }}
-              className="p-0.5 rounded hover:bg-primary/10 transition-colors"
-              title={
+            <HoverTooltip
+              content={
                 isCollapsed
                   ? lang === "de"
                     ? "Erweitern"
@@ -279,12 +274,21 @@ export function InspectorSection({
                     : "Collapse"
               }
             >
-              {isCollapsed ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronUp className="h-3.5 w-3.5" />
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleCollapse();
+                }}
+                className="p-0.5 rounded hover:bg-primary/10 transition-colors"
+              >
+                {isCollapsed ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </HoverTooltip>
           )}
         </div>
       </div>
@@ -326,33 +330,37 @@ export function InspectorSection({
                     const isSelected =
                       (selectedOpening.color || "#475569").toLowerCase() === sw.value.toLowerCase();
                     return (
-                      <button
+                      <HoverTooltip
                         key={sw.value}
-                        type="button"
-                        disabled={threeDActive}
-                        onClick={() => updateOpening(selectedOpening.id, { color: sw.value })}
-                        className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
-                          isSelected
-                            ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
-                            : "border-border/60"
-                        }`}
-                        style={{ backgroundColor: sw.value }}
-                        title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
-                      />
+                        content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                      >
+                        <button
+                          type="button"
+                          disabled={threeDActive}
+                          onClick={() => updateOpening(selectedOpening.id, { color: sw.value })}
+                          className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
+                            isSelected
+                              ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                              : "border-border/60"
+                          }`}
+                          style={{ backgroundColor: sw.value }}
+                        />
+                      </HoverTooltip>
                     );
                   })}
                   {/* Custom picker */}
-                  <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
-                    <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="color"
-                      value={selectedOpening.color || "#475569"}
-                      onChange={(e) => updateOpening(selectedOpening.id, { color: e.target.value })}
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      title={t.color}
-                      disabled={threeDActive}
-                    />
-                  </div>
+                  <HoverTooltip content={t.color}>
+                    <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
+                      <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="color"
+                        value={selectedOpening.color || "#475569"}
+                        onChange={(e) => updateOpening(selectedOpening.id, { color: e.target.value })}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        disabled={threeDActive}
+                      />
+                    </div>
+                  </HoverTooltip>
                 </div>
               </div>
 
@@ -469,45 +477,51 @@ export function InspectorSection({
                   />
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 hover:bg-accent active:scale-95 transition-all"
-                    onClick={duplicateSelected}
-                    title={t.duplicate}
-                    disabled={threeDActive}
+                  <HoverTooltip content={t.duplicate}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-accent active:scale-95 transition-all"
+                      onClick={duplicateSelected}
+                      disabled={threeDActive}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </HoverTooltip>
+                  <HoverTooltip
+                    content={lang === "de" ? "Zu meinem Katalog speichern" : "Save to My Catalog"}
                   >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 hover:bg-primary/10 hover:text-primary active:scale-95 transition-all"
-                    onClick={() =>
-                      openSaveDialog({
-                        name: selectedItem.name,
-                        w: selectedItem.width,
-                        l: selectedItem.length,
-                        color: selectedItem.color,
-                        sourceKey: selectedItem.icon,
-                        layer: selectedItem.layer,
-                        shape: selectedItem.shape,
-                      })
-                    }
-                    title={lang === "de" ? "Zu meinem Katalog speichern" : "Save to My Catalog"}
-                    disabled={threeDActive}
-                  >
-                    <BookmarkPlus className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all"
-                    onClick={() => removeItem(selectedItem.id)}
-                    disabled={threeDActive}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-primary/10 hover:text-primary active:scale-95 transition-all"
+                      onClick={() =>
+                        openSaveDialog({
+                          name: selectedItem.name,
+                          w: selectedItem.width,
+                          l: selectedItem.length,
+                          color: selectedItem.color,
+                          sourceKey: selectedItem.icon,
+                          layer: selectedItem.layer,
+                          shape: selectedItem.shape,
+                        })
+                      }
+                      disabled={threeDActive}
+                    >
+                      <BookmarkPlus className="h-3.5 w-3.5" />
+                    </Button>
+                  </HoverTooltip>
+                  <HoverTooltip content={lang === "de" ? "Löschen" : "Delete"}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all"
+                      onClick={() => removeItem(selectedItem.id)}
+                      disabled={threeDActive}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </HoverTooltip>
                 </div>
               </div>
 
@@ -540,15 +554,16 @@ export function InspectorSection({
                             ? "3D-Modellfarbe wurde überschrieben"
                             : "3D model color overridden"}
                         </span>
-                        <button
-                          type="button"
-                          disabled={threeDActive}
-                          onClick={() => updateItem(selectedItem.id, { color: kitTintOriginal })}
-                          title={`Original: ${kitTintOriginal}`}
-                          className="shrink-0 cursor-pointer rounded-md bg-primary px-2 py-1 text-[10.5px] font-semibold text-primary-foreground hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
-                        >
-                          {lang === "de" ? "Zurücksetzen" : "Reset"}
-                        </button>
+                        <HoverTooltip content={`Original: ${kitTintOriginal}`}>
+                          <button
+                            type="button"
+                            disabled={threeDActive}
+                            onClick={() => updateItem(selectedItem.id, { color: kitTintOriginal })}
+                            className="shrink-0 cursor-pointer rounded-md bg-primary px-2 py-1 text-[10.5px] font-semibold text-primary-foreground hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
+                          >
+                            {lang === "de" ? "Zurücksetzen" : "Reset"}
+                          </button>
+                        </HoverTooltip>
                       </div>
                     )}
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -556,33 +571,37 @@ export function InspectorSection({
                         const isSelected =
                           selectedItem.color.toLowerCase() === sw.value.toLowerCase();
                         return (
-                          <button
+                          <HoverTooltip
                             key={sw.value}
-                            type="button"
-                            disabled={threeDActive}
-                            onClick={() => updateItem(selectedItem.id, { color: sw.value })}
-                            className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
-                              isSelected
-                                ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
-                                : "border-border/60"
-                            }`}
-                            style={{ backgroundColor: sw.value }}
-                            title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
-                          />
+                            content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                          >
+                            <button
+                              type="button"
+                              disabled={threeDActive}
+                              onClick={() => updateItem(selectedItem.id, { color: sw.value })}
+                              className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
+                                isSelected
+                                  ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                                  : "border-border/60"
+                              }`}
+                              style={{ backgroundColor: sw.value }}
+                            />
+                          </HoverTooltip>
                         );
                       })}
                       {/* Custom picker */}
-                      <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
-                        <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                        <input
-                          type="color"
-                          value={selectedItem.color}
-                          onChange={(e) => updateItem(selectedItem.id, { color: e.target.value })}
-                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                          title={t.color}
-                          disabled={threeDActive}
-                        />
-                      </div>
+                      <HoverTooltip content={t.color}>
+                        <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
+                          <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                          <input
+                            type="color"
+                            value={selectedItem.color}
+                            onChange={(e) => updateItem(selectedItem.id, { color: e.target.value })}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                            disabled={threeDActive}
+                          />
+                        </div>
+                      </HoverTooltip>
                     </div>
                   </div>
                 );
@@ -857,26 +876,27 @@ export function InspectorSection({
                         className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200"
                       >
                         {/* Color Preview & Native Picker */}
-                        <div
-                          className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
-                          style={{ backgroundColor: currentColor }}
-                        >
-                          <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
-                          <input
-                            type="color"
-                            value={currentColor}
-                            onChange={(e) => {
-                              const newCol = e.target.value;
-                              setWallColors((prev) => ({
-                                ...prev,
-                                [key]: newCol,
-                              }));
-                            }}
-                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                            title={`${label} color`}
-                            disabled={threeDActive}
-                          />
-                        </div>
+                        <HoverTooltip content={`${label} color`}>
+                          <div
+                            className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
+                            style={{ backgroundColor: currentColor }}
+                          >
+                            <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
+                            <input
+                              type="color"
+                              value={currentColor}
+                              onChange={(e) => {
+                                const newCol = e.target.value;
+                                setWallColors((prev) => ({
+                                  ...prev,
+                                  [key]: newCol,
+                                }));
+                              }}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              disabled={threeDActive}
+                            />
+                          </div>
+                        </HoverTooltip>
                         <div className="flex flex-col min-w-0 flex-1">
                           <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
                             {label}
@@ -889,28 +909,31 @@ export function InspectorSection({
                           every other wall in the room, instead of having
                           to open the color picker N times to match one
                           color across all walls. */}
-                        <button
-                          type="button"
-                          disabled={threeDActive}
-                          title={
+                        <HoverTooltip
+                          content={
                             lang === "de"
                               ? "Diese Farbe auf alle Wände anwenden"
                               : "Apply this color to all walls"
                           }
-                          onClick={() => {
-                            const allKeys = Array.from({ length: corners.length }, (_, j) =>
-                              wallColorKey(j, corners.length),
-                            );
-                            setWallColors((prev) => {
-                              const next = { ...prev };
-                              for (const k of allKeys) next[k] = currentColor;
-                              return next;
-                            });
-                          }}
-                          className="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none"
                         >
-                          <PaintBucket className="h-3 w-3" />
-                        </button>
+                          <button
+                            type="button"
+                            disabled={threeDActive}
+                            onClick={() => {
+                              const allKeys = Array.from({ length: corners.length }, (_, j) =>
+                                wallColorKey(j, corners.length),
+                              );
+                              setWallColors((prev) => {
+                                const next = { ...prev };
+                                for (const k of allKeys) next[k] = currentColor;
+                                return next;
+                              });
+                            }}
+                            className="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                          >
+                            <PaintBucket className="h-3 w-3" />
+                          </button>
+                        </HoverTooltip>
                       </div>
                     );
                   })}
@@ -934,38 +957,39 @@ export function InspectorSection({
                     const isSelected = flooring.key === mat.key;
                     const previewColor = isSelected ? flooring.color : mat.defaultColor;
                     return (
-                      <button
-                        key={mat.key}
-                        type="button"
-                        disabled={threeDActive}
-                        title={lang === "de" ? mat.nameDe : mat.nameEn}
-                        onClick={() => setFlooring({ key: mat.key, color: mat.defaultColor })}
-                        className={`aspect-square w-full block rounded-md overflow-hidden border transition-all duration-150 active:scale-95 ${
-                          isSelected
-                            ? "border-primary ring-1 ring-primary"
-                            : "border-border/40 hover:border-border/80"
-                        }`}
-                      >
-                        <FloorSwatchPreview materialKey={mat.key} color={previewColor} size={32} />
-                      </button>
+                      <HoverTooltip key={mat.key} content={lang === "de" ? mat.nameDe : mat.nameEn}>
+                        <button
+                          type="button"
+                          disabled={threeDActive}
+                          onClick={() => setFlooring({ key: mat.key, color: mat.defaultColor })}
+                          className={`aspect-square w-full block rounded-md overflow-hidden border transition-all duration-150 active:scale-95 ${
+                            isSelected
+                              ? "border-primary ring-1 ring-primary"
+                              : "border-border/40 hover:border-border/80"
+                          }`}
+                        >
+                          <FloorSwatchPreview materialKey={mat.key} color={previewColor} size={32} />
+                        </button>
+                      </HoverTooltip>
                     );
                   })}
                 </div>
                 <div className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200">
-                  <div
-                    className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
-                    style={{ backgroundColor: flooring.color }}
-                  >
-                    <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
-                    <input
-                      type="color"
-                      value={flooring.color}
-                      onChange={(e) => setFlooring((prev) => ({ ...prev, color: e.target.value }))}
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      title={lang === "de" ? "Bodenfarbe" : "Floor color"}
-                      disabled={threeDActive}
-                    />
-                  </div>
+                  <HoverTooltip content={lang === "de" ? "Bodenfarbe" : "Floor color"}>
+                    <div
+                      className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
+                      style={{ backgroundColor: flooring.color }}
+                    >
+                      <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
+                      <input
+                        type="color"
+                        value={flooring.color}
+                        onChange={(e) => setFlooring((prev) => ({ ...prev, color: e.target.value }))}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        disabled={threeDActive}
+                      />
+                    </div>
+                  </HoverTooltip>
                   <div className="flex flex-col min-w-0">
                     <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
                       {lang === "de"

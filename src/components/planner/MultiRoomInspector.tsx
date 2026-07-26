@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { NumberField } from "@/components/ui/number-field";
 import { Button } from "@/components/ui/button";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -131,14 +132,8 @@ export function MultiRoomInspector({
               {selectedRoomIds.size}
             </span>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleCollapse();
-            }}
-            className="p-0.5 rounded hover:bg-primary/10 transition-colors"
-            title={
+          <HoverTooltip
+            content={
               isCollapsed
                 ? lang === "de"
                   ? "Erweitern"
@@ -148,12 +143,21 @@ export function MultiRoomInspector({
                   : "Collapse"
             }
           >
-            {isCollapsed ? (
-              <ChevronDown className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronUp className="h-3.5 w-3.5" />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse();
+              }}
+              className="p-0.5 rounded hover:bg-primary/10 transition-colors"
+            >
+              {isCollapsed ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronUp className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </HoverTooltip>
         </div>
       </div>
 
@@ -271,22 +275,25 @@ export function MultiRoomInspector({
                           )}
                         </span>
                         <div className="flex items-center rounded-md border border-border overflow-hidden shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setWallOverride(key, undefined)}
-                            className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
-                              override === undefined
-                                ? "bg-primary text-primary-foreground"
-                                : "hover:bg-accent"
-                            }`}
-                            title={
+                          <HoverTooltip
+                            content={
                               lang === "de"
                                 ? "Automatisch (basierend auf berührenden Nachbarräumen)"
                                 : "Auto (based on touching neighbors)"
                             }
                           >
-                            {lang === "de" ? "Auto" : "Auto"}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => setWallOverride(key, undefined)}
+                              className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                                override === undefined
+                                  ? "bg-primary text-primary-foreground"
+                                  : "hover:bg-accent"
+                              }`}
+                            >
+                              {lang === "de" ? "Auto" : "Auto"}
+                            </button>
+                          </HoverTooltip>
                           <button
                             type="button"
                             onClick={() => setWallOverride(key, true)}

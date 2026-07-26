@@ -6,6 +6,7 @@ import type { Preset, CatalogSaveDraft, UseCustomCatalogReturn } from "@/types/p
 import { customCatalogItemToPreset, customCatalogArraySchema } from "@/lib/custom-catalog";
 import { buildExportFilename } from "@/lib/export-filename";
 import { ExportImportDialog } from "@/components/planner/ExportImportDialog";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { toast } from "sonner";
 
 interface MyCatalogSectionProps {
@@ -85,24 +86,26 @@ export function MyCatalogSection({
           {lang === "de" ? "Mein Katalog" : "My Catalog"}
         </span>
         <div className="flex items-center gap-1 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            title={lang === "de" ? "Katalog exportieren" : "Export catalog"}
-            onClick={() => setExportOpen(true)}
-          >
-            <Download className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            title={lang === "de" ? "Katalog importieren" : "Import catalog"}
-            onClick={() => setImportOpen(true)}
-          >
-            <Upload className="h-3.5 w-3.5" />
-          </Button>
+          <HoverTooltip content={lang === "de" ? "Katalog exportieren" : "Export catalog"}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setExportOpen(true)}
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+          </HoverTooltip>
+          <HoverTooltip content={lang === "de" ? "Katalog importieren" : "Import catalog"}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setImportOpen(true)}
+            >
+              <Upload className="h-3.5 w-3.5" />
+            </Button>
+          </HoverTooltip>
         </div>
       </div>
 
@@ -167,47 +170,51 @@ export function MyCatalogSection({
                         className="h-3.5 w-3.5 shrink-0 rounded border border-foreground/10"
                         style={{ background: item.color }}
                       />
-                      <span className="truncate">{label}</span>
+                      <HoverTooltip content={label}>
+                        <span className="truncate">{label}</span>
+                      </HoverTooltip>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-[10px] text-muted-foreground">
                         {item.w}×{item.l}cm
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={threeDActive}
-                        className="h-5 w-5 hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:pointer-events-none"
-                        title={lang === "de" ? "Bearbeiten" : "Edit"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openSaveDialog({
-                            editingId: item.id,
-                            name: label,
-                            w: item.w,
-                            l: item.l,
-                            color: item.color,
-                            sourceKey: item.sourceKey,
-                            layer: item.layer,
-                            shape: item.shape,
-                          });
-                        }}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={threeDActive}
-                        className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
-                        title={lang === "de" ? "Löschen" : "Delete"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          customCatalog.removeItem(item.id);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      <HoverTooltip content={lang === "de" ? "Bearbeiten" : "Edit"}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={threeDActive}
+                          className="h-5 w-5 hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:pointer-events-none"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openSaveDialog({
+                              editingId: item.id,
+                              name: label,
+                              w: item.w,
+                              l: item.l,
+                              color: item.color,
+                              sourceKey: item.sourceKey,
+                              layer: item.layer,
+                              shape: item.shape,
+                            });
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </HoverTooltip>
+                      <HoverTooltip content={lang === "de" ? "Löschen" : "Delete"}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={threeDActive}
+                          className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:pointer-events-none"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            customCatalog.removeItem(item.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </HoverTooltip>
                     </div>
                   </div>
                 );

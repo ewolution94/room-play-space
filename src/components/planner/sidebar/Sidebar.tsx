@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Layers, BookmarkPlus } from "lucide-react";
+import { Plus, Layers, BookmarkPlus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { SidebarProps } from "@/types/planner";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { SWATCHES } from "@/lib/swatches";
 import { CatalogSection } from "./CatalogSection";
 import { CustomItemDialog } from "./CustomItemDialog";
@@ -50,10 +51,71 @@ export function Sidebar({
   openWalls,
   customCatalog,
   openSaveDialog,
+  collapsed,
+  onToggleCollapsed,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"add" | "catalog" | "layers">("add");
   const [customBoxOpen, setCustomBoxOpen] = useState(false);
   const [openingOpen, setOpeningOpen] = useState(false);
+
+  if (collapsed) {
+    const railTabs: { key: typeof activeTab; icon: typeof Plus; badge: number }[] = [
+      { key: "add", icon: Plus, badge: 0 },
+      { key: "catalog", icon: BookmarkPlus, badge: customCatalog.items.length },
+      { key: "layers", icon: Layers, badge: items.length + openings.length },
+    ];
+    return (
+      <aside className="flex flex-col items-center gap-2 py-1 lg:h-full lg:shrink-0">
+        <HoverTooltip content={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleCollapsed}
+            className="h-9 w-9 p-0"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </Button>
+        </HoverTooltip>
+        <div className="flex flex-col gap-1.5 mt-1">
+          {railTabs.map(({ key, icon: Icon, badge }) => (
+            <HoverTooltip
+              key={key}
+              content={
+                key === "add"
+                  ? lang === "de"
+                    ? "Hinzufügen"
+                    : "Add"
+                  : key === "catalog"
+                    ? lang === "de"
+                      ? "Mein Katalog"
+                      : "My Catalog"
+                    : lang === "de"
+                      ? "Elemente"
+                      : "Elements"
+              }
+            >
+              <Button
+                variant={activeTab === key ? "default" : "outline"}
+                size="sm"
+                className="relative h-9 w-9 p-0"
+                onClick={() => {
+                  setActiveTab(key);
+                  onToggleCollapsed();
+                }}
+              >
+                <Icon className="h-4 w-4" />
+                {badge > 0 && (
+                  <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                    {badge}
+                  </span>
+                )}
+              </Button>
+            </HoverTooltip>
+          ))}
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside id="tour-sidebar" className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:shrink-0">
@@ -72,44 +134,51 @@ export function Sidebar({
       )}
 
       {/* Navigation tabs */}
-      <div className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/50 p-1 shrink-0">
-        <Button
-          variant={activeTab === "add" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setActiveTab("add")}
-          className="h-8 px-1.5"
-        >
-          <Plus className="mr-1 h-4 w-4 shrink-0" />
-          <span className="truncate">{lang === "de" ? "Hinzufügen" : "Add"}</span>
-        </Button>
-        <Button
-          variant={activeTab === "catalog" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setActiveTab("catalog")}
-          className="h-8 relative px-1.5"
-        >
-          <BookmarkPlus className="mr-1 h-4 w-4 shrink-0" />
-          <span className="truncate">{lang === "de" ? "Mein Katalog" : "My Catalog"}</span>
-          {customCatalog.items.length > 0 && (
-            <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-              {customCatalog.items.length}
-            </span>
-          )}
-        </Button>
-        <Button
-          variant={activeTab === "layers" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setActiveTab("layers")}
-          className="h-8 relative px-1.5"
-        >
-          <Layers className="mr-1 h-4 w-4 shrink-0" />
-          <span className="truncate">{lang === "de" ? "Elemente" : "Elements"}</span>
-          {(items.length > 0 || openings.length > 0) && (
-            <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-              {items.length + openings.length}
-            </span>
-          )}
-        </Button>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <div className="grid flex-1 min-w-0 grid-cols-3 gap-1 rounded-lg border bg-muted/50 p-1">
+          <Button
+            variant={activeTab === "add" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("add")}
+            className="h-8 px-1.5"
+          >
+            <Plus className="mr-1 h-4 w-4 shrink-0" />
+            <span className="truncate">{lang === "de" ? "Hinzufügen" : "Add"}</span>
+          </Button>
+          <Button
+            variant={activeTab === "catalog" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("catalog")}
+            className="h-8 relative px-1.5"
+          >
+            <BookmarkPlus className="mr-1 h-4 w-4 shrink-0" />
+            <span className="truncate">{lang === "de" ? "Mein Katalog" : "My Catalog"}</span>
+            {customCatalog.items.length > 0 && (
+              <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {customCatalog.items.length}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant={activeTab === "layers" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("layers")}
+            className="h-8 relative px-1.5"
+          >
+            <Layers className="mr-1 h-4 w-4 shrink-0" />
+            <span className="truncate">{lang === "de" ? "Elemente" : "Elements"}</span>
+            {(items.length > 0 || openings.length > 0) && (
+              <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {items.length + openings.length}
+              </span>
+            )}
+          </Button>
+        </div>
+        <HoverTooltip content={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}>
+          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-9 w-9 p-0 shrink-0">
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+        </HoverTooltip>
       </div>
 
       {/* Tab Contents Scroll Area */}

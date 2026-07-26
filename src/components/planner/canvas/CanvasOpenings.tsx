@@ -2,6 +2,7 @@ import React from "react";
 import type { Opening, Point } from "@/types/planner";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface CanvasOpeningsProps {
   openings: Opening[];
@@ -216,66 +217,63 @@ export function CanvasOpenings({
         const dragLabel = lang === "de" ? "ziehen zum Bewegen" : "drag to move";
 
         return (
-          <div
-            key={o.id}
-            style={containerStyle}
-            onPointerDown={onOpeningDown}
-            title={`${kindLabel} (${o.width}cm) — ${dragLabel}`}
-          >
-            {/* 2D Door Swing Representation */}
-            {o.kind === "door" && (
-              <svg
-                width={W}
-                height={2 * W}
-                overflow="visible"
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  pointerEvents: "none",
-                  overflow: "visible",
-                  zIndex: 2,
-                }}
-              >
-                {/* Door Leaf (Solid) */}
-                <path
-                  d={dLeaf}
-                  fill="none"
-                  stroke={frameColor}
-                  className={o.color ? "" : "stroke-slate-600 dark:stroke-slate-300"}
-                  strokeWidth="1.5"
-                />
-                {/* Swing Arc (Dashed) */}
-                <path
-                  d={dArc}
-                  fill="none"
-                  stroke={frameColor}
-                  className={o.color ? "" : "stroke-slate-400 dark:stroke-slate-500"}
-                  strokeWidth="1.2"
-                  strokeDasharray="3,3"
-                  opacity="0.9"
-                />
-              </svg>
-            )}
-
-            <div style={visualStyle}>
-              {o.kind === "window" && (
-                <div
+          <HoverTooltip key={o.id} content={`${kindLabel} (${o.width}cm) — ${dragLabel}`}>
+            <div style={containerStyle} onPointerDown={onOpeningDown}>
+              {/* 2D Door Swing Representation */}
+              {o.kind === "door" && (
+                <svg
+                  width={W}
+                  height={2 * W}
+                  overflow="visible"
                   style={{
                     position: "absolute",
-                    background: frameColor,
-                    top: "50%",
                     left: 0,
-                    width: "100%",
-                    height: "1px",
+                    top: "50%",
                     transform: "translateY(-50%)",
-                    opacity: 0.8,
+                    pointerEvents: "none",
+                    overflow: "visible",
+                    zIndex: 2,
                   }}
-                />
+                >
+                  {/* Door Leaf (Solid) */}
+                  <path
+                    d={dLeaf}
+                    fill="none"
+                    stroke={frameColor}
+                    className={o.color ? "" : "stroke-slate-600 dark:stroke-slate-300"}
+                    strokeWidth="1.5"
+                  />
+                  {/* Swing Arc (Dashed) */}
+                  <path
+                    d={dArc}
+                    fill="none"
+                    stroke={frameColor}
+                    className={o.color ? "" : "stroke-slate-400 dark:stroke-slate-500"}
+                    strokeWidth="1.2"
+                    strokeDasharray="3,3"
+                    opacity="0.9"
+                  />
+                </svg>
               )}
+
+              <div style={visualStyle}>
+                {o.kind === "window" && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      background: frameColor,
+                      top: "50%",
+                      left: 0,
+                      width: "100%",
+                      height: "1px",
+                      transform: "translateY(-50%)",
+                      opacity: 0.8,
+                    }}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          </HoverTooltip>
         );
       })}
     </>

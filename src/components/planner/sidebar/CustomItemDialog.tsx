@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { ItemLayer, ItemShape } from "@/types/planner";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface CustomItemDialogProps {
   t: any;
@@ -158,16 +159,9 @@ export function CustomItemDialog({
               </Label>
               <div className="grid grid-cols-4 gap-1">
                 {LAYER_OPTIONS.map((opt) => (
-                  <button
+                  <HoverTooltip
                     key={opt.value}
-                    type="button"
-                    onClick={() => setNLayer(opt.value)}
-                    className={`h-8 rounded-md border text-[9.5px] font-semibold transition-all ${
-                      nLayer === opt.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-input bg-background text-muted-foreground hover:bg-accent/50"
-                    }`}
-                    title={
+                    content={
                       opt.value === "main"
                         ? lang === "de"
                           ? "Kollidiert mit anderen Hauptmöbeln"
@@ -177,8 +171,18 @@ export function CustomItemDialog({
                           : "Never collides"
                     }
                   >
-                    {lang === "de" ? opt.labelDe : opt.labelEn}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setNLayer(opt.value)}
+                      className={`h-8 rounded-md border text-[9.5px] font-semibold transition-all ${
+                        nLayer === opt.value
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-input bg-background text-muted-foreground hover:bg-accent/50"
+                      }`}
+                    >
+                      {lang === "de" ? opt.labelDe : opt.labelEn}
+                    </button>
+                  </HoverTooltip>
                 ))}
               </div>
             </div>
@@ -223,30 +227,34 @@ export function CustomItemDialog({
               {swatches.map((sw) => {
                 const isSelected = nColor.toLowerCase() === sw.value.toLowerCase();
                 return (
-                  <button
+                  <HoverTooltip
                     key={sw.value}
-                    type="button"
-                    onClick={() => setNColor(sw.value)}
-                    className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
-                      isSelected
-                        ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
-                        : "border-border/60"
-                    }`}
-                    style={{ backgroundColor: sw.value }}
-                    title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
-                  />
+                    content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setNColor(sw.value)}
+                      className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
+                        isSelected
+                          ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                          : "border-border/60"
+                      }`}
+                      style={{ backgroundColor: sw.value }}
+                    />
+                  </HoverTooltip>
                 );
               })}
-              <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
-                <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                <input
-                  type="color"
-                  value={nColor}
-                  onChange={(e) => setNColor(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  title={t.color}
-                />
-              </div>
+              <HoverTooltip content={t.color}>
+                <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
+                  <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="color"
+                    value={nColor}
+                    onChange={(e) => setNColor(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                </div>
+              </HoverTooltip>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
 import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-catalog";
 import { STRINGS } from "@/lib/planner-translations";
@@ -40,8 +41,11 @@ import {
   LayoutGrid,
   Sparkles,
   ArrowRight,
+  FileStack,
+  MoreHorizontal,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/rooms/")({
@@ -60,6 +64,7 @@ let hasGeneratedRoomsThisSession = false;
 function MultiRoomOverview() {
   const { theme, toggleTheme, isDark } = useTheme();
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebarCollapsed } = useSidebarCollapsed();
   // "My Own Catalog" -- there's no Sidebar/Inspector at this overview level
   // (see MultiRoomSidebar.tsx, a different component with no My Catalog
   // tab), so this instance exists purely to support the "Include My Catalog
@@ -548,176 +553,156 @@ function MultiRoomOverview() {
           {isMobileViewOnly ? (
             <div className="flex items-center gap-2">
               {isPortrait && (
-                <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
-                  <Link to="/" title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
-                    <Sparkles className="h-4 w-4 text-amber-500" />
-                  </Link>
-                </Button>
+                <HoverTooltip content={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
+                  <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
+                    <Link to="/">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                    </Link>
+                  </Button>
+                </HoverTooltip>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => changeLanguage(lang === "en" ? "de" : "en")}
-                className="h-9 w-9 p-0 flex items-center justify-center"
-                title={lang === "en" ? "Deutsch" : "English"}
-              >
-                <Languages className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleTheme}
-                title={
-                  theme === "light"
-                    ? lang === "de"
-                      ? "Dunkelmodus aktivieren"
-                      : "Switch to Dark Mode"
-                    : lang === "de"
-                      ? "Hellmodus aktivieren"
-                      : "Switch to Light Mode"
-                }
-                className="h-9 w-9 p-0 flex items-center justify-center"
-              >
-                {theme === "light" ? (
-                  <Moon className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                )}
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              {isPortrait && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="h-9 w-9 p-0"
-                  title={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}
-                >
-                  <Link to="/">
-                    <Sparkles className="h-4 w-4 text-amber-500" />
-                  </Link>
-                </Button>
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleTheme}
-                title={
-                  theme === "light"
-                    ? lang === "de"
-                      ? "Dunkelmodus aktivieren"
-                      : "Switch to Dark Mode"
-                    : lang === "de"
-                      ? "Hellmodus aktivieren"
-                      : "Switch to Light Mode"
-                }
-                className="h-9 w-9 p-0 flex items-center justify-center"
-              >
-                {theme === "light" ? (
-                  <Moon className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                )}
-              </Button>
-
-              {/* Inline on desktop -- only collapses into the "Options" menu below
-                the lg breakpoint, once there's genuinely not enough header
-                width for these as standalone buttons. */}
-              <div className="hidden lg:flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={undoRooms}
-                  disabled={!canUndoRooms}
-                  title="Ctrl+Z"
-                  className="px-2 sm:px-3"
-                >
-                  <Undo2 className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">{t.undo}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={redoRooms}
-                  disabled={!canRedoRooms}
-                  title="Ctrl+Shift+Z"
-                  className="px-2 sm:px-3"
-                >
-                  <Redo2 className="h-4 w-4 sm:mr-1" />
-                  <span className="hidden sm:inline">{t.redo}</span>
-                </Button>
+              <HoverTooltip content={lang === "en" ? "Deutsch" : "English"}>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => changeLanguage(lang === "en" ? "de" : "en")}
-                  className="gap-1.5"
+                  className="h-9 w-9 p-0 flex items-center justify-center"
                 >
                   <Languages className="h-4 w-4" />
-                  <span>{lang === "en" ? "Deutsch" : "English"}</span>
                 </Button>
+              </HoverTooltip>
+              <HoverTooltip
+                content={
+                  theme === "light"
+                    ? lang === "de"
+                      ? "Dunkelmodus aktivieren"
+                      : "Switch to Dark Mode"
+                    : lang === "de"
+                      ? "Hellmodus aktivieren"
+                      : "Switch to Light Mode"
+                }
+              >
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setExportOpen(true)}
-                  className="gap-1.5"
+                  onClick={toggleTheme}
+                  className="h-9 w-9 p-0 flex items-center justify-center"
                 >
-                  <Download className="h-4 w-4" />
-                  <span>{t.export}</span>
+                  {theme === "light" ? (
+                    <Moon className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                  )}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setImportOpen(true)}
-                  className="gap-1.5"
-                >
-                  <Upload className="h-4 w-4" />
-                  <span>{t.import}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearAllRooms}
-                  className="gap-1.5 text-rose-500 hover:text-rose-600 border-rose-200/60 hover:border-rose-300 dark:border-rose-900/40"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>{lang === "de" ? "Geschoss leeren" : "Clear This Floor"}</span>
-                </Button>
+              </HoverTooltip>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {isPortrait && (
+                <HoverTooltip content={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
+                  <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
+                    <Link to="/">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                    </Link>
+                  </Button>
+                </HoverTooltip>
+              )}
+
+              {/* History: one segmented control, always visible -- see the
+                  matching treatment (and reasoning) in Header.tsx. */}
+              <div className="flex items-center rounded-md border overflow-hidden shrink-0">
+                <HoverTooltip content="Ctrl+Z">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={undoRooms}
+                    disabled={!canUndoRooms}
+                    className="rounded-none px-2 sm:px-3"
+                  >
+                    <Undo2 className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">{t.undo}</span>
+                  </Button>
+                </HoverTooltip>
+                <div className="h-5 w-px bg-border" />
+                <HoverTooltip content="Ctrl+Shift+Z">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={redoRooms}
+                    disabled={!canRedoRooms}
+                    className="rounded-none px-2 sm:px-3"
+                  >
+                    <Redo2 className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">{t.redo}</span>
+                  </Button>
+                </HoverTooltip>
               </div>
 
+              <HoverTooltip
+                content={
+                  theme === "light"
+                    ? lang === "de"
+                      ? "Dunkelmodus aktivieren"
+                      : "Switch to Dark Mode"
+                    : lang === "de"
+                      ? "Hellmodus aktivieren"
+                      : "Switch to Light Mode"
+                }
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleTheme}
+                  className="h-9 w-9 p-0 flex items-center justify-center shrink-0"
+                >
+                  {theme === "light" ? (
+                    <Moon className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                  )}
+                </Button>
+              </HoverTooltip>
+
+              {/* File operations grouped behind one menu -- see the matching
+                  treatment in Header.tsx. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="lg:hidden">
-                    <span>{lang === "de" ? "Optionen" : "Options"}</span>
+                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+                    <FileStack className="h-4 w-4" />
+                    <span className="hidden sm:inline">{lang === "de" ? "Datei" : "File"}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={undoRooms} disabled={!canUndoRooms}>
-                    <Undo2 className="mr-2 h-4 w-4" />
-                    {t.undo}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={redoRooms} disabled={!canRedoRooms}>
-                    <Redo2 className="mr-2 h-4 w-4" />
-                    {t.redo}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => changeLanguage(lang === "en" ? "de" : "en")}>
-                    <Languages className="mr-2 h-4 w-4" />
-                    {lang === "en" ? "Deutsch" : "English"}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuItem onClick={() => setExportOpen(true)}>
                     <Download className="mr-2 h-4 w-4" /> {t.export}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setImportOpen(true)}>
                     <Upload className="mr-2 h-4 w-4" /> {t.import}
                   </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Language + the destructive "clear this floor" action --
+                  neither reached for on every visit, and tucking the
+                  destructive one behind a menu makes it harder to hit by
+                  accident. */}
+              <DropdownMenu>
+                <HoverTooltip content="More">
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </HoverTooltip>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={() => changeLanguage(lang === "en" ? "de" : "en")}>
+                    <Languages className="mr-2 h-4 w-4" />
+                    {lang === "en" ? "Deutsch" : "English"}
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={clearAllRooms}
-                    className="text-rose-500 hover:text-rose-600 focus:text-rose-600"
+                    className="text-rose-500 focus:text-rose-600"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />{" "}
                     {lang === "de" ? "Geschoss leeren" : "Clear This Floor"}
@@ -784,7 +769,9 @@ function MultiRoomOverview() {
         className={
           isMobileViewOnly
             ? "flex flex-1 min-h-0 w-full flex-col p-2"
-            : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+            : sidebarCollapsed
+              ? "grid w-full gap-4 px-4 py-4 lg:grid-cols-[64px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+              : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
         }
       >
         {/* Left Column: Sidebar to add rooms and adjust selection details --
@@ -801,6 +788,8 @@ function MultiRoomOverview() {
             selectedRoomIds={selectedRoomIds}
             setSelectedRoomIds={setSelectedRoomIds}
             lang={lang}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebarCollapsed}
           />
         )}
 

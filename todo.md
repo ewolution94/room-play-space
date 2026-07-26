@@ -47,6 +47,14 @@
   - [x] Shares the exact same underlying data shape and add-to-room path as My Own Catalog (see `customCatalogItemToPreset` / `buildCatalogByLayer` in `src/lib/custom-catalog.ts`) -- kit-model 3D rendering, collision, material, and catalog search all come along for free
 - [x] Bug fix: double-clicking a room in the mobile multi-room overview no longer navigates into the (not-mobile-aware) single-room route and strands the user without a visible canvas -- the double-click is now a no-op in mobile view-only mode, same as room drag/select already was
 
+## Follow-up Polish Batch (2026-07-26, same night)
+
+- [x] 3D view: windows now fade in step with their wall (glass `transmission` scaled alongside `opacity` in `ThreeDView.tsx`'s fade loop -- transmission barely responds to opacity alone)
+- [x] Collapsible sidebar (`useSidebarCollapsed`) -- manual toggle to a ~64px icon rail, independent of the existing auto mobile view-only cutoff, on all three routes
+- [x] Header actions regrouped on both headers -- Undo/Redo segment, theme toggle, "File" dropdown (Export/Import), "More" dropdown (tour/language + destructive Clear actions); removed the old duplicated desktop-row/mobile-dropdown split
+- [x] Custom "premium" tooltip (`components/ui/hover-tooltip.tsx` + restyled `components/ui/tooltip.tsx`, 150ms delay) replacing native `title=` attributes app-wide
+- [x] New catalog items: small/large trash bin + recycling box (kitchen), baby gate "Babygitter" (kids, border-only `railGate` procedural family), ball pit "Bällebad" (kids, `ballPit` procedural family) -- a "Wickeltisch" already existed as `changing-table`, no new preset needed there
+
 ## Known Disabled Features (kept in code, not exposed in UI)
 
 - **Corner Dragging** (single-room 2D canvas): the "Enable Corner Dragging" checkbox has been removed from the 2D View Options panel because it caused confusion and could break the app in some ways. The underlying implementation is still in `src/components/planner/canvas/CanvasArea.tsx` (`enableCornerDrag` state, `onCornerPointerDown`, the draggable corner-handle rendering, and `clampOpeningsToWalls`) -- it's just permanently off (`const [enableCornerDrag] = useState(false)`), with no UI control to turn it back on. Revisit this once it's more robust, then reintroduce the checkbox.

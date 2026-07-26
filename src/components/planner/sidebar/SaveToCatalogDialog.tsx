@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Sliders, Ruler, Palette, BookmarkPlus, Save } from "lucide-react";
 import type { CatalogSaveDraft } from "@/types/planner";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface SaveToCatalogDialogProps {
   lang: string;
@@ -153,30 +154,34 @@ export function SaveToCatalogDialog({
               {swatches.map((sw) => {
                 const isSelected = color.toLowerCase() === sw.value.toLowerCase();
                 return (
-                  <button
+                  <HoverTooltip
                     key={sw.value}
-                    type="button"
-                    onClick={() => setColor(sw.value)}
-                    className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
-                      isSelected
-                        ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
-                        : "border-border/60"
-                    }`}
-                    style={{ backgroundColor: sw.value }}
-                    title={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
-                  />
+                    content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setColor(sw.value)}
+                      className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
+                        isSelected
+                          ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                          : "border-border/60"
+                      }`}
+                      style={{ backgroundColor: sw.value }}
+                    />
+                  </HoverTooltip>
                 );
               })}
-              <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
-                <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  title={lang === "de" ? "Farbe" : "Color"}
-                />
-              </div>
+              <HoverTooltip content={lang === "de" ? "Farbe" : "Color"}>
+                <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer">
+                  <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                </div>
+              </HoverTooltip>
             </div>
           </div>
         </div>

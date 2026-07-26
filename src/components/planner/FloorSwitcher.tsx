@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Floor, Lang } from "@/types/planner";
 import { Plus, Settings2, GripVertical, Trash2, Layers } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { floorDisplayName } from "@/lib/floors";
 
 interface FloorSwitcherProps {
@@ -62,42 +63,44 @@ export function FloorSwitcher({
           const isActive = floor.id === activeFloorId;
           const name = floorDisplayName(floor, index, lang);
           return (
-            <button
-              key={floor.id}
-              type="button"
-              onClick={() => onSelectFloor(floor.id)}
-              className={`h-7 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors ${
-                isActive
-                  ? "bg-gradient-to-r from-teal-600 to-sky-600 text-white shadow-sm"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              }`}
-              title={name}
-            >
-              {name}
-            </button>
+            <HoverTooltip key={floor.id} content={name}>
+              <button
+                type="button"
+                onClick={() => onSelectFloor(floor.id)}
+                className={`h-7 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-gradient-to-r from-teal-600 to-sky-600 text-white shadow-sm"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                {name}
+              </button>
+            </HoverTooltip>
           );
         })}
       </div>
 
-      <button
-        type="button"
-        onClick={onAddFloor}
-        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        title={lang === "de" ? "Geschoss hinzufügen" : "Add floor"}
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
+      <HoverTooltip content={lang === "de" ? "Geschoss hinzufügen" : "Add floor"}>
+        <button
+          type="button"
+          onClick={onAddFloor}
+          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </HoverTooltip>
 
       <Popover open={manageOpen} onOpenChange={setManageOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title={lang === "de" ? "Geschosse verwalten" : "Manage floors"}
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </button>
-        </PopoverTrigger>
+        <HoverTooltip content={lang === "de" ? "Geschosse verwalten" : "Manage floors"}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          </PopoverTrigger>
+        </HoverTooltip>
         <PopoverContent
           align="center"
           className="w-64 p-2"
@@ -293,15 +296,16 @@ function FloorRow({
       // them here.
       style={isDragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
     >
-      <button
-        type="button"
-        onPointerDown={onDragHandlePointerDown}
-        className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
-        style={{ touchAction: "none" }}
-        title={lang === "de" ? "Ziehen zum Umsortieren" : "Drag to reorder"}
-      >
-        <GripVertical className="h-3.5 w-3.5" />
-      </button>
+      <HoverTooltip content={lang === "de" ? "Ziehen zum Umsortieren" : "Drag to reorder"}>
+        <button
+          type="button"
+          onPointerDown={onDragHandlePointerDown}
+          className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          style={{ touchAction: "none" }}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      </HoverTooltip>
       <input
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -315,15 +319,16 @@ function FloorRow({
         }}
         className="h-7 min-w-0 flex-1 cursor-text rounded-md border border-transparent bg-transparent px-1.5 text-xs font-medium outline-none focus:border-input focus:bg-background"
       />
-      <button
-        type="button"
-        disabled={total <= 1}
-        onClick={() => onDeleteFloor(floor.id)}
-        className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-        title={lang === "de" ? "Geschoss löschen" : "Delete floor"}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+      <HoverTooltip content={lang === "de" ? "Geschoss löschen" : "Delete floor"}>
+        <button
+          type="button"
+          disabled={total <= 1}
+          onClick={() => onDeleteFloor(floor.id)}
+          className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </HoverTooltip>
     </div>
   );
 }

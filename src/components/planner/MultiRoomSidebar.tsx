@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberField } from "@/components/ui/number-field";
 import { Label } from "@/components/ui/label";
-import { Plus, FolderOpen, LayoutGrid, DoorOpen, Route } from "lucide-react";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
+import {
+  Plus,
+  FolderOpen,
+  LayoutGrid,
+  DoorOpen,
+  Route,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { createRoomLayout, createHallwayLayout } from "@/lib/multi-room-actions";
 import {
   buildStraightHallwayCorners,
@@ -29,6 +38,10 @@ interface MultiRoomSidebarProps {
   selectedRoomIds: Set<string>;
   setSelectedRoomIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   lang: "en" | "de";
+  // Manual collapse toggle -- see useSidebarCollapsed and the matching
+  // Sidebar.tsx treatment for the single-room planner.
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 // Preset color options for premium look and feel
@@ -77,6 +90,8 @@ export function MultiRoomSidebar({
   selectedRoomIds,
   setSelectedRoomIds,
   lang,
+  collapsed,
+  onToggleCollapsed,
 }: MultiRoomSidebarProps) {
   const [createMode, setCreateMode] = useState<"room" | "hallway">("room");
   const [newRoomName, setNewRoomName] = useState("");
@@ -130,8 +145,33 @@ export function MultiRoomSidebar({
     setNewRoomColor(COLOR_PRESETS[(COLOR_PRESETS.indexOf(color) + 1) % COLOR_PRESETS.length]);
   };
 
+  if (collapsed) {
+    return (
+      <aside className="flex flex-col items-center gap-2 py-1 lg:h-full lg:shrink-0">
+        <HoverTooltip content={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}>
+          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-9 w-9 p-0">
+            <PanelLeftOpen className="h-4 w-4" />
+          </Button>
+        </HoverTooltip>
+        <HoverTooltip content={lang === "de" ? "Raum hinzufügen" : "Create New Room"}>
+          <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={onToggleCollapsed}>
+            <Plus className="h-4 w-4 text-emerald-500" />
+          </Button>
+        </HoverTooltip>
+      </aside>
+    );
+  }
+
   return (
     <aside className="w-full flex flex-col gap-4 select-none lg:h-full lg:overflow-y-auto pr-1">
+      <div className="flex justify-end">
+        <HoverTooltip content={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}>
+          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-8 w-8 p-0">
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+        </HoverTooltip>
+      </div>
+
       {/* SECTION: Add New Room / Hallway */}
       <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-3">
         <div className="flex items-center gap-1.5 font-semibold text-primary border-b pb-2">
@@ -235,29 +275,29 @@ export function MultiRoomSidebar({
               <Label className="text-xs">{lang === "de" ? "Grundriss" : "Floor shape"}</Label>
               <div className="grid grid-cols-4 gap-1.5 mt-1">
                 {HALLWAY_SHAPES.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => setHallwayShape(s.value)}
-                    title={lang === "de" ? s.labelDe : s.labelEn}
-                    className={`flex aspect-square flex-col items-center justify-center rounded-md border p-1 transition-colors ${
-                      hallwayShape === s.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border/60 hover:border-primary/40"
-                    }`}
-                  >
-                    <svg viewBox="0 0 100 100" className="h-7 w-7">
-                      <polygon
-                        points={shapePreviewPoints(s.value)}
-                        className={
-                          hallwayShape === s.value
-                            ? "fill-primary/30 stroke-primary"
-                            : "fill-muted-foreground/20 stroke-muted-foreground/70"
-                        }
-                        strokeWidth={4}
-                      />
-                    </svg>
-                  </button>
+                  <HoverTooltip key={s.value} content={lang === "de" ? s.labelDe : s.labelEn}>
+                    <button
+                      type="button"
+                      onClick={() => setHallwayShape(s.value)}
+                      className={`flex aspect-square flex-col items-center justify-center rounded-md border p-1 transition-colors ${
+                        hallwayShape === s.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border/60 hover:border-primary/40"
+                      }`}
+                    >
+                      <svg viewBox="0 0 100 100" className="h-7 w-7">
+                        <polygon
+                          points={shapePreviewPoints(s.value)}
+                          className={
+                            hallwayShape === s.value
+                              ? "fill-primary/30 stroke-primary"
+                              : "fill-muted-foreground/20 stroke-muted-foreground/70"
+                          }
+                          strokeWidth={4}
+                        />
+                      </svg>
+                    </button>
+                  </HoverTooltip>
                 ))}
               </div>
             </div>

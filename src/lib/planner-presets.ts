@@ -77,6 +77,8 @@ import {
   Cpu,
   Gamepad,
   TrendingUp,
+  Fence,
+  Volleyball,
   type LucideIcon,
 } from "lucide-react";
 import chairBaseUrl from "@/assets/chair-base.png";
@@ -603,6 +605,74 @@ export const PRESETS: Preset[] = [
       maxX: 10.38,
       maxY: 42.79,
       maxZ: 12.25,
+    },
+  },
+  {
+    // Same trashcan.glb as "trash-bin", just scaled to a smaller default --
+    // the kit-model envelope check (kit-models.ts) compares against each
+    // preset's OWN default size, so reusing one glb across differently
+    // sized presets is fine.
+    key: "trash-bin-small",
+    category: "kitchen",
+    nameEn: "Small trash bin",
+    nameDe: "Kleiner Mülleimer",
+    w: 26,
+    l: 22,
+    h: 42,
+    color: "#bdd2d6",
+    material: "metal",
+    kitModel: {
+      file: "trashcan.glb",
+      minX: -10.38,
+      minY: 0,
+      minZ: -11.16,
+      maxX: 10.38,
+      maxY: 42.79,
+      maxZ: 12.25,
+    },
+  },
+  {
+    key: "trash-bin-large",
+    category: "kitchen",
+    nameEn: "Large trash bin",
+    nameDe: "Großer Mülleimer",
+    w: 50,
+    l: 40,
+    h: 80,
+    color: "#bdd2d6",
+    material: "metal",
+    kitModel: {
+      file: "trashcan.glb",
+      minX: -10.38,
+      minY: 0,
+      minZ: -11.16,
+      maxX: 10.38,
+      maxY: 42.79,
+      maxZ: 12.25,
+    },
+  },
+  {
+    // Reuses the same open-crate model as "cardboard-box-open" (decor
+    // category) -- a real open box/crate is a common stand-in for a
+    // household recycling bin, and kit models are already shared across
+    // multiple presets elsewhere in this catalog.
+    key: "recycling-box",
+    category: "kitchen",
+    nameEn: "Recycling box",
+    nameDe: "Recyclingbox",
+    w: 45,
+    l: 35,
+    h: 35,
+    color: "#86efac",
+    material: "plastic",
+    kitModel: {
+      file: "cardboardBoxOpen.glb",
+      minX: -7.97,
+      minY: 0,
+      minZ: -21.25,
+      maxX: 29.22,
+      maxY: 28.1,
+      maxZ: 0,
     },
   },
   {
@@ -1609,6 +1679,34 @@ export const PRESETS: Preset[] = [
     color: "#f15e57",
     material: "wood",
     kitModel: { file: "loungeChair.glb", minX: 0, minY: 0, minZ: -41, maxX: 49, maxY: 46, maxZ: 0 },
+  },
+  {
+    // "which only has borders" -- a real baby gate/low fence is just a rail
+    // frame you can see through, never a solid panel, so this gets its own
+    // procedural family (railGate) instead of any box/cabinet shape.
+    key: "baby-gate",
+    category: "kids",
+    nameEn: "Baby gate",
+    nameDe: "Babygitter",
+    w: 80,
+    l: 6,
+    h: 75,
+    color: "#e7e5e4",
+    material: "plastic",
+    proceduralModel: { family: "railGate", params: { spindleCount: 7 } },
+  },
+  {
+    key: "ball-pit",
+    category: "kids",
+    nameEn: "Ball pit",
+    nameDe: "Bällebad",
+    w: 100,
+    l: 100,
+    h: 40,
+    color: "#22d3ee",
+    shape: "circle",
+    material: "plastic",
+    proceduralModel: { family: "ballPit" },
   },
   // Outdoor / balcony
   {
@@ -3007,6 +3105,9 @@ export const PRESET_ICON: Record<string, LucideIcon> = {
   "pantry-cabinet": PackageOpen,
   "kitchen-cart": Boxes,
   "trash-bin": Trash2,
+  "trash-bin-small": Trash2,
+  "trash-bin-large": Trash2,
+  "recycling-box": Recycle,
   "wine-fridge": Wine,
   toilet: Toilet,
   bathtub: Bath,
@@ -3063,6 +3164,8 @@ export const PRESET_ICON: Record<string, LucideIcon> = {
   "kids-chair": Armchair,
   "changing-table": Table2,
   "rocking-chair": Armchair,
+  "baby-gate": Fence,
+  "ball-pit": Volleyball,
   "outdoor-table": Circle,
   "outdoor-chair": Armchair,
   "sun-lounger": Sun,

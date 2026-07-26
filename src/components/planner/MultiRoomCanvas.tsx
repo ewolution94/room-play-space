@@ -42,6 +42,7 @@ import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 import { FloorPatternDef } from "@/lib/floor-pattern-svg";
 import { resolveFlooring } from "@/lib/floor-materials";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import {
   Drawer,
   DrawerContent,
@@ -1070,21 +1071,8 @@ export function MultiRoomCanvas({
           className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/80 backdrop-blur-md px-3.5 py-1.5 shadow-lg select-none"
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={() => {
-              if (!threeDEnabled) return;
-              if (!threeDActive && isMobileViewOnly && isPortrait) {
-                toast.info(
-                  lang === "de"
-                    ? "Bitte drehe dein Gerät ins Querformat, um den 3D-Modus zu nutzen."
-                    : "Rotate your device to landscape to use 3D mode.",
-                );
-                return;
-              }
-              setThreeDActive(!threeDActive);
-            }}
-            disabled={!threeDEnabled}
-            title={
+          <HoverTooltip
+            content={
               threeDDisabledReason ??
               (!threeDActive && isMobileViewOnly && isPortrait
                 ? lang === "de"
@@ -1094,23 +1082,39 @@ export function MultiRoomCanvas({
                   ? "3D-Ansicht der gesamten Wohnung"
                   : "3D view of the whole apartment")
             }
-            className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium flex items-center transition-colors ${
-              !threeDEnabled || (!threeDActive && isMobileViewOnly && isPortrait)
-                ? "text-muted-foreground/40 cursor-not-allowed"
-                : threeDActive
-                  ? "cursor-pointer text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
-                  : "cursor-pointer text-muted-foreground hover:text-foreground"
-            }`}
           >
-            <Box className="h-3.5 w-3.5" />
-            {threeDActive
-              ? lang === "de"
-                ? "2D-Modus"
-                : "2D Mode"
-              : lang === "de"
-                ? "3D-Ansicht"
-                : "3D View"}
-          </button>
+            <button
+              onClick={() => {
+                if (!threeDEnabled) return;
+                if (!threeDActive && isMobileViewOnly && isPortrait) {
+                  toast.info(
+                    lang === "de"
+                      ? "Bitte drehe dein Gerät ins Querformat, um den 3D-Modus zu nutzen."
+                      : "Rotate your device to landscape to use 3D mode.",
+                  );
+                  return;
+                }
+                setThreeDActive(!threeDActive);
+              }}
+              disabled={!threeDEnabled}
+              className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium flex items-center transition-colors ${
+                !threeDEnabled || (!threeDActive && isMobileViewOnly && isPortrait)
+                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  : threeDActive
+                    ? "cursor-pointer text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
+                    : "cursor-pointer text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Box className="h-3.5 w-3.5" />
+              {threeDActive
+                ? lang === "de"
+                  ? "2D-Modus"
+                  : "2D Mode"
+                : lang === "de"
+                  ? "3D-Ansicht"
+                  : "3D View"}
+            </button>
+          </HoverTooltip>
         </div>
 
         {/* Whole-apartment 3D view -- every room/hallway (walls, doors,
@@ -1139,15 +1143,16 @@ export function MultiRoomCanvas({
             no-op on mobile). */}
         {!threeDActive && isMobileViewOnly && (
           <Drawer open={mobileOptionsOpen} onOpenChange={setMobileOptionsOpen}>
-            <DrawerTrigger asChild>
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                className="absolute top-3 right-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
-                title={lang === "de" ? "Ansichtsoptionen" : "View Options"}
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </button>
-            </DrawerTrigger>
+            <HoverTooltip content={lang === "de" ? "Ansichtsoptionen" : "View Options"}>
+              <DrawerTrigger asChild>
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="absolute top-3 right-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+              </DrawerTrigger>
+            </HoverTooltip>
             <DrawerContent>
               <DrawerHeader>
                 <DrawerTitle>{lang === "de" ? "Layout Optionen" : "Layout Options"}</DrawerTitle>
@@ -1318,22 +1323,23 @@ export function MultiRoomCanvas({
               <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
             </label>
 
-            <label
-              className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1"
-              title={
+            <HoverTooltip
+              content={
                 lang === "de"
                   ? "Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
                   : "Tip: hold Ctrl to activate multi-select temporarily."
               }
             >
-              <input
-                type="checkbox"
-                checked={multiSelectMode}
-                onChange={(e) => setMultiSelectMode(e.target.checked)}
-                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-              />
-              <span>{lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}</span>
-            </label>
+              <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+                <input
+                  type="checkbox"
+                  checked={multiSelectMode}
+                  onChange={(e) => setMultiSelectMode(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                />
+                <span>{lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}</span>
+              </label>
+            </HoverTooltip>
 
             {/* Zoom controls */}
             <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">

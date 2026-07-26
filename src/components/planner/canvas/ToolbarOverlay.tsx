@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Ruler, Box, X } from "lucide-react";
 import type { Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface ToolbarOverlayProps {
   t: TranslationStrings;
@@ -49,25 +50,26 @@ export function ToolbarOverlay({
       {!hideRuler && (
         <>
           {/* Ruler toggle */}
-          <Button
-            id="tour-ruler"
-            variant={rulerMode ? "secondary" : "ghost"}
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setRulerMode((v) => !v);
-            }}
-            disabled={threeDActive}
-            title={t.rulerHint}
-            className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium ${
-              rulerMode
-                ? "text-sky-600 bg-sky-500/10 hover:bg-sky-500/20 dark:text-sky-400 dark:bg-sky-400/10 dark:hover:bg-sky-400/20"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Ruler className="h-3.5 w-3.5" />
-            {rulerMode ? t.rulerOn : t.ruler}
-          </Button>
+          <HoverTooltip content={t.rulerHint}>
+            <Button
+              id="tour-ruler"
+              variant={rulerMode ? "secondary" : "ghost"}
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRulerMode((v) => !v);
+              }}
+              disabled={threeDActive}
+              className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium ${
+                rulerMode
+                  ? "text-sky-600 bg-sky-500/10 hover:bg-sky-500/20 dark:text-sky-400 dark:bg-sky-400/10 dark:hover:bg-sky-400/20"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Ruler className="h-3.5 w-3.5" />
+              {rulerMode ? t.rulerOn : t.ruler}
+            </Button>
+          </HoverTooltip>
 
           {rulerMode && (rulerStart || rulerEnd) && (
             <>
@@ -95,40 +97,43 @@ export function ToolbarOverlay({
           attribute while locked, so a tap still fires onClick and can show
           the rotate-to-landscape toast; only the styling communicates
           "disabled" visually. */}
-      <Button
-        id="tour-3d-toggle"
-        variant={threeDActive ? "secondary" : "ghost"}
-        size="sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (threeDLocked) {
-            toast.info(
-              lang === "de"
-                ? "Bitte drehe dein Gerät ins Querformat, um den 3D-Modus zu nutzen."
-                : "Rotate your device to landscape to use 3D mode.",
-            );
-            return;
-          }
-          setThreeDActive((v) => !v);
-        }}
-        title={
+      <HoverTooltip
+        content={
           threeDLocked
             ? lang === "de"
               ? "3D-Modus benötigt Querformat"
               : "3D mode requires landscape orientation"
             : undefined
         }
-        className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium ${
-          threeDLocked
-            ? "text-muted-foreground/40 cursor-not-allowed"
-            : threeDActive
-              ? "text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
-              : "text-muted-foreground hover:text-foreground"
-        }`}
       >
-        <Box className="h-3.5 w-3.5" />
-        {threeDActive ? t.twoDMode : t.threeDMode}
-      </Button>
+        <Button
+          id="tour-3d-toggle"
+          variant={threeDActive ? "secondary" : "ghost"}
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (threeDLocked) {
+              toast.info(
+                lang === "de"
+                  ? "Bitte drehe dein Gerät ins Querformat, um den 3D-Modus zu nutzen."
+                  : "Rotate your device to landscape to use 3D mode.",
+              );
+              return;
+            }
+            setThreeDActive((v) => !v);
+          }}
+          className={`h-8 rounded-full px-3 text-xs gap-1.5 font-medium ${
+            threeDLocked
+              ? "text-muted-foreground/40 cursor-not-allowed"
+              : threeDActive
+                ? "text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-400 dark:bg-purple-400/10 dark:hover:bg-purple-400/20"
+                : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Box className="h-3.5 w-3.5" />
+          {threeDActive ? t.twoDMode : t.threeDMode}
+        </Button>
+      </HoverTooltip>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { RotateCw, Wand2 } from "lucide-react";
 import { readableText } from "@/lib/planner-math";
 import { PRESET_BY_KEY } from "@/lib/planner-presets";
 import type { Item } from "@/types/planner";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface CanvasItemsProps {
   items: Item[];
@@ -106,18 +107,19 @@ export function CanvasItems({
                     wordBreak: "break-word",
                   }}
                 >
-                  <span
-                    style={{
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                    title={it.name}
-                  >
-                    {it.name}
-                  </span>
+                  <HoverTooltip content={it.name}>
+                    <span
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {it.name}
+                    </span>
+                  </HoverTooltip>
                   <span style={{ fontSize: dimSize, opacity: 0.8 }}>
                     {it.width}×{it.length}
                   </span>
@@ -130,18 +132,19 @@ export function CanvasItems({
                   className="pointer-events-none absolute left-1/2 h-6 w-px -translate-x-1/2 bg-foreground/60"
                   style={{ top: -24 }}
                 />
-                <div
-                  role="button"
-                  title={dragToRotateLabel}
-                  onPointerDown={(e) => onRotateHandleDown(e, it)}
-                  className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background text-foreground shadow active:cursor-grabbing"
-                  style={{
-                    top: -34,
-                    touchAction: "none",
-                  }}
-                >
-                  <RotateCw className="h-3 w-3" strokeWidth={2.5} />
-                </div>
+                <HoverTooltip content={dragToRotateLabel}>
+                  <div
+                    role="button"
+                    onPointerDown={(e) => onRotateHandleDown(e, it)}
+                    className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background text-foreground shadow active:cursor-grabbing"
+                    style={{
+                      top: -34,
+                      touchAction: "none",
+                    }}
+                  >
+                    <RotateCw className="h-3 w-3" strokeWidth={2.5} />
+                  </div>
+                </HoverTooltip>
               </>
             )}
           </div>

@@ -500,6 +500,11 @@ export interface SidebarProps {
   // See CanvasAreaProps.openSaveDialog below for the other half.
   customCatalog: UseCustomCatalogReturn;
   openSaveDialog: (draft: CatalogSaveDraft) => void;
+  // Manual collapse toggle (see useSidebarCollapsed) -- independent of the
+  // automatic useMobileViewOnly cutoff, this owns the grid template on the
+  // route itself, so it's threaded through as props rather than local state.
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 export interface CanvasAreaProps {
