@@ -1,9 +1,15 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { useCustomCatalog } from "@/hooks/use-custom-catalog";
+import type { CatalogSaveDraft } from "@/types/planner";
+import { SWATCHES } from "@/lib/swatches";
+import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-catalog";
 import { Header } from "@/components/planner/Header";
 import { Sidebar } from "@/components/planner/sidebar";
+import { SaveToCatalogDialog } from "@/components/planner/sidebar/SaveToCatalogDialog";
 import { CanvasArea } from "@/components/planner/canvas";
 import { TourOverlay } from "@/components/planner/TourOverlay";
 import {
@@ -27,6 +33,81 @@ function RoomPlanner() {
   const { t, resetMode, setResetMode, confirmReset } = planner;
   const { isMobileViewOnly } = useMobileViewOnly();
 
+  // "My Own Catalog" -- owned here (not by Sidebar or CanvasArea) because
+  // both the Add tab's My Catalog list (inside Sidebar) and the Inspector's
+  // "Save to My Catalog" action (inside CanvasArea) need to open the exact
+  // same dialog against the exact same saved list, and those two components
+  // are siblings, not nested -- see SidebarProps/CanvasAreaProps' own doc
+  // comments in types/planner.ts.
+  const customCatalog = useCustomCatalog();
+  const [saveDraft, setSaveDraft] = useState<CatalogSaveDraft | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const openSaveDialog = (draft: CatalogSaveDraft) => {
+    setSaveDraft(draft);
+    setSaveDialogOpen(true);
+  };
+  const handleSaveDialogSave = (values: { name: string; w: number; l: number; color: string }) => {
+    if (saveDraft?.editingId) {
+      customCatalog.updateItem(saveDraft.editingId, {
+        nameEn: values.name,
+        nameDe: values.name,
+        w: values.w,
+        l: values.l,
+        color: values.color,
+      });
+    } else {
+      customCatalog.addItem({
+        nameEn: values.name,
+        nameDe: values.name,
+        w: values.w,
+        l: values.l,
+        color: values.color,
+        sourceKey: saveDraft?.sourceKey,
+        layer: saveDraft?.layer,
+        shape: saveDraft?.shape,
+      });
+    }
+  };
+
+  // Bundles/extracts/merges the current My Catalog list into single-room
+  // export/import -- use-room-planner.ts's own buildRoomExportPreview/
+  // validateRoomImport/applyRoomImport know nothing about custom catalogs;
+  // these wrap them with that behavior (see HeaderProps' own doc comment in
+  // types/planner.ts for why the wrapping happens here specifically, not
+  // inside the hook itself).
+  const buildRoomExportPreviewWithCatalog = (includeCatalog: boolean) => {
+    const preview = planner.buildRoomExportPreview();
+    if (!includeCatalog || customCatalog.items.length === 0) return preview;
+    return {
+      ...preview,
+      json: { ...(preview.json as Record<string, unknown>), customCatalog: customCatalog.items },
+    };
+  };
+
+  const validateRoomImportWithCatalog = (raw: unknown, includeCatalog: boolean) => {
+    const base = planner.validateRoomImport(raw);
+    if (!base.ok || !includeCatalog) return base;
+    const bundled = extractBundledCustomCatalog(raw);
+    if (bundled.length === 0) return base;
+    return {
+      ...base,
+      summaryLines: [
+        ...base.summaryLines,
+        planner.lang === "de"
+          ? `+ ${bundled.length} Katalog-Element(e)`
+          : `+ ${bundled.length} My Catalog item(s)`,
+      ],
+    };
+  };
+
+  const applyRoomImportWithCatalog = (raw: unknown, includeCatalog: boolean) => {
+    planner.applyRoomImport(raw);
+    if (!includeCatalog) return;
+    const bundled = extractBundledCustomCatalog(raw);
+    if (bundled.length === 0) return;
+    customCatalog.replaceAll(mergeCustomCatalog(customCatalog.items, bundled));
+  };
+
   // h-dvh (not just min-h-screen) so the flex column below has a real
   // bounded height on mobile browsers too -- min-height alone technically
   // still lets flex-1 children grow correctly in principle, but combined
@@ -45,9 +126,10 @@ function RoomPlanner() {
         redo={planner.redo}
         items={planner.items}
         openings={planner.openings}
-        buildRoomExportPreview={planner.buildRoomExportPreview}
-        validateRoomImport={planner.validateRoomImport}
-        applyRoomImport={planner.applyRoomImport}
+        buildRoomExportPreview={buildRoomExportPreviewWithCatalog}
+        validateRoomImport={validateRoomImportWithCatalog}
+        applyRoomImport={applyRoomImportWithCatalog}
+        customCatalogCount={customCatalog.items.length}
         setResetMode={planner.setResetMode}
         setTourOpen={planner.setTourOpen}
         setTourStep={planner.setTourStep}
@@ -80,6 +162,15 @@ function RoomPlanner() {
         closeTour={planner.closeTour}
         threeDActive={planner.threeDActive}
         setThreeDActive={planner.setThreeDActive}
+      />
+
+      <SaveToCatalogDialog
+        lang={planner.lang}
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        draft={saveDraft}
+        onSave={handleSaveDialogSave}
+        swatches={SWATCHES}
       />
 
       <div
@@ -133,6 +224,8 @@ function RoomPlanner() {
             selectedOpeningId={planner.selectedOpeningId}
             setSelectedOpeningId={planner.setSelectedOpeningId}
             openWalls={planner.openWalls}
+            customCatalog={customCatalog}
+            openSaveDialog={openSaveDialog}
           />
         )}
 
@@ -200,6 +293,7 @@ function RoomPlanner() {
           updateOpening={planner.updateOpening}
           removeOpening={planner.removeOpening}
           openWalls={planner.openWalls}
+          openSaveDialog={openSaveDialog}
         />
       </div>
     </div>

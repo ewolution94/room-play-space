@@ -1,8 +1,14 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
+import { useCustomCatalog } from "@/hooks/use-custom-catalog";
+import type { CatalogSaveDraft } from "@/types/planner";
+import { SWATCHES } from "@/lib/swatches";
+import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-catalog";
 import { Header } from "@/components/planner/Header";
 import { Sidebar } from "@/components/planner/sidebar";
+import { SaveToCatalogDialog } from "@/components/planner/sidebar/SaveToCatalogDialog";
 import { CanvasArea } from "@/components/planner/canvas";
 import { TourOverlay } from "@/components/planner/TourOverlay";
 import {
@@ -26,6 +32,73 @@ function RoomPlannerWrapper() {
   const planner = useRoomPlanner(roomId);
   const { t, resetMode, setResetMode, confirmReset } = planner;
 
+  // "My Own Catalog" -- see routes/index.tsx's matching block for why this
+  // is owned at the route level rather than by Sidebar or CanvasArea.
+  const customCatalog = useCustomCatalog();
+  const [saveDraft, setSaveDraft] = useState<CatalogSaveDraft | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const openSaveDialog = (draft: CatalogSaveDraft) => {
+    setSaveDraft(draft);
+    setSaveDialogOpen(true);
+  };
+  const handleSaveDialogSave = (values: { name: string; w: number; l: number; color: string }) => {
+    if (saveDraft?.editingId) {
+      customCatalog.updateItem(saveDraft.editingId, {
+        nameEn: values.name,
+        nameDe: values.name,
+        w: values.w,
+        l: values.l,
+        color: values.color,
+      });
+    } else {
+      customCatalog.addItem({
+        nameEn: values.name,
+        nameDe: values.name,
+        w: values.w,
+        l: values.l,
+        color: values.color,
+        sourceKey: saveDraft?.sourceKey,
+        layer: saveDraft?.layer,
+        shape: saveDraft?.shape,
+      });
+    }
+  };
+
+  // See routes/index.tsx's matching block -- identical reasoning, just
+  // against this route's own `planner`/`customCatalog` instances.
+  const buildRoomExportPreviewWithCatalog = (includeCatalog: boolean) => {
+    const preview = planner.buildRoomExportPreview();
+    if (!includeCatalog || customCatalog.items.length === 0) return preview;
+    return {
+      ...preview,
+      json: { ...(preview.json as Record<string, unknown>), customCatalog: customCatalog.items },
+    };
+  };
+
+  const validateRoomImportWithCatalog = (raw: unknown, includeCatalog: boolean) => {
+    const base = planner.validateRoomImport(raw);
+    if (!base.ok || !includeCatalog) return base;
+    const bundled = extractBundledCustomCatalog(raw);
+    if (bundled.length === 0) return base;
+    return {
+      ...base,
+      summaryLines: [
+        ...base.summaryLines,
+        planner.lang === "de"
+          ? `+ ${bundled.length} Katalog-Element(e)`
+          : `+ ${bundled.length} My Catalog item(s)`,
+      ],
+    };
+  };
+
+  const applyRoomImportWithCatalog = (raw: unknown, includeCatalog: boolean) => {
+    planner.applyRoomImport(raw);
+    if (!includeCatalog) return;
+    const bundled = extractBundledCustomCatalog(raw);
+    if (bundled.length === 0) return;
+    customCatalog.replaceAll(mergeCustomCatalog(customCatalog.items, bundled));
+  };
+
   return (
     <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-background">
       <Header
@@ -38,9 +111,10 @@ function RoomPlannerWrapper() {
         redo={planner.redo}
         items={planner.items}
         openings={planner.openings}
-        buildRoomExportPreview={planner.buildRoomExportPreview}
-        validateRoomImport={planner.validateRoomImport}
-        applyRoomImport={planner.applyRoomImport}
+        buildRoomExportPreview={buildRoomExportPreviewWithCatalog}
+        validateRoomImport={validateRoomImportWithCatalog}
+        applyRoomImport={applyRoomImportWithCatalog}
+        customCatalogCount={customCatalog.items.length}
         setResetMode={planner.setResetMode}
         setTourOpen={planner.setTourOpen}
         setTourStep={planner.setTourStep}
@@ -71,6 +145,15 @@ function RoomPlannerWrapper() {
         closeTour={planner.closeTour}
         threeDActive={planner.threeDActive}
         setThreeDActive={planner.setThreeDActive}
+      />
+
+      <SaveToCatalogDialog
+        lang={planner.lang}
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        draft={saveDraft}
+        onSave={handleSaveDialogSave}
+        swatches={SWATCHES}
       />
 
       <div className="grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
@@ -114,6 +197,8 @@ function RoomPlannerWrapper() {
           selectedOpeningId={planner.selectedOpeningId}
           setSelectedOpeningId={planner.setSelectedOpeningId}
           openWalls={planner.openWalls}
+          customCatalog={customCatalog}
+          openSaveDialog={openSaveDialog}
         />
 
         {/* Right column: Drawing Stage */}
@@ -181,6 +266,7 @@ function RoomPlannerWrapper() {
           removeOpening={planner.removeOpening}
           openWalls={planner.openWalls}
           backUrl="/rooms"
+          openSaveDialog={openSaveDialog}
         />
       </div>
     </div>

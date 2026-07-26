@@ -7,7 +7,7 @@ Written so a future session (human or Claude) doesn't have to re-derive any of
 this from scratch.
 
 For "what exists and where," read the code — it's commented in-place and the
-file/component names are descriptive. This doc is for the *why*, especially the
+file/component names are descriptive. This doc is for the _why_, especially the
 parts where the obvious approach doesn't work.
 
 ## Coordinate systems
@@ -50,8 +50,8 @@ an item interacts with collision and z-order:
   at the right height — no special-casing needed once elevation is correct.
 - **Auto-elevation on drop** (`findOnTopHost` / `computeOnTopElevation`): when
   an on-top item is dropped, its footprint is tested against every `main` item
-  it now overlaps, and it snaps to the *highest* top surface among them (`host.
-  elevation + host.height`), so it visually rests on whatever it was dropped
+  it now overlaps, and it snaps to the _highest_ top surface among them (`host.
+elevation + host.height`), so it visually rests on whatever it was dropped
   onto instead of keeping a stale/arbitrary elevation.
 
 `shape: "rect" | "circle"` follows the identical pattern — it's a rendering
@@ -65,7 +65,7 @@ complexity for a floor planner.
 `obbCorners` rotates an item's four corners by its `rotation` about its own
 center. `obbOverlap`/`obbOverlapDepth` then run the **Separating Axis Theorem**
 against both shapes' edge normals (only 4 axes total, since both shapes are
-rectangles — this does *not* generalize to arbitrary polygons, see below): if
+rectangles — this does _not_ generalize to arbitrary polygons, see below): if
 there's a gap along any axis, the shapes don't overlap; if there's no gap along
 any of the 4 axes, they do. `obbOverlapDepth` additionally tracks the smallest
 overlap across all axes, which is the minimum-translation-vector depth (used
@@ -75,7 +75,7 @@ block-and-report).
 This is the standard 2D SAT algorithm, but the one thing worth remembering:
 **it only needs 4 axes because both shapes are rectangles.** If this ever needs
 to collide against a true N-gon (e.g. the exact concave outline of an L-shaped
-hallway, not its bounding box), the axis loop has to run over *all* of both
+hallway, not its bounding box), the axis loop has to run over _all_ of both
 polygons' edges, not just 4.
 
 ### Why polygon rooms use a bounding-box approximation, on purpose
@@ -83,11 +83,11 @@ polygons' edges, not just 4.
 Hallway rooms (see "Polygon rooms" below) have a genuinely concave outline, but
 `clampPos` and `findFreeSpot` in `planner-math.ts` both clamp furniture to the
 room polygon's **bounding box**, not its exact shape. For a plain rectangle this
-is exact (a rectangle's bounding box *is* the rectangle). For an L or T shape,
+is exact (a rectangle's bounding box _is_ the rectangle). For an L or T shape,
 it means it's technically possible to drag an item into the notch — the empty
 corner that isn't actually part of the hallway's floor. This was a deliberate
 scope decision, not an oversight: real point-in-polygon clamping (projecting a
-clamped position back onto the nearest point *inside* a concave polygon) is
+clamped position back onto the nearest point _inside_ a concave polygon) is
 meaningfully harder, and hallways are narrow enough in practice that the notch
 case rarely comes up. If it ever needs fixing, `insetRectilinearPolygon` (see
 below) already contains the per-corner inward/outward normal math that a real
@@ -109,7 +109,7 @@ face instead of stopping dead the instant either axis touches something.
 ### The stale-closure trap in drag handlers
 
 The multi-room drag handler (`onRoomPointerMove` in `MultiRoomCanvas.tsx`) does
-all of its collision reads *and* writes inside a single `setRooms(prev => ...)`
+all of its collision reads _and_ writes inside a single `setRooms(prev => ...)`
 functional updater, never against the `rooms` value captured in the component's
 closure. This mattered because React 18 batches pointer events: several
 `pointermove` handler invocations can fire before a re-render happens, and if
@@ -129,7 +129,7 @@ Added to support L/T-shaped hallways (`src/lib/hallway-shapes.ts`). The
 implementation is a **true single polygon** — a hallway room is just a
 `RoomLayout` with `corners.length > 4` instead of a special-cased shape type —
 which is what allows every existing rectangular-room code path (item placement,
-2D rendering, 3D extrusion, multi-room thumbnails) to be *generalized* into a
+2D rendering, 3D extrusion, multi-room thumbnails) to be _generalized_ into a
 shared loop instead of forked into a parallel implementation. The rectangular
 (4-corner) path is left completely untouched everywhere; polygon rooms are
 purely additive branches.
@@ -137,8 +137,8 @@ purely additive branches.
 **Wall indexing.** Wall `i` is the segment from `corners[i]` to
 `corners[(i+1) % corners.length]`, always walked forward (the same clockwise
 winding the corners themselves are authored in). This is deliberately
-*different* from the legacy named-wall convention, where `"bottom"` and
-`"left"` happen to be measured in the *reverse* of forward-winding order (an
+_different_ from the legacy named-wall convention, where `"bottom"` and
+`"left"` happen to be measured in the _reverse_ of forward-winding order (an
 old quirk, preserved as-is in `resolveWallSegment`'s string branch rather than
 "fixed," since fixing it would require migrating every already-saved
 rectangular room's data). Numbered walls never have this problem because
@@ -149,7 +149,7 @@ could be defined cleanly from the start.
 polygon's own bounding-box center. This is provably identical, for a rectangle,
 to the legacy "swap width and length" rotation — both produce a new bounding
 box with width/height swapped, still centered at the same point, which is true
-of *any* point set under an exact 90° rotation about its own bounding-box
+of _any_ point set under an exact 90° rotation about its own bounding-box
 center, not just rectangles. That's what makes it safe to generalize: rotating
 any polygon this way keeps wall index `i` referring to the same logical wall
 (just moved), so openings never need their `wall`/`position` remapped when a
@@ -162,7 +162,7 @@ to non-right angles via corner-dragging). Hallway shapes are built exclusively
 from 90°/270° corners by construction, and `sin(90°) = 1`, `|sin(270°)| = 1` —
 so the general formula always reduces to exactly `halfThickness` for every
 corner in a hallway, convex or reflex. That means a flat "extend every wall by
-`halfThickness` at both ends" is *exact* for these shapes, not an
+`halfThickness` at both ends" is _exact_ for these shapes, not an
 approximation, and sidesteps needing a convex/concave sign convention for an
 arbitrary N-gon.
 
@@ -170,7 +170,7 @@ arbitrary N-gon.
 wall" outline for a hallway's thumbnail by, at each corner, summing the two
 adjacent walls' inward unit normals. For a convex corner this pushes the point
 diagonally into the solid; for a reflex (notch) corner the same formula pushes
-it diagonally *outward*, correctly "opening up" the notch instead of collapsing
+it diagonally _outward_, correctly "opening up" the notch instead of collapsing
 it. It only works because every corner is 90°/270° — general polygon insetting
 (mitered offsetting) needs to know the corner angle to get the right magnitude,
 which this deliberately avoids by only ever supporting rectilinear shapes.
@@ -191,7 +191,7 @@ generalizes to any number of walls without hardcoding names.
 (`CanvasOpenings.tsx`) depends on two independent booleans — `hinge: "start" |
 "end"` and `swing: "in" | "out"` — giving 4 combinations, each needing a
 different SVG `M`/`L` (door leaf) and `A` (arc) path in the opening's own
-*local, rotated* coordinate frame (the whole opening `<div>` is rotated to the
+_local, rotated_ coordinate frame (the whole opening `<div>` is rotated to the
 wall's angle via CSS `transform`, so the SVG paths themselves only ever need to
 handle "wall running left-to-right locally"). Getting the arc's sweep-flag
 (`0` vs `1` in the `A` command) right for all 4 hinge×swing combinations was
@@ -201,7 +201,7 @@ computed, because computing it generically was more error-prone than just
 enumerating the 4 cases.
 
 **Three.js material face-index mapping (box vs. cylinder).** Item meshes in 3D
-carry a name/dimensions label texture on their *top* face only, via a material
+carry a name/dimensions label texture on their _top_ face only, via a material
 array. `BoxGeometry`'s default material groups are `[+x, -x, +y(top), -y
 (bottom), +z, -z]` — the top face is **index 2**. `CylinderGeometry`'s groups
 are `[side, top, bottom]` — the top face is **index 1**. These two orderings
@@ -241,11 +241,11 @@ component (and everything under it, since `inspectorPos` was read in the JSX
 `style` prop), and pointer events can fire faster than the browser's paint
 cycle, so renders piled up behind the mouse.
 
-The fix moves the *visual* update off React's render cycle entirely during the
+The fix moves the _visual_ update off React's render cycle entirely during the
 drag:
 
 - On `pointermove`, the raw DOM element's `style.transform =
-  translate3d(x, y, 0)` is mutated **directly** — no `setState`, no re-render.
+translate3d(x, y, 0)` is mutated **directly** — no `setState`, no re-render.
 - `translate3d` (not `left`/`top`) is used specifically because it's
   GPU-composited and doesn't trigger layout/reflow.
 - Writes are batched to at most one per animation frame via a `rafId` guard: a
@@ -266,7 +266,7 @@ drag:
 This pattern — direct DOM mutation + rAF batching during a drag, single state
 commit on release — generalizes to any UI element that needs to visually track
 the pointer at 60fps but doesn't need React to know about every intermediate
-position. It's *not* used for item/room dragging on the canvas, because those
+position. It's _not_ used for item/room dragging on the canvas, because those
 already read/write position through refs and only commit through history on
 release in a similar way, and their visual update is a `style.left`/`top` on a
 much simpler absolutely-positioned `<div>` without the panel's transition/
@@ -292,7 +292,7 @@ verification available** — no screenshots, no browser. Every change is verifie
 three ways instead:
 
 1. `npm test` — a dependency-free Node test harness (`node
-   --experimental-strip-types`, `tests/support/register.mjs` as a custom ESM
+--experimental-strip-types`, `tests/support/register.mjs` as a custom ESM
    loader) covering the math/geometry modules directly (`planner-math.ts`,
    `hallway-shapes.ts`, `multi-room-actions.ts`, etc.) with plain `node:test` +
    `node:assert/strict` — no test framework dependency.
@@ -309,3 +309,42 @@ rendering code that "should" be equivalent — prefer additive branches (`if
 (isPolygonRoom) { ...new path... } else { ...untouched original... }`) over
 rewriting an existing, working rendering path, so a mistake in new code can't
 silently break the common case.
+
+**This constraint is specific to a locked-down cloud sandbox, not universal.**
+Confirmed 2026-07-26 running via Claude Code directly on a developer's own
+Mac: `npm run dev` (Vite) works normally, and the Browser tool
+(`mcp__Claude_Browser__*`) can drive a real instance of the app — screenshots,
+console/network inspection, viewport resizing (e.g. to check the mobile
+`useMobileViewOnly` breakpoint), the works. Check which environment you're
+actually in before assuming visual verification is off the table; when it
+isn't, use it — it caught things the three checks above can't (e.g. confirming
+a double-click handler's mobile-only guard actually left the user on the
+right screen, not just that it compiled).
+
+## Reusing the whole rendering/collision pipeline for a "variant" catalog item
+
+"My Own Catalog" and the built-in IKEA catalog (`lib/custom-catalog.ts`,
+`lib/ikea-catalog.ts`) both need a customized-dimension/color furniture item
+to place into a room, render in 2D/3D exactly like a normal preset (icon,
+kitModel scale-envelope, material, collision layer), and behave identically to
+every other catalog item for the chair-office `kind: "chair"` special case,
+elevation defaults, etc. The temptation is to give this its own parallel
+add-to-room code path. Instead, `customCatalogItemToPreset()` converts a
+`CustomCatalogItem` into a real `Preset` object — `key` set to the item's
+`sourceKey` (a real `PRESET_BY_KEY` entry) when present, so every existing
+`icon`-keyed lookup (kitModel, material, `getDefaultHeight`, the Inspector's
+kit-tint-override banner) resolves through the SAME preset the item is
+visually based on — and hands that straight to the existing `addPreset()`
+(use-room-planner.ts) completely unmodified. A boxless entry (no `sourceKey`)
+falls back to a synthetic `custom:<id>` key that deliberately matches nothing
+in `PRESET_BY_KEY`, so it degrades to exactly the same "flat box" path the
+pre-existing standalone Custom Item creator already used. This is the reason
+`addPreset` also gained one small additive change — `height: preset.h` set
+explicitly on the draft item, rather than left for `getDefaultHeight`'s lazy
+`PRESET_BY_KEY[icon]?.h` fallback to resolve later — identical result for
+every ordinary preset (same lookup, just done eagerly), but it's what lets an
+IKEA entry's own real product height override its `sourceKey`'s generic
+height instead of silently inheriting it. The general pattern — build a
+`Preset`-shaped adapter rather than forking the add/render logic — is worth
+reaching for again any time a new "variant of an existing catalog item"
+feature comes up.

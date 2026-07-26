@@ -21,25 +21,16 @@ import {
   GripVertical,
   PaintBucket,
   Wand2,
+  BookmarkPlus,
 } from "lucide-react";
-import type { Item, Opening, Point, RoomFlooring } from "@/types/planner";
+import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import { getDefaultHeight } from "../ThreeDView";
 import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import { FLOOR_MATERIALS } from "@/lib/floor-materials";
 import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
 import { PRESET_BY_KEY } from "@/lib/planner-presets";
+import { SWATCHES } from "@/lib/swatches";
 import { LayoutGrid } from "lucide-react";
-
-const SWATCHES = [
-  { name: "Charcoal", value: "#343a40" },
-  { name: "Slate", value: "#6c757d" },
-  { name: "Walnut", value: "#5c4033" },
-  { name: "Oak", value: "#c4a482" },
-  { name: "Cream", value: "#f8f9fa" },
-  { name: "Sage", value: "#87a987" },
-  { name: "Steel", value: "#495057" },
-  { name: "Coral", value: "#d9746c" },
-];
 
 const OPENING_SWATCHES = [
   { name: "Anthracite", value: "#343a40" },
@@ -83,6 +74,11 @@ interface InspectorSectionProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onHeaderPointerDown?: (e: React.PointerEvent) => void;
+  /** Opens the "Save to My Catalog" dialog, prefilled from a draft -- see
+   * the "Save to My Catalog" quick action below, the only entry point into
+   * My Catalog's create flow (see CatalogTile.tsx's doc comment for why it
+   * isn't also on every catalog grid tile). */
+  openSaveDialog: (draft: CatalogSaveDraft) => void;
 }
 
 export function InspectorSection({
@@ -116,6 +112,7 @@ export function InspectorSection({
   isCollapsed = false,
   onToggleCollapse,
   onHeaderPointerDown,
+  openSaveDialog,
 }: InspectorSectionProps) {
   // Local draft states for selected item
   const [itemDraftW, setItemDraftW] = React.useState("");
@@ -481,6 +478,26 @@ export function InspectorSection({
                     disabled={threeDActive}
                   >
                     <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 hover:bg-primary/10 hover:text-primary active:scale-95 transition-all"
+                    onClick={() =>
+                      openSaveDialog({
+                        name: selectedItem.name,
+                        w: selectedItem.width,
+                        l: selectedItem.length,
+                        color: selectedItem.color,
+                        sourceKey: selectedItem.icon,
+                        layer: selectedItem.layer,
+                        shape: selectedItem.shape,
+                      })
+                    }
+                    title={lang === "de" ? "Zu meinem Katalog speichern" : "Save to My Catalog"}
+                    disabled={threeDActive}
+                  >
+                    <BookmarkPlus className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     variant="outline"

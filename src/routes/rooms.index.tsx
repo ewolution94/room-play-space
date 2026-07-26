@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { useCustomCatalog } from "@/hooks/use-custom-catalog";
+import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-catalog";
 import { STRINGS } from "@/lib/planner-translations";
 import type { RoomLayout, Lang, Floor } from "@/types/planner";
 import { MultiRoomCanvas } from "@/components/planner/MultiRoomCanvas";
@@ -58,6 +60,11 @@ let hasGeneratedRoomsThisSession = false;
 function MultiRoomOverview() {
   const { theme, toggleTheme, isDark } = useTheme();
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
+  // "My Own Catalog" -- there's no Sidebar/Inspector at this overview level
+  // (see MultiRoomSidebar.tsx, a different component with no My Catalog
+  // tab), so this instance exists purely to support the "Include My Catalog
+  // items" checkbox on the floor/building export/import dialogs below.
+  const customCatalog = useCustomCatalog();
 
   // Language management
   const [lang, setLang] = useState<Lang>("en");
@@ -360,33 +367,51 @@ function MultiRoomOverview() {
     ];
   }
 
-  const buildFloorsExportPreview = (scopeId: string) => {
-    if (scopeId === "current") {
-      const idx = Math.max(
-        0,
-        floors.findIndex((f) => f.id === activeFloorId),
-      );
-      const floor = floors[idx] ?? floors[0];
-      const displayName = floorDisplayName(floor, idx, lang);
+  const buildFloorsExportPreview = (scopeId: string, includeCatalog: boolean) => {
+    const base = (() => {
+      if (scopeId === "current") {
+        const idx = Math.max(
+          0,
+          floors.findIndex((f) => f.id === activeFloorId),
+        );
+        const floor = floors[idx] ?? floors[0];
+        const displayName = floorDisplayName(floor, idx, lang);
+        return {
+          summaryLines: summarizeFloors([{ floor, displayName }]),
+          filename: buildExportFilename(displayName),
+          json: [floor] as unknown,
+        };
+      }
       return {
-        summaryLines: summarizeFloors([{ floor, displayName }]),
-        filename: buildExportFilename(displayName),
-        json: [floor],
+        summaryLines: summarizeFloors(
+          floors.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
+        ),
+        filename: buildExportFilename(lang === "de" ? "Gebaeude" : "Building"),
+        json: floors as unknown,
       };
-    }
+    })();
+    // Wraps the bare floors array into { floors, customCatalog } -- see
+    // parseImportedFloors' own doc comment in lib/floors.ts for why this
+    // only happens when there's actually something to bundle, so a plain
+    // export (checkbox off, or nothing saved yet) stays the exact same
+    // bare-array format it's always been.
+    if (!includeCatalog || customCatalog.items.length === 0) return base;
     return {
-      summaryLines: summarizeFloors(
-        floors.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
-      ),
-      filename: buildExportFilename(lang === "de" ? "Gebaeude" : "Building"),
-      json: floors,
+      ...base,
+      summaryLines: [
+        ...base.summaryLines,
+        lang === "de"
+          ? `+ ${customCatalog.items.length} Katalog-Element(e)`
+          : `+ ${customCatalog.items.length} My Catalog item(s)`,
+      ],
+      json: { floors: base.json, customCatalog: customCatalog.items },
     };
   };
 
   // Preview-only: parses the file's shape without touching any app state.
   // Accepts either the current multi-floor export shape or a legacy flat
   // single-floor export (see parseImportedFloors in lib/floors.ts).
-  const validateFloorsImport = (scopeId: string, raw: unknown) => {
+  const validateFloorsImport = (scopeId: string, raw: unknown, includeCatalog: boolean) => {
     const imported = parseImportedFloors(raw);
     if (!imported) {
       return {
@@ -397,6 +422,15 @@ function MultiRoomOverview() {
             : "Invalid format -- this file doesn't look like an exported floor plan layout.",
       };
     }
+    const bundled = includeCatalog ? extractBundledCustomCatalog(raw) : [];
+    const catalogLine =
+      bundled.length > 0
+        ? [
+            lang === "de"
+              ? `+ ${bundled.length} Katalog-Element(e)`
+              : `+ ${bundled.length} My Catalog item(s)`,
+          ]
+        : [];
     if (scopeId === "current" && imported.length > 1) {
       return {
         ok: true as const,
@@ -407,22 +441,32 @@ function MultiRoomOverview() {
           ...summarizeFloors([
             { floor: imported[0], displayName: floorDisplayName(imported[0], 0, lang) },
           ]),
+          ...catalogLine,
         ],
       };
     }
     return {
       ok: true as const,
-      summaryLines: summarizeFloors(
-        imported.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
-      ),
+      summaryLines: [
+        ...summarizeFloors(
+          imported.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
+        ),
+        ...catalogLine,
+      ],
     };
   };
 
-  const applyFloorsImport = (scopeId: string, raw: unknown) => {
+  const applyFloorsImport = (scopeId: string, raw: unknown, includeCatalog: boolean) => {
     const imported = parseImportedFloors(raw);
     if (!imported) {
       toast.error(lang === "de" ? "Fehler beim Importieren" : "Failed to import file");
       return;
+    }
+    if (includeCatalog) {
+      const bundled = extractBundledCustomCatalog(raw);
+      if (bundled.length > 0) {
+        customCatalog.replaceAll(mergeCustomCatalog(customCatalog.items, bundled));
+      }
     }
     setSelectedRoomId(null);
     setSelectedRoomIds(new Set());
@@ -698,6 +742,18 @@ function MultiRoomOverview() {
         }
         scopes={floorScopes}
         buildExport={buildFloorsExportPreview}
+        includeOption={{
+          label: lang === "de" ? "Meine Katalog-Elemente einschließen" : "Include My Catalog items",
+          hint:
+            customCatalog.items.length > 0
+              ? lang === "de"
+                ? `${customCatalog.items.length} gespeicherte(s) Element(e) werden in diese Datei gebündelt.`
+                : `${customCatalog.items.length} saved item(s) will be bundled into this file.`
+              : lang === "de"
+                ? "Du hast noch keine gespeicherten Katalog-Elemente."
+                : "You have no saved catalog items yet.",
+          disabled: customCatalog.items.length === 0,
+        }}
       />
       <ExportImportDialog
         lang={lang}
@@ -713,6 +769,14 @@ function MultiRoomOverview() {
         scopes={floorScopes}
         validateImport={validateFloorsImport}
         applyImport={applyFloorsImport}
+        includeOption={{
+          label:
+            lang === "de" ? "Auch Katalog-Elemente importieren" : "Also import My Catalog items",
+          hint:
+            lang === "de"
+              ? "Falls diese Datei gespeicherte Katalog-Elemente enthält, werden neue zu Meinem Katalog hinzugefügt."
+              : "If this file includes saved catalog items, any new ones are added to My Catalog.",
+        }}
       />
 
       {/* Main floor-plan planner panel */}

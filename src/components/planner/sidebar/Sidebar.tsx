@@ -1,23 +1,13 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Layers } from "lucide-react";
-import type { SidebarProps, Preset } from "@/types/planner";
-import { PRESETS } from "@/lib/planner-presets";
+import { Plus, Layers, BookmarkPlus } from "lucide-react";
+import type { SidebarProps } from "@/types/planner";
+import { SWATCHES } from "@/lib/swatches";
 import { CatalogSection } from "./CatalogSection";
 import { CustomItemDialog } from "./CustomItemDialog";
 import { OpeningsDialog } from "./OpeningsDialog";
 import { ElementsListSection } from "./ElementsListSection";
-
-const SWATCHES = [
-  { name: "Charcoal", value: "#343a40" },
-  { name: "Slate", value: "#6c757d" },
-  { name: "Walnut", value: "#5c4033" },
-  { name: "Oak", value: "#c4a482" },
-  { name: "Cream", value: "#f8f9fa" },
-  { name: "Sage", value: "#87a987" },
-  { name: "Steel", value: "#495057" },
-  { name: "Coral", value: "#d9746c" },
-];
+import { MyCatalogSection } from "./MyCatalogSection";
 
 export function Sidebar({
   t,
@@ -58,27 +48,12 @@ export function Sidebar({
   selectedOpeningId,
   setSelectedOpeningId,
   openWalls,
+  customCatalog,
+  openSaveDialog,
 }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<"add" | "layers">("add");
+  const [activeTab, setActiveTab] = useState<"add" | "catalog" | "layers">("add");
   const [customBoxOpen, setCustomBoxOpen] = useState(false);
   const [openingOpen, setOpeningOpen] = useState(false);
-
-  // Group presets by layer, then by category within each layer, for the
-  // catalog's four-tab (Main / Under / On Top / Wall) layout.
-  const categorizedByLayer = useMemo(() => {
-    const layers: Record<"under" | "main" | "on-top" | "wall", Record<string, Preset[]>> = {
-      main: {},
-      under: {},
-      "on-top": {},
-      wall: {},
-    };
-    for (const p of PRESETS) {
-      const layer = p.layer ?? "main";
-      const bucket = layers[layer];
-      (bucket[p.category] ||= []).push(p);
-    }
-    return layers;
-  }, []);
 
   return (
     <aside id="tour-sidebar" className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:shrink-0">
@@ -97,24 +72,38 @@ export function Sidebar({
       )}
 
       {/* Navigation tabs */}
-      <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/50 p-1 shrink-0">
+      <div className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/50 p-1 shrink-0">
         <Button
           variant={activeTab === "add" ? "default" : "ghost"}
           size="sm"
           onClick={() => setActiveTab("add")}
-          className="h-8"
+          className="h-8 px-1.5"
         >
-          <Plus className="mr-1.5 h-4 w-4" />
-          {lang === "de" ? "Hinzufügen" : "Add"}
+          <Plus className="mr-1 h-4 w-4 shrink-0" />
+          <span className="truncate">{lang === "de" ? "Hinzufügen" : "Add"}</span>
+        </Button>
+        <Button
+          variant={activeTab === "catalog" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setActiveTab("catalog")}
+          className="h-8 relative px-1.5"
+        >
+          <BookmarkPlus className="mr-1 h-4 w-4 shrink-0" />
+          <span className="truncate">{lang === "de" ? "Mein Katalog" : "My Catalog"}</span>
+          {customCatalog.items.length > 0 && (
+            <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+              {customCatalog.items.length}
+            </span>
+          )}
         </Button>
         <Button
           variant={activeTab === "layers" ? "default" : "ghost"}
           size="sm"
           onClick={() => setActiveTab("layers")}
-          className="h-8 relative"
+          className="h-8 relative px-1.5"
         >
-          <Layers className="mr-1.5 h-4 w-4" />
-          {lang === "de" ? "Elemente" : "Elements"}
+          <Layers className="mr-1 h-4 w-4 shrink-0" />
+          <span className="truncate">{lang === "de" ? "Elemente" : "Elements"}</span>
           {(items.length > 0 || openings.length > 0) && (
             <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
               {items.length + openings.length}
@@ -155,13 +144,7 @@ export function Sidebar({
             </div>
 
             {/* Catalog Preset Cards */}
-            <CatalogSection
-              t={t}
-              lang={lang}
-              threeDActive={threeDActive}
-              categorizedByLayer={categorizedByLayer}
-              addPreset={addPreset}
-            />
+            <CatalogSection t={t} lang={lang} threeDActive={threeDActive} addPreset={addPreset} />
 
             {/* Custom Item -- an advanced, rarely-needed escape hatch for a
                 one-off size/shape the catalog doesn't cover, so it lives
@@ -191,6 +174,14 @@ export function Sidebar({
               />
             </div>
           </>
+        ) : activeTab === "catalog" ? (
+          <MyCatalogSection
+            lang={lang}
+            threeDActive={threeDActive}
+            addPreset={addPreset}
+            customCatalog={customCatalog}
+            openSaveDialog={openSaveDialog}
+          />
         ) : (
           /* Placed elements lists */
           <ElementsListSection

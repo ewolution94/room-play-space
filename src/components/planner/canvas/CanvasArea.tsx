@@ -96,6 +96,7 @@ export function CanvasArea({
   removeOpening,
   openWalls,
   backUrl,
+  openSaveDialog,
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
   // Corner-drag ("Enable Corner Dragging") is disabled from the UI for now
@@ -366,7 +367,13 @@ export function CanvasArea({
           (the RotateHint below covers the one thing worth telling a mobile
           viewer). */}
       {!isMobileViewOnly && (
-        <HintBanner t={t} lang={lang} scale={scale} rulerMode={rulerMode} threeDActive={threeDActive} />
+        <HintBanner
+          t={t}
+          lang={lang}
+          scale={scale}
+          rulerMode={rulerMode}
+          threeDActive={threeDActive}
+        />
       )}
       <div
         ref={stageRef}
@@ -399,7 +406,13 @@ export function CanvasArea({
         <CanvasLoadingOverlay ready={stageReady} />
 
         {threeDActive ? (
-          <ThreeDView t={t} lang={lang} rooms={threeDRooms} selectedIds={selectedIds} isDark={isDark} />
+          <ThreeDView
+            t={t}
+            lang={lang}
+            rooms={threeDRooms}
+            selectedIds={selectedIds}
+            isDark={isDark}
+          />
         ) : (
           scale > 0 && (
             <>
@@ -1035,6 +1048,7 @@ export function CanvasArea({
               isCollapsed={inspectorCollapsed}
               onToggleCollapse={() => setInspectorCollapsed((c) => !c)}
               onHeaderPointerDown={onInspectorHeaderPointerDown}
+              openSaveDialog={openSaveDialog}
             />
           </div>
         )}

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -37,18 +38,36 @@ interface ExportImportDialogProps {
   scopeLabel?: string;
   scopes: ExportImportScope[];
   /** Required (and only used) when mode === "export". Called with the
-   * currently-selected scope's id every time the scope changes, so the
-   * caller can build fresh preview data (current items/openings/etc.) on
-   * demand rather than the dialog caching anything stale. */
-  buildExport?: (scopeId: string) => ExportPreviewData;
-  /** Required (and only used) when mode === "import". Called with the
-   * raw parsed JSON from the chosen file every time it (or the scope)
-   * changes, purely to compute the preview -- must NOT mutate app state. */
-  validateImport?: (scopeId: string, raw: unknown) => ImportValidationResult;
+   * currently-selected scope's id and the includeOption checkbox's current
+   * state every time either changes, so the caller can build fresh preview
+   * data (current items/openings/etc.) on demand rather than the dialog
+   * caching anything stale. */
+  buildExport?: (scopeId: string, includeExtra: boolean) => ExportPreviewData;
+  /** Required (and only used) when mode === "import". Called with the raw
+   * parsed JSON from the chosen file and the includeOption checkbox's
+   * current state every time either changes, purely to compute the preview
+   * -- must NOT mutate app state. */
+  validateImport?: (scopeId: string, raw: unknown, includeExtra: boolean) => ImportValidationResult;
   /** Required (and only used) when mode === "import". Called once, on
-   * confirm, with the same raw JSON that already passed validateImport --
-   * this is where the caller actually re-parses/applies it to app state. */
-  applyImport?: (scopeId: string, raw: unknown) => void;
+   * confirm, with the same raw JSON that already passed validateImport plus
+   * the includeOption checkbox's current state -- this is where the caller
+   * actually re-parses/applies it to app state. */
+  applyImport?: (scopeId: string, raw: unknown, includeExtra: boolean) => void;
+  /** Optional secondary opt-out toggle shown in both export and import
+   * modes (e.g. "Include My Catalog items") -- defaults to checked. Its
+   * state is threaded through to buildExport/validateImport/applyImport as
+   * their `includeExtra` argument; the dialog itself has no opinion on what
+   * "include" actually means, that's entirely up to the caller. Omit this
+   * prop for a dialog that has nothing extra to bundle -- buildExport/
+   * validateImport/applyImport still receive `includeExtra`, always `true`
+   * in that case, so callers that don't care can simply ignore the arg. */
+  includeOption?: {
+    label: string;
+    /** Small muted line under the label -- e.g. a live item count on
+     * export, or a static explanation on import. */
+    hint?: string;
+    disabled?: boolean;
+  };
 }
 
 const MAX_IMPORT_FILE_SIZE = 2 * 1024 * 1024; // 2MB, mirrors the previous inline check
@@ -126,6 +145,7 @@ export function ExportImportDialog({
   buildExport,
   validateImport,
   applyImport,
+  includeOption,
 }: ExportImportDialogProps) {
   const [scopeId, setScopeId] = useState(scopes[0]?.id ?? "");
   const [showRawJson, setShowRawJson] = useState(false);
@@ -133,6 +153,9 @@ export function ExportImportDialog({
   const [fileName, setFileName] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  // Opt-out by design (see includeOption's own doc comment) -- starts
+  // checked every time the dialog opens.
+  const [includeChecked, setIncludeChecked] = useState(true);
   // The editable export filename -- seeded from buildExport's auto-
   // generated suggestion (see export-filename.ts's buildExportFilename)
   // every time that suggestion changes (fresh scope, freshly opened
@@ -152,15 +175,16 @@ export function ExportImportDialog({
       setParseError(null);
       setDragActive(false);
       setExportFilename("");
+      setIncludeChecked(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const exportPreview = useMemo(() => {
     if (mode !== "export" || !open || !buildExport || !scopeId) return null;
-    return buildExport(scopeId);
+    return buildExport(scopeId, includeChecked);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, open, scopeId]);
+  }, [mode, open, scopeId, includeChecked]);
 
   // Re-seeds the editable filename field whenever a fresh suggestion comes
   // in (dialog just opened, or the scope changed) -- but typing in the
@@ -175,9 +199,9 @@ export function ExportImportDialog({
 
   const importValidation = useMemo(() => {
     if (mode !== "import" || rawJson === null || !validateImport) return null;
-    return validateImport(scopeId, rawJson);
+    return validateImport(scopeId, rawJson, includeChecked);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, rawJson, scopeId]);
+  }, [mode, rawJson, scopeId, includeChecked]);
 
   const handleFile = async (file: File) => {
     setParseError(null);
@@ -218,7 +242,7 @@ export function ExportImportDialog({
 
   const handleConfirmImport = () => {
     if (!importValidation?.ok || !applyImport) return;
-    applyImport(scopeId, rawJson);
+    applyImport(scopeId, rawJson, includeChecked);
     onOpenChange(false);
   };
 
@@ -262,6 +286,29 @@ export function ExportImportDialog({
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {includeOption && (
+            <div className="flex items-start gap-2.5 rounded-md border border-border/60 bg-muted/20 p-2.5">
+              <Checkbox
+                id="export-import-include-option"
+                checked={includeChecked}
+                onCheckedChange={(v) => setIncludeChecked(v === true)}
+                disabled={includeOption.disabled}
+                className="mt-0.5"
+              />
+              <label
+                htmlFor="export-import-include-option"
+                className={`text-xs leading-snug ${includeOption.disabled ? "text-muted-foreground" : "cursor-pointer select-none"}`}
+              >
+                <span className="font-medium">{includeOption.label}</span>
+                {includeOption.hint && (
+                  <span className="block text-[11px] text-muted-foreground mt-0.5">
+                    {includeOption.hint}
+                  </span>
+                )}
+              </label>
             </div>
           )}
 

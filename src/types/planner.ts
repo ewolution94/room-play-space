@@ -213,6 +213,89 @@ export interface Preset {
   isLightSource?: boolean;
 }
 
+// A user's own saved catalog entry -- "My Own Catalog" (src/lib/
+// custom-catalog.ts) and the built-in IKEA catalog (src/lib/ikea-catalog.ts)
+// are BOTH just arrays of this one type, so every UI piece that renders/adds
+// one works identically for either source, even though they live in
+// different places: My Catalog's own saved items render in
+// MyCatalogSection.tsx, while IKEA_CATALOG is folded into the regular
+// built-in catalog grid as its own section (see buildCatalogByLayer() in
+// lib/custom-catalog.ts, consumed by CatalogSection.tsx). Deliberately
+// shaped like a thin diff over an existing Preset rather than a full
+// standalone item definition: `sourceKey`, when set, points back at a real
+// Preset.key (planner-presets.ts) that this entry's entire visual identity
+// (icon, kitModel/proceduralModel, material, layer, shape) is borrowed from --
+// see customCatalogItemToPreset() in lib/custom-catalog.ts, which is the one
+// place that borrowing happens. That adapter is what lets a placed instance
+// of a custom/IKEA item flow through addPreset() completely unchanged and
+// come out the other side rendering with the exact same kit-model/procedural
+// 3D machinery as any other catalog item -- only name/width/length/color (and,
+// for IKEA entries, height) actually differ from the source preset.
+// `layer`/`shape` are only ever consulted when `sourceKey` is absent (a
+// custom item created with no catalog basis at all, mirroring the existing
+// boxless "Custom Item" creator) -- when `sourceKey` IS set, the source
+// preset's own layer/shape always win, so a customized item can never end up
+// on a different collision layer than the piece it's visually based on.
+export interface CustomCatalogItem {
+  id: string;
+  nameEn: string;
+  nameDe: string;
+  w: number; // cm
+  l: number; // cm
+  // Real height override -- only meaningful (and only ever set) for a
+  // built-in IKEA entry, where the actual product's height can meaningfully
+  // differ from its sourceKey's generic preset height. User-saved "My
+  // Catalog" entries never set this (the save dialog only ever exposes
+  // name/width/length/color, matching the existing Custom Item creator's own
+  // scope), so they simply inherit the source preset's height unchanged.
+  h?: number;
+  color: string;
+  layer?: ItemLayer;
+  shape?: ItemShape;
+  sourceKey?: string;
+  createdAt: number;
+}
+
+/** What seeds the "Save to My Catalog" dialog (SaveToCatalogDialog.tsx) --
+ * built by whichever entry point opened it. The only entry point is the
+ * Inspector's "Save to My Catalog" action on a selected canvas item
+ * (InspectorSection.tsx), plus MyCatalogSection.tsx's own "Edit" action on an
+ * already-saved entry -- kept here (not defined in the dialog component
+ * itself) for the same reason ExportPreviewData/ImportValidationResult above
+ * are: both call sites (InspectorSection, MyCatalogSection) need the shape
+ * without importing from each other or from a UI component file. `editingId`
+ * set means Save updates that existing My Catalog entry in place; absent
+ * means it creates a new one. `sourceKey`/`layer`/`shape` ride along
+ * unedited -- the dialog itself only ever exposes name/width/length/color
+ * (see customCatalogItemToPreset in lib/custom-catalog.ts for why layer/
+ * shape/material/3D model are never independently editable there: they're
+ * always inherited from `sourceKey`'s own preset when one is set). */
+export interface CatalogSaveDraft {
+  editingId?: string;
+  name: string;
+  w: number;
+  l: number;
+  color: string;
+  sourceKey?: string;
+  layer?: ItemLayer;
+  shape?: ItemShape;
+}
+
+/** Return shape of useCustomCatalog() (hooks/use-custom-catalog.ts) -- kept
+ * here rather than in the hook file so every route/component that receives
+ * it as a prop (Sidebar, MyCatalogSection) doesn't need to import from the
+ * hook module just for its type, mirroring UseRoomPlannerReturn below. */
+export interface UseCustomCatalogReturn {
+  items: CustomCatalogItem[];
+  addItem: (draft: Omit<CustomCatalogItem, "id" | "createdAt">) => CustomCatalogItem;
+  updateItem: (id: string, patch: Partial<Omit<CustomCatalogItem, "id" | "createdAt">>) => void;
+  removeItem: (id: string) => void;
+  /** Wholesale replace -- used by the catalog's own import flow (see
+   * MyCatalogSection.tsx's ExportImportDialog usage) once a file has already
+   * been validated. */
+  replaceAll: (items: CustomCatalogItem[]) => void;
+}
+
 // Rectangular rooms (exactly 4 corners) address a wall by name, as they
 // always have. Polygon rooms (hallways with an L/T floor shape, 5+ corners)
 // address a wall by its numeric index into `corners` -- see
@@ -343,9 +426,21 @@ export interface HeaderProps {
   redo: () => void;
   items: Item[];
   openings: Opening[];
-  buildRoomExportPreview: () => ExportPreviewData;
-  validateRoomImport: (raw: unknown) => ImportValidationResult;
-  applyRoomImport: (raw: unknown) => void;
+  // These three accept an extra `includeCatalog` argument (vs.
+  // UseRoomPlannerReturn's own same-named, catalog-agnostic versions below)
+  // because Header.tsx's ExportImportDialog instances now offer an "Include
+  // My Catalog items" checkbox -- routes/index.tsx (the one place that
+  // actually owns both `planner` and `customCatalog`) supplies wrapped
+  // versions of use-room-planner.ts's own functions that bundle/extract/
+  // merge the customCatalog array on top, so use-room-planner.ts itself
+  // stays entirely unaware custom catalogs exist. See lib/custom-catalog.ts's
+  // extractBundledCustomCatalog/mergeCustomCatalog.
+  buildRoomExportPreview: (includeCatalog: boolean) => ExportPreviewData;
+  validateRoomImport: (raw: unknown, includeCatalog: boolean) => ImportValidationResult;
+  applyRoomImport: (raw: unknown, includeCatalog: boolean) => void;
+  /** Current My Catalog item count -- just for the export checkbox's hint
+   * text, so Header.tsx doesn't need the whole customCatalog object. */
+  customCatalogCount: number;
   setResetMode: (mode: "items" | "all" | null) => void;
   setTourOpen: (open: boolean) => void;
   setTourStep: (step: React.SetStateAction<number>) => void;
@@ -398,6 +493,13 @@ export interface SidebarProps {
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   openWalls: Map<string, WallOpenInterval[]>;
+  // "My Own Catalog" -- lifted to the route level (not owned by Sidebar
+  // itself) because the Inspector's own "Save to My Catalog" action
+  // (InspectorSection.tsx, rendered inside CanvasArea) needs to open the
+  // exact same dialog/list, and CanvasArea/Sidebar are siblings, not nested.
+  // See CanvasAreaProps.openSaveDialog below for the other half.
+  customCatalog: UseCustomCatalogReturn;
+  openSaveDialog: (draft: CatalogSaveDraft) => void;
 }
 
 export interface CanvasAreaProps {
@@ -476,6 +578,11 @@ export interface CanvasAreaProps {
   // to. Previously this lived as a small icon-only button in the header
   // instead; see Header.tsx's doc comment on why it moved.
   backUrl?: string;
+  // Opens the "Save to My Catalog" dialog, prefilled from a draft --
+  // threaded down to InspectorSection's "Save to My Catalog" action on a
+  // selected item. See SidebarProps.openSaveDialog's doc comment for why
+  // this lives at the route level instead of being owned by either side.
+  openSaveDialog: (draft: CatalogSaveDraft) => void;
 }
 
 export interface TourOverlayProps {

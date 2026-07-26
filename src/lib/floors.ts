@@ -171,8 +171,24 @@ export function saveActiveFloorId(id: string): void {
  * carry e.g. tens of thousands of items on one room and freeze the tab.
  * See roomLayoutSchema's doc comment in planner-schema.ts for the full
  * reasoning.
+ *
+ * Also accepts a THIRD shape: `{ floors: Floor[] | RoomLayout[], customCatalog?:
+ * unknown }` -- the "Include My Catalog items" checkbox on the floor/
+ * building ExportImportDialog (see routes/rooms.index.tsx) bundles the
+ * current My Catalog list alongside the floors as a sibling key, which
+ * turns the top-level export from a bare array into a wrapped object. That
+ * wrapping is handled here (unwrap `.floors` and recurse into this same
+ * function) rather than in the two schemas above, which stay exactly as
+ * array-shaped as before -- and export omits the wrapper entirely when
+ * there's nothing to bundle, so a plain floors-only export is still the
+ * exact same bare-array format it always was. `customCatalog` itself is
+ * extracted independently by the caller (see lib/custom-catalog.ts's
+ * extractBundledCustomCatalog), not parsed here.
  */
 export function parseImportedFloors(parsed: unknown): Floor[] | null {
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && "floors" in parsed) {
+    return parseImportedFloors((parsed as { floors: unknown }).floors);
+  }
   const asFloors = floorsArrayImportSchema.safeParse(parsed);
   if (asFloors.success) return asFloors.data as Floor[];
   const asRooms = roomLayoutArrayImportSchema.safeParse(parsed);

@@ -580,9 +580,12 @@ export function MultiRoomCanvas({
   const onRoomPointerDown = (e: React.PointerEvent, room: RoomLayout) => {
     // Left click or touch only. Also a no-op entirely in mobile view-only
     // mode (see useMobileViewOnly) -- room dragging/selecting is an editing
-    // tool, not a view option, so it's disabled there; double-click
-    // navigation into a room (below) still works since it's a separate
-    // handler.
+    // tool, not a view option, so it's disabled there. Double-click
+    // navigation into a room (below) is now ALSO disabled in mobile
+    // view-only mode (see that handler's own comment) -- /rooms/$roomId
+    // doesn't know about mobile view-only at all, so entering a room from
+    // here used to strand the user in a broken desktop layout with no
+    // visible canvas.
     if (e.button !== 0 || isMobileViewOnly) return;
     e.stopPropagation();
 
@@ -962,10 +965,7 @@ export function MultiRoomCanvas({
           routes/index.tsx) even now that Ctrl+Z can undo it too -- a
           confirmation up front is still cheaper than relying on someone
           remembering undo exists after the fact. */}
-      <AlertDialog
-        open={deleteConfirm !== null}
-        onOpenChange={(o) => !o && setDeleteConfirm(null)}
-      >
+      <AlertDialog open={deleteConfirm !== null} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -1121,7 +1121,13 @@ export function MultiRoomCanvas({
             generalization) rather than a separate implementation. */}
         {threeDActive && (
           <div className="absolute inset-0 z-10">
-            <ThreeDView t={t} lang={lang} rooms={roomInstances} selectedIds={new Set()} isDark={isDark} />
+            <ThreeDView
+              t={t}
+              lang={lang}
+              rooms={roomInstances}
+              selectedIds={new Set()}
+              isDark={isDark}
+            />
           </div>
         )}
 
@@ -1540,6 +1546,18 @@ export function MultiRoomCanvas({
                     }}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
+                      // Disabled in mobile view-only mode: /rooms/$roomId
+                      // doesn't apply useMobileViewOnly at all, so entering
+                      // a room there drops a phone-width viewport into the
+                      // full desktop two-column layout (Sidebar stacked
+                      // above the canvas by the plain grid-cols-1 fallback)
+                      // instead of the stripped-down mobile canvas -- the
+                      // user loses the canvas entirely and has to scroll
+                      // past the whole Add/Elements sidebar to find it.
+                      // Simplest fix for now: stay on this overview scene
+                      // (with its own working mobile view options) rather
+                      // than navigating into a route that isn't mobile-aware.
+                      if (isMobileViewOnly) return;
                       navigate({ to: "/rooms/$roomId", params: { roomId: room.id } });
                     }}
                   >

@@ -39,6 +39,7 @@ export function Header({
   buildRoomExportPreview,
   validateRoomImport,
   applyRoomImport,
+  customCatalogCount,
   setResetMode,
   setTourOpen,
   setTourStep,
@@ -310,7 +311,19 @@ export function Header({
             : "Saves the current room as a JSON file."
         }
         scopes={roomScopes}
-        buildExport={() => buildRoomExportPreview()}
+        buildExport={(_scopeId, includeCatalog) => buildRoomExportPreview(includeCatalog)}
+        includeOption={{
+          label: lang === "de" ? "Meine Katalog-Elemente einschließen" : "Include My Catalog items",
+          hint:
+            customCatalogCount > 0
+              ? lang === "de"
+                ? `${customCatalogCount} gespeicherte(s) Element(e) werden in diese Datei gebündelt.`
+                : `${customCatalogCount} saved item(s) will be bundled into this file.`
+              : lang === "de"
+                ? "Du hast noch keine gespeicherten Katalog-Elemente."
+                : "You have no saved catalog items yet.",
+          disabled: customCatalogCount === 0,
+        }}
       />
       <ExportImportDialog
         lang={lang}
@@ -324,8 +337,16 @@ export function Header({
             : "Replaces the current room with the contents of a JSON file."
         }
         scopes={roomScopes}
-        validateImport={(_scopeId, raw) => validateRoomImport(raw)}
-        applyImport={(_scopeId, raw) => applyRoomImport(raw)}
+        validateImport={(_scopeId, raw, includeCatalog) => validateRoomImport(raw, includeCatalog)}
+        applyImport={(_scopeId, raw, includeCatalog) => applyRoomImport(raw, includeCatalog)}
+        includeOption={{
+          label:
+            lang === "de" ? "Auch Katalog-Elemente importieren" : "Also import My Catalog items",
+          hint:
+            lang === "de"
+              ? "Falls diese Datei gespeicherte Katalog-Elemente enthält, werden neue zu Meinem Katalog hinzugefügt."
+              : "If this file includes saved catalog items, any new ones are added to My Catalog.",
+        }}
       />
     </header>
   );

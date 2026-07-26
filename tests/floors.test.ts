@@ -32,8 +32,9 @@ function makeLocalStorage() {
 }
 
 function currentLocalStorage() {
-  return (globalThis as unknown as { window: { localStorage: ReturnType<typeof makeLocalStorage> } })
-    .window.localStorage;
+  return (
+    globalThis as unknown as { window: { localStorage: ReturnType<typeof makeLocalStorage> } }
+  ).window.localStorage;
 }
 
 beforeEach(() => {
@@ -220,5 +221,39 @@ describe("parseImportedFloors", () => {
     assert.ok(result);
     assert.equal(result!.length, 1);
     assert.deepEqual(result![0].rooms, []);
+  });
+
+  describe("the { floors, customCatalog } bundled-export wrapper", () => {
+    test("unwraps floors from the wrapped shape (current multi-floor format inside)", () => {
+      const floors = [createFloor([makeRoom()])];
+      const result = parseImportedFloors({
+        floors,
+        customCatalog: [{ id: "x", nameEn: "X", nameDe: "X", w: 10, l: 10, color: "#fff" }],
+      });
+      assert.deepEqual(result, floors);
+    });
+
+    test("unwraps floors from the wrapped shape when the inner value is the legacy flat RoomLayout[] format", () => {
+      const legacyRooms = [makeRoom({ id: "a" })];
+      const result = parseImportedFloors({ floors: legacyRooms, customCatalog: [] });
+      assert.ok(result);
+      assert.equal(result!.length, 1);
+      assert.deepEqual(result![0].rooms, legacyRooms);
+    });
+
+    test("works with no customCatalog key at all (just a { floors } wrapper)", () => {
+      const floors = [createFloor([makeRoom()])];
+      const result = parseImportedFloors({ floors });
+      assert.deepEqual(result, floors);
+    });
+
+    test("an invalid inner floors value still rejects, same as an invalid bare array would", () => {
+      assert.equal(parseImportedFloors({ floors: { not: "an array" } }), null);
+      assert.equal(parseImportedFloors({ floors: "nope" }), null);
+    });
+
+    test("a plain object with no 'floors' key at all is NOT treated as the wrapper -- falls through to the existing rejection path unchanged", () => {
+      assert.equal(parseImportedFloors({ not: "valid" }), null);
+    });
   });
 });

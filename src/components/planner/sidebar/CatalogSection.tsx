@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Package, Search, Square, X } from "lucide-react";
 import type { Preset } from "@/types/planner";
 import { PRESET_ICON } from "@/lib/planner-presets";
+import { buildCatalogByLayer } from "@/lib/custom-catalog";
+import { CatalogTile } from "./CatalogTile";
 
 type CatalogLayer = "main" | "under" | "on-top" | "wall";
 
@@ -33,7 +35,6 @@ interface CatalogSectionProps {
   t: any;
   lang: string;
   threeDActive: boolean;
-  categorizedByLayer: Record<CatalogLayer, Record<string, Preset[]>>;
   addPreset: (preset: Preset) => void;
 }
 
@@ -77,34 +78,17 @@ function CatalogGrid({
             {list.map((p) => {
               const Icon = PRESET_ICON[p.key] ?? Square;
               const has3dModel = Boolean(p.kitModel);
+              const label = lang === "de" ? p.nameDe : p.nameEn;
               return (
-                <button
+                <CatalogTile
                   key={p.key}
-                  type="button"
+                  icon={Icon}
+                  label={label}
+                  title={`${label} (${p.w}×${p.l}cm)${has3dModel ? (lang === "de" ? " — echtes 3D-Modell" : " — real 3D model") : ""}`}
+                  hasModel={has3dModel}
                   disabled={threeDActive}
-                  onClick={() => addPreset(p)}
-                  className="group relative flex aspect-square flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md border border-border/40 bg-background/50 p-1 text-center transition-all duration-200 hover:border-primary hover:bg-accent/50 disabled:opacity-50 disabled:pointer-events-none"
-                  title={`${lang === "de" ? p.nameDe : p.nameEn} (${p.w}×${p.l}cm)${has3dModel ? (lang === "de" ? " — echtes 3D-Modell" : " — real 3D model") : ""}`}
-                >
-                  {has3dModel && (
-                    // A small folded-corner "ribbon" instead of a plain dot
-                    // (which read too much like a notification badge) --
-                    // a rotated square straddling the top-right corner,
-                    // clipped by the button's own overflow-hidden + rounded
-                    // corner into a subtle diagonal flag.
-                    <span
-                      className="pointer-events-none absolute -right-2.5 -top-2.5 h-5 w-5 rotate-45 bg-primary/70 shadow-sm"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <Icon
-                    className="h-4.5 w-4.5 text-foreground/85 transition group-hover:scale-105"
-                    strokeWidth={1.5}
-                  />
-                  <span className="line-clamp-1 text-[8.5px] font-medium leading-tight text-muted-foreground/90">
-                    {lang === "de" ? p.nameDe : p.nameEn}
-                  </span>
-                </button>
+                  onAdd={() => addPreset(p)}
+                />
               );
             })}
           </div>
@@ -114,15 +98,13 @@ function CatalogGrid({
   );
 }
 
-export function CatalogSection({
-  t,
-  lang,
-  threeDActive,
-  categorizedByLayer,
-  addPreset,
-}: CatalogSectionProps) {
+export function CatalogSection({ t, lang, threeDActive, addPreset }: CatalogSectionProps) {
   const [activeLayer, setActiveLayer] = useState<CatalogLayer>("main");
   const [query, setQuery] = useState("");
+
+  // Static -- PRESETS and IKEA_CATALOG never change at runtime, so this only
+  // ever needs to run once per mount, not per keystroke/tab-switch.
+  const categorizedByLayer = useMemo(() => buildCatalogByLayer(), []);
 
   const filteredByLayer = useMemo(() => {
     const out = {} as Record<CatalogLayer, Record<string, Preset[]>>;

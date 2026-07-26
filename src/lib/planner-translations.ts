@@ -31,7 +31,8 @@ export const STRINGS = {
     cancel: "Cancel",
     confirm: "Continue",
     deleteRoomTitle: "Delete room?",
-    confirmDeleteRoom: "This permanently deletes this room and everything in it — furniture, doors, and windows. This can't be undone.",
+    confirmDeleteRoom:
+      "This permanently deletes this room and everything in it — furniture, doors, and windows. This can't be undone.",
     deleteRoomsTitle: "Delete rooms?",
     confirmDeleteRooms: (n: number) =>
       `This permanently deletes ${n} rooms and everything in them. This can't be undone.`,
@@ -119,6 +120,7 @@ export const STRINGS = {
       kids: "Kids Room",
       outdoor: "Outdoor",
       structural: "Structural",
+      ikea: "IKEA",
     } as Record<string, string>,
     catalogLayers: {
       main: "Main",
@@ -261,6 +263,7 @@ export const STRINGS = {
       kids: "Kinderzimmer",
       outdoor: "Aussenbereich",
       structural: "Bauelemente",
+      ikea: "IKEA",
     } as Record<string, string>,
     catalogLayers: {
       main: "Hauptmöbel",

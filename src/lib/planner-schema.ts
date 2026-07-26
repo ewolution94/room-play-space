@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 // Shared by every color field across both the single-room and multi-floor
-// import schemas below.
-const COLOR_REGEX = /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+// import schemas below -- also exported for lib/custom-catalog.ts's own
+// import schema, so a color's valid-format definition can't quietly drift
+// between the two.
+export const COLOR_REGEX = /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 // Item/opening shapes are identical between the single-room import
 // (importSchema below) and a room embedded in a multi-floor import

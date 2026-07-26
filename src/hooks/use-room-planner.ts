@@ -578,6 +578,14 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       name: lang === "de" ? preset.nameDe : preset.nameEn,
       width: preset.w,
       length: preset.l,
+      // Explicit rather than left for getDefaultHeight's lazy PRESET_BY_KEY
+      // fallback to resolve later -- identical result for every ordinary
+      // preset (that fallback looks up this exact same preset.h first), but
+      // it's what lets a customCatalogItemToPreset() item (custom-catalog.ts)
+      // carry a real height that differs from its sourceKey's generic preset
+      // (e.g. an IKEA product's actual height) instead of silently
+      // inheriting that preset's height merely because `icon` matches it.
+      height: preset.h,
       color: preset.color,
       x: 10,
       y: 10,
