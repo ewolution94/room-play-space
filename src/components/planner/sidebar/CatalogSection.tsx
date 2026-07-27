@@ -75,13 +75,18 @@ function CatalogGrid({
             {t.categories[cat] ?? cat}
           </div>
           <div className="grid grid-cols-4 gap-1">
-            {list.map((p) => {
+            {list.map((p, i) => {
               const Icon = PRESET_ICON[p.key] ?? Square;
               const has3dModel = Boolean(p.kitModel);
               const label = lang === "de" ? p.nameDe : p.nameEn;
               return (
                 <CatalogTile
-                  key={p.key}
+                  // `p.key` is a functional field (the source Preset it renders
+                  // as, e.g. resolveRenderMode's dimension comparison) and is
+                  // deliberately shared by multiple IKEA_CATALOG entries (see
+                  // customCatalogItemToPreset's doc comment) -- not unique
+                  // enough for a React list key on its own, hence `${cat}-${i}`.
+                  key={`${cat}-${i}`}
                   icon={Icon}
                   label={label}
                   title={`${label} (${p.w}×${p.l}cm)${has3dModel ? (lang === "de" ? " — echtes 3D-Modell" : " — real 3D model") : ""}`}

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
-import { getDefaultHeight } from "../ThreeDView";
+import { getDefaultHeight, resolveEffectiveElevation } from "../ThreeDView";
 import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import { FLOOR_MATERIALS } from "@/lib/floor-materials";
 import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
@@ -134,7 +134,13 @@ export function InspectorSection({
       setItemDraftH(
         String(selectedItem.height ?? getDefaultHeight(selectedItem.icon, selectedItem.kind)),
       );
-      setItemDraftElev(String(selectedItem.elevation ?? 0));
+      // While riding on another item (placedOnId), the displayed elevation
+      // is the derived one (host height + host elevation), not the item's
+      // own stored field -- see resolveEffectiveElevation's doc comment.
+      // `items` is in the dependency array below (not just selectedItem's
+      // own fields) so this stays correct if the HOST's height/elevation
+      // changes while this item is still the one selected.
+      setItemDraftElev(String(resolveEffectiveElevation(selectedItem, items)));
       setItemDraftRot(String(selectedItem.rotation));
     }
   }, [
@@ -143,7 +149,9 @@ export function InspectorSection({
     selectedItem?.length,
     selectedItem?.height,
     selectedItem?.elevation,
+    selectedItem?.placedOnId,
     selectedItem?.rotation,
+    items,
   ]);
 
   React.useEffect(() => {
@@ -160,10 +168,10 @@ export function InspectorSection({
       itemDraftL !== String(selectedItem.length) ||
       itemDraftH !==
         String(selectedItem.height ?? getDefaultHeight(selectedItem.icon, selectedItem.kind)) ||
-      itemDraftElev !== String(selectedItem.elevation ?? 0) ||
+      itemDraftElev !== String(resolveEffectiveElevation(selectedItem, items)) ||
       itemDraftRot !== String(selectedItem.rotation)
     );
-  }, [selectedItem, itemDraftW, itemDraftL, itemDraftH, itemDraftElev, itemDraftRot]);
+  }, [selectedItem, items, itemDraftW, itemDraftL, itemDraftH, itemDraftElev, itemDraftRot]);
 
   const openingDirty = React.useMemo(() => {
     if (!selectedOpening) return false;
@@ -672,22 +680,67 @@ export function InspectorSection({
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground">{t.elevation}</span>
-                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
-                      <span className="pl-2 text-muted-foreground/75">
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </span>
-                      <Input
-                        value={itemDraftElev}
-                        onChange={(e) => setItemDraftElev(e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, "item")}
-                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
-                        disabled={threeDActive}
-                      />
-                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
-                        cm
-                      </span>
-                    </div>
+                    <HoverTooltip
+                      content={
+                        selectedItem.placedOnId
+                          ? lang === "de"
+                            ? "Wird automatisch aus der Höhe des Objekts darunter berechnet"
+                            : "Automatically derived from the item it's placed on"
+                          : ""
+                      }
+                    >
+                      <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                        <span className="pl-2 text-muted-foreground/75">
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </span>
+                        <Input
+                          value={itemDraftElev}
+                          onChange={(e) => setItemDraftElev(e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, "item")}
+                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent disabled:opacity-70"
+                          disabled={threeDActive || Boolean(selectedItem.placedOnId)}
+                        />
+                        <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                          cm
+                        </span>
+                      </div>
+                    </HoverTooltip>
                   </div>
+                </div>
+
+                {/* Place on top of another item -- lets ANY item ride on
+                    top of any other, not just the built-in "on-top" layer
+                    (see Item.placedOnId's doc comment). Elevation above
+                    switches to a read-only derived value the moment a host
+                    is picked; position keeps tracking the host automatically
+                    whenever it's dragged (use-room-planner.ts). */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground">
+                    {lang === "de" ? "Auf anderem Objekt platzieren" : "Place on top of"}
+                  </span>
+                  <select
+                    value={selectedItem.placedOnId ?? ""}
+                    onChange={(e) => {
+                      const hostId = e.target.value || undefined;
+                      updateItem(selectedItem.id, {
+                        placedOnId: hostId,
+                        ...(hostId ? {} : { elevation: 0 }),
+                      });
+                    }}
+                    disabled={threeDActive}
+                    className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-primary transition-all disabled:opacity-50"
+                  >
+                    <option value="">
+                      {lang === "de" ? "Keins (auf dem Boden)" : "None (on the floor)"}
+                    </option>
+                    {items
+                      .filter((i) => i.id !== selectedItem.id && i.placedOnId !== selectedItem.id)
+                      .map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.name}
+                        </option>
+                      ))}
+                  </select>
                 </div>
               </div>
 

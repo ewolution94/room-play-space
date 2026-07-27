@@ -647,7 +647,15 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
 
   const removeItem = (id: string) => {
     pushHistory();
-    setItems((p) => p.filter((i) => i.id !== id));
+    // Anything riding on top of the removed item (see Item.placedOnId)
+    // detaches and stays exactly where it is, rather than being deleted
+    // along with its host or left silently floating at a now-nonexistent
+    // item's height -- the least surprising default for a cascading delete.
+    setItems((p) =>
+      p
+        .filter((i) => i.id !== id)
+        .map((i) => (i.placedOnId === id ? { ...i, placedOnId: undefined, elevation: 0 } : i)),
+    );
     setSelectedIds((s) => {
       if (!s.has(id)) return s;
       const n = new Set(s);
@@ -660,7 +668,16 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     const ids = selectedIdsRef.current;
     if (!ids.size) return;
     pushHistory();
-    setItems((p) => p.filter((i) => !ids.has(i.id)));
+    // Same detach-on-delete as removeItem above, for every removed item at once.
+    setItems((p) =>
+      p
+        .filter((i) => !ids.has(i.id))
+        .map((i) =>
+          i.placedOnId && ids.has(i.placedOnId)
+            ? { ...i, placedOnId: undefined, elevation: 0 }
+            : i,
+        ),
+    );
     setSelectedIds(new Set());
   };
 
@@ -895,6 +912,19 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       setSelectedIds(new Set([item.id]));
       ids = [item.id];
     }
+    // Anything riding on top of an item being dragged (see Item.placedOnId)
+    // rides along with it -- widen `ids` to include those children too, so
+    // the existing per-id move loop below (onStagePointerMove) picks them
+    // up automatically with no further changes: each one gets its own
+    // startPos captured the same way, moves by the same mouse delta as its
+    // host, and collidesWithOthers already exempts a host/child pair from
+    // each other (see lib/planner-math.ts), so being in the same drag
+    // batch as its own host never blocks it.
+    const draggedIds = new Set(ids);
+    for (const it of items) {
+      if (it.placedOnId && draggedIds.has(it.placedOnId)) draggedIds.add(it.id);
+    }
+    ids = Array.from(draggedIds);
     const startPos = new Map<string, { x: number; y: number }>();
     for (const it of items) {
       if (ids.includes(it.id)) startPos.set(it.id, { x: it.x, y: it.y });

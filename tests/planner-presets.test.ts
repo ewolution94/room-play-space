@@ -1,6 +1,28 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { PRESETS, PRESET_BY_KEY, PRESET_ICON, getDefaultHeight } from "@/lib/planner-presets";
+import {
+  PRESETS,
+  PRESET_BY_KEY,
+  PRESET_ICON,
+  getDefaultHeight,
+  resolveEffectiveElevation,
+} from "@/lib/planner-presets";
+import type { Item } from "@/types/planner";
+
+function makeItem(overrides: Partial<Item> = {}): Item {
+  return {
+    id: "item-1",
+    name: "Desk",
+    kind: "furniture",
+    color: "#3b82f6",
+    x: 0,
+    y: 0,
+    width: 100,
+    length: 60,
+    rotation: 0,
+    ...overrides,
+  };
+}
 
 // Guards the expanded catalog's data integrity -- the kind of mistake that's
 // easy to make by hand across ~90 entries (a typo'd key, a forgotten icon
@@ -242,5 +264,51 @@ describe("getDefaultHeight", () => {
     // string, not a matching PRESET_BY_KEY entry if that preset was ever
     // renamed or removed.
     assert.equal(getDefaultHeight("totally-unknown-icon-key"), 75);
+  });
+});
+
+describe("resolveEffectiveElevation", () => {
+  test("an item with no placedOnId just returns its own stored elevation", () => {
+    const item = makeItem({ elevation: 42 });
+    assert.equal(resolveEffectiveElevation(item, [item]), 42);
+  });
+
+  test("an item with no placedOnId and no stored elevation defaults to 0", () => {
+    const item = makeItem({});
+    assert.equal(resolveEffectiveElevation(item, [item]), 0);
+  });
+
+  test("an item riding on a host sits at the host's own elevation + height, ignoring its own stored elevation entirely", () => {
+    const host = makeItem({ id: "table", height: 75, elevation: 0 });
+    const child = makeItem({ id: "lamp", placedOnId: "table", elevation: 999 });
+    assert.equal(resolveEffectiveElevation(child, [host, child]), 75);
+  });
+
+  test("stacks correctly on a host that is itself elevated (e.g. a wall-mounted shelf)", () => {
+    const host = makeItem({ id: "shelf", height: 20, elevation: 140, layer: "wall" });
+    const child = makeItem({ id: "vase", placedOnId: "shelf" });
+    assert.equal(resolveEffectiveElevation(child, [host, child]), 160);
+  });
+
+  test("falls back to the host's PRESET default height when the host item has no explicit height stored", () => {
+    const host = makeItem({ id: "chair", icon: "chair-office", height: undefined });
+    const child = makeItem({ id: "cushion", placedOnId: "chair" });
+    assert.equal(
+      resolveEffectiveElevation(child, [host, child]),
+      getDefaultHeight("chair-office", "furniture"),
+    );
+  });
+
+  test("falls back to the item's own stored elevation if placedOnId points at an item that no longer exists", () => {
+    const child = makeItem({ id: "lamp", placedOnId: "deleted-host", elevation: 15 });
+    assert.equal(resolveEffectiveElevation(child, [child]), 15);
+  });
+
+  test("recomputes fresh from the host's CURRENT height on every call -- resizing the host updates this with no separate sync step", () => {
+    const child = makeItem({ id: "lamp", placedOnId: "table" });
+    const shortHost = makeItem({ id: "table", height: 50 });
+    assert.equal(resolveEffectiveElevation(child, [shortHost, child]), 50);
+    const tallerHost = { ...shortHost, height: 90 };
+    assert.equal(resolveEffectiveElevation(child, [tallerHost, child]), 90);
   });
 });

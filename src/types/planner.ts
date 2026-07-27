@@ -76,6 +76,23 @@ export interface Item {
   elevation?: number; // cm
   layer?: ItemLayer; // defaults to "main"
   shape?: ItemShape; // defaults to "rect"
+  // If set, this item rides on top of another placed item (by id) instead
+  // of standing directly on the floor -- lets ANY item (not just the
+  // built-in "on-top" layer) be pinned to another regardless of its own
+  // layer. The host's id, not a full reference, so it survives JSON
+  // export/import and undo/redo snapshots the same way every other
+  // id-based relationship in this app already does. While set, the item's
+  // OWN `elevation` above is ignored for rendering -- see
+  // resolveEffectiveElevation in ThreeDView.tsx, which derives the actual
+  // render height from the host's current height + elevation instead, so
+  // moving/resizing the host keeps this item visually correct without
+  // needing to eagerly rewrite every attached item's own elevation field.
+  // Position (x/y), by contrast, IS written directly: use-room-planner.ts's
+  // drag handler moves an attached item by the same delta as its host
+  // whenever the host is dragged (see onItemPointerDown), and
+  // collidesWithOthers (lib/planner-math.ts) exempts a host/child pair from
+  // colliding with each other in both directions.
+  placedOnId?: string;
 }
 
 // Explicit surface-material hint for the 3D view (see ThreeDView.tsx's

@@ -54,6 +54,7 @@
 - [x] Header actions regrouped on both headers -- Undo/Redo segment, theme toggle, "File" dropdown (Export/Import), "More" dropdown (tour/language + destructive Clear actions); removed the old duplicated desktop-row/mobile-dropdown split
 - [x] Custom "premium" tooltip (`components/ui/hover-tooltip.tsx` + restyled `components/ui/tooltip.tsx`, 150ms delay) replacing native `title=` attributes app-wide
 - [x] New catalog items: small/large trash bin + recycling box (kitchen), baby gate "Babygitter" (kids, border-only `railGate` procedural family), ball pit "Bällebad" (kids, `ballPit` procedural family) -- a "Wickeltisch" already existed as `changing-table`, no new preset needed there
+- [x] Inspector: "Place on top of" -- attach any item to ride on any other placed item regardless of layer (`Item.placedOnId`). Position follows the host on drag, elevation auto-derives from the host's current height (`resolveEffectiveElevation`), collision is exempted between a host/child pair specifically. No rotation-following. Detaches (doesn't cascade-delete) if the host is removed.
 
 ## Known Disabled Features (kept in code, not exposed in UI)
 
@@ -66,6 +67,8 @@ A full pass over the app (bugs, cross-view inconsistencies, UX ideas) was done a
 **Quick win still open**
 
 - [ ] Surface the "3D model color overridden" reset affordance more — a small note in the catalog itself for kit-model items so people discover tinting works before they've already tinted something. (The one quick win from the audit that didn't get picked up in the follow-up fix session.)
+- [x] Decide "place on top of" host-deletion behavior — confirmed 2026-07-27: detach (keep the riding item, reset its elevation to 0) is the wanted behavior, not cascade-delete. Already implemented this way in `removeItem`/`removeSelected` (`use-room-planner.ts`); no code change needed, just confirmed.
+- [x] Fix duplicate React keys for IKEA catalog tiles — `CatalogGrid` in `CatalogSection.tsx` was using `p.key` (the Preset's functional source key, deliberately shared by several `IKEA_CATALOG` entries) as the React list `key`. Fixed by keying on `${cat}-${i}` (list index within its category) instead, which doesn't touch `customCatalogItemToPreset()`'s `key` field at all since that field is still needed for `resolveRenderMode`'s dimension lookup.
 
 **Medium**
 

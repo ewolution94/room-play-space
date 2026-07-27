@@ -332,6 +332,43 @@ describe("collidesWithOthers", () => {
     const others = [makeItem({ id: "vase", x: 0, y: 0, layer: "on-top" })];
     assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
   });
+
+  describe("Item.placedOnId exemption (a declared host/child pair never collides with each other)", () => {
+    test("a 'main' layer item fully overlapping its declared host (placedOnId) does not collide", () => {
+      const candidate = makeItem({ id: "box", x: 0, y: 0, layer: "main", placedOnId: "table" });
+      const others = [makeItem({ id: "table", x: 0, y: 0, layer: "main" })];
+      assert.equal(collidesWithOthers(candidate, others, undefined, true), false);
+    });
+
+    test("still collides with an unrelated main item even while exempt from its own host", () => {
+      const candidate = makeItem({ id: "box", x: 0, y: 0, layer: "main", placedOnId: "table" });
+      const others = [
+        makeItem({ id: "table", x: 0, y: 0, layer: "main" }),
+        makeItem({ id: "cabinet", x: 0, y: 0, layer: "main" }),
+      ];
+      assert.equal(collidesWithOthers(candidate, others, undefined, true), true);
+    });
+
+    test("the exemption also holds in the other direction -- checking the host's own candidate against its already-placed child", () => {
+      const hostCandidate = makeItem({ id: "table", x: 0, y: 0, layer: "main" });
+      const others = [
+        makeItem({ id: "box", x: 0, y: 0, layer: "main", placedOnId: "table" }),
+      ];
+      assert.equal(collidesWithOthers(hostCandidate, others, undefined, true), false);
+    });
+
+    test("placedOnId pointing at an id that isn't actually in `others` changes nothing -- still collides normally with real overlaps", () => {
+      const candidate = makeItem({
+        id: "box",
+        x: 0,
+        y: 0,
+        layer: "main",
+        placedOnId: "not-a-real-item",
+      });
+      const others = [makeItem({ id: "table", x: 0, y: 0, layer: "main" })];
+      assert.equal(collidesWithOthers(candidate, others, undefined, true), true);
+    });
+  });
 });
 
 describe("clampPos", () => {

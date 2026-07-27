@@ -254,6 +254,15 @@ export function collidesWithOthers(
   return others.some(
     (o) =>
       o.id !== candidate.id &&
+      // A declared host/child pair (see Item.placedOnId) is EXPECTED to
+      // share a footprint -- one is intentionally sitting on top of the
+      // other -- so neither ever blocks the other, in either direction,
+      // regardless of layer. Checked both ways since `candidate` is
+      // sometimes the child (has placedOnId === o.id) and sometimes the
+      // host being tested against its own already-placed child (o has
+      // placedOnId === candidate.id).
+      o.id !== candidate.placedOnId &&
+      o.placedOnId !== candidate.id &&
       (o.layer ?? "main") === "main" &&
       !(ignoreIds && ignoreIds.has(o.id)) &&
       obbOverlap(candidate, o),

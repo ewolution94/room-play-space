@@ -6,7 +6,7 @@ import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLigh
 import type { Item, KitModel, Opening, Point, PresetMaterial, RoomFlooring } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { readableText } from "@/lib/planner-math";
-import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
+import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/lib/kit-models";
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
@@ -110,7 +110,7 @@ function loadKitModelIntoCache(file: string, onLoaded: () => void) {
 // this from "../ThreeDView") -- the implementation now lives in
 // planner-presets.ts, next to the catalog data it reads from, so it can be
 // unit-tested without needing to load this file's Three.js/JSX code.
-export { getDefaultHeight };
+export { getDefaultHeight, resolveEffectiveElevation };
 
 /**
  * One room/hallway's worth of geometry to render, in the SAME shared
@@ -1227,7 +1227,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     for (const room of rooms) {
       for (const it of room.items) {
         const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
-        const itElev = it.elevation ?? 0;
+        const itElev = resolveEffectiveElevation(it, room.items);
         const isCircle = (it.shape ?? "rect") === "circle";
         const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
 
@@ -1857,7 +1857,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           if (!preset?.isLightSource || lightsOff.has(it.id)) continue;
 
           const itHeight = it.height ?? getDefaultHeight(it.icon, it.kind);
-          const itElev = it.elevation ?? 0;
+          const itElev = resolveEffectiveElevation(it, room.items);
           const worldX = room.x + it.x + it.width / 2 - centerX;
           const worldZ = room.y + it.y + it.length / 2 - centerZ;
           // Near the shade/bulb of the fixture, not its floor-contact

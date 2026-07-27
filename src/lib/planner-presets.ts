@@ -3303,3 +3303,25 @@ export function getDefaultHeight(icon?: string, kind?: string): number {
       return 75;
   }
 }
+
+/**
+ * The actual 3D render height for an item, accounting for Item.placedOnId
+ * (see that field's own doc comment in types/planner.ts). An item riding on
+ * top of another ignores its own stored `elevation` entirely and instead
+ * sits at its host's current top surface (host elevation + host height) --
+ * computed fresh from `allItems` on every call rather than cached/stored,
+ * so resizing or moving the host keeps every item riding on it visually
+ * correct with no separate sync step. Falls back to the item's own
+ * elevation (or 0) if the referenced host no longer exists (e.g. a
+ * mid-flight state during an undo/redo snapshot swap) or placedOnId isn't set.
+ */
+export function resolveEffectiveElevation(item: Item, allItems: Item[]): number {
+  if (item.placedOnId) {
+    const host = allItems.find((h) => h.id === item.placedOnId);
+    if (host) {
+      const hostHeight = host.height ?? getDefaultHeight(host.icon, host.kind);
+      return (host.elevation ?? 0) + hostHeight;
+    }
+  }
+  return item.elevation ?? 0;
+}

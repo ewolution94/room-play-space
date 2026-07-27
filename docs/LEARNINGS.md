@@ -60,6 +60,46 @@ always uses the rectangular OBB footprint regardless of visual shape; adding
 true circle-vs-circle or circle-vs-rect collision was never worth the
 complexity for a floor planner.
 
+### `placedOnId`: an explicit, ID-based alternative to auto-elevation-on-drop
+
+The auto-elevation-on-drop mechanism above (`findOnTopHost`/`computeOnTopElevation`)
+is purely geometric and one-shot: it only fires for `on-top`-layer items at the
+moment they're dropped, and it never stores *which* item they landed on — so
+if the host is dragged away afterward, whatever was "resting" on it just stays
+behind at a now-stale elevation. `Item.placedOnId?: string` (added 2026-07)
+is a deliberately separate, complementary mechanism for the case that gap
+leaves open: any item, regardless of its own layer, explicitly pinned to
+another item by id, that keeps tracking it afterward. Two are allowed to
+coexist because they don't actually fight — `placedOnId` wins outright at
+render time (see below), and the auto-settle logic simply never touches an
+item outside the `on-top` layer.
+
+- **Elevation is derived, never stored, while attached.** `resolveEffectiveElevation(item,
+  allItems)` (`lib/planner-presets.ts`, re-exported from `ThreeDView.tsx`
+  alongside `getDefaultHeight`) recomputes `host.elevation + host.height` fresh
+  on every call rather than writing it back onto the attached item. This is
+  the whole reason resizing a host doesn't require any sync step elsewhere —
+  there's nothing to keep in sync. The item's own `elevation` field is simply
+  ignored for rendering as long as `placedOnId` resolves to a real item; it's
+  only read again if the host is later removed (at which point `removeItem`/
+  `removeSelected` in `use-room-planner.ts` reset it to `0` on detach).
+- **Position, unlike elevation, IS written directly.** `onItemPointerDown`
+  widens the set of dragged ids to include anything whose `placedOnId` points
+  at an item already being dragged, right before capturing each one's
+  `startPos` — the existing per-id move loop in `onStagePointerMove` needed no
+  changes at all to pick this up, since it was already generic over "whichever
+  ids are in this drag batch."
+- **Collision exemption is symmetric.** `collidesWithOthers` skips a
+  candidate/other pair if *either* one's `placedOnId` points at the other —
+  checked both directions, since the same function is used both to test a
+  child's candidate position against its host and (via the widened drag
+  batch above) a host's candidate position against its already-placed child.
+- **No rotation-following.** Dragging a host moves its attached children by
+  the same position delta; rotating a host does not rotate what's attached to
+  it. A deliberate scope cut, not an oversight — revisit only if actually
+  requested, since correct rotation-around-host-center math is real
+  additional complexity for a feature nobody's asked to extend yet.
+
 ## Collision detection (SAT/OBB)
 
 `obbCorners` rotates an item's four corners by its `rotation` about its own
