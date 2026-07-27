@@ -364,7 +364,15 @@ function getMaterialParams(material?: PresetMaterial): {
     case "leather":
       return { textureType: "leather", metalness: 0.08, roughness: 0.55 };
     case "metal":
-      return { textureType: null, metalness: 0.88, roughness: 0.22 };
+      // Physically-accurate metal (metalness ~0.9) relies almost entirely on
+      // reflected environment light for its visible color -- this scene has
+      // no environment/reflection map, only ambient+directional+hemisphere
+      // lights, so at that metalness ANY base color (including a custom
+      // tint) rendered as near-black regardless of what it actually was.
+      // Dialed back to a "brushed metal" compromise that still reads as
+      // metal (shinier/harder than plastic) while keeping the item's actual
+      // color visible under this renderer's lighting.
+      return { textureType: null, metalness: 0.4, roughness: 0.35 };
     case "ceramic":
       // Glossy porcelain -- very low roughness for a wet-look sheen
       // instead of the flat matte white boxes toilets/tubs/vases used to

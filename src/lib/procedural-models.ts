@@ -137,22 +137,51 @@ const legFrame: ProceduralGenerator = (dims, params) => {
   return parts;
 };
 
-/** A box body with N thin horizontal drawer/door-line accents, optional overhanging top. */
+/** A box body with N thin horizontal drawer/door-line accents, optional
+ * overhanging top, optional short corner legs (raises the whole body --
+ * used for low sideboard/credenza-style cabinets that sit on visible feet
+ * rather than flush to the floor). `legs` defaults off so every existing
+ * (non-IKEA) preset using this family renders exactly as before. */
 const cabinetBox: ProceduralGenerator = (dims, params) => {
   const { w, h, l } = dims;
   const doorLines = Math.round(num(params, "doorLines", 2));
   const topOverhang = bool(params, "topOverhang");
+  const legs = bool(params, "legs");
 
-  const parts: ProceduralPart[] = [{ shape: "box", x: 0, y: h / 2, z: 0, sx: w, sy: h, sz: l }];
+  const legH = legs ? Math.max(1, h * 0.08) : 0;
+  const bodyH = Math.max(1, h - legH);
+  const bodyCenterY = legH + bodyH / 2;
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: bodyCenterY, z: 0, sx: w, sy: bodyH, sz: l },
+  ];
+
+  if (legs) {
+    const legDiam = Math.max(1, Math.min(w, l) * 0.06);
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        parts.push({
+          shape: "cylinder",
+          x: sx * (w / 2 - legDiam),
+          y: legH / 2,
+          z: sz * (l / 2 - legDiam),
+          sx: legDiam,
+          sy: legH,
+          sz: legDiam,
+          colorOffset: -0.25,
+        });
+      }
+    }
+  }
 
   if (topOverhang) {
     parts.push({
       shape: "box",
       x: 0,
-      y: h - h * 0.03,
+      y: legH + bodyH - bodyH * 0.03,
       z: 0,
       sx: w * 1.06,
-      sy: h * 0.06,
+      sy: bodyH * 0.06,
       sz: l * 1.06,
       colorOffset: 0.1,
     });
@@ -164,12 +193,191 @@ const cabinetBox: ProceduralGenerator = (dims, params) => {
     parts.push({
       shape: "box",
       x: 0,
-      y: h * frac,
+      y: legH + bodyH * frac,
       z: frontZ,
       sx: w * 0.92,
-      sy: Math.max(1.5, h * 0.02),
+      sy: Math.max(1.5, bodyH * 0.02),
       sz: 1,
       colorOffset: -0.18,
+    });
+  }
+
+  return parts;
+};
+
+/** Open cube-grid storage: a thin back panel plus evenly spaced horizontal
+ * and vertical divider boards forming a lattice of open square-ish cubbies --
+ * KALLAX/EKET/TROFAST-style shelving. Grid size is derived from the item's
+ * own current width/height against `cellSize` (each product line's real
+ * module is ~33-39cm) rather than a fixed cols/rows param, so one shared
+ * generator auto-fits every KALLAX/EKET/TROFAST variant (1x2 through 4x4 and
+ * beyond) at its own real proportions, and still looks right if a user
+ * resizes one via the inspector. */
+const cubeGridShelf: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const cellSize = num(params, "cellSize", 38);
+  const cols = Math.max(1, Math.round(w / cellSize));
+  const rows = Math.max(1, Math.round(h / cellSize));
+  const frameT = Math.max(1.5, Math.min(w, l) * 0.025);
+  const backT = Math.max(0.5, l * 0.04);
+
+  const parts: ProceduralPart[] = [
+    // Thin back panel.
+    {
+      shape: "box",
+      x: 0,
+      y: h / 2,
+      z: -l / 2 + backT / 2,
+      sx: w,
+      sy: h,
+      sz: backT,
+      colorOffset: -0.08,
+    },
+  ];
+
+  for (let i = 0; i <= rows; i++) {
+    const yRaw = (h * i) / rows;
+    const y = Math.min(Math.max(yRaw, frameT / 2), h - frameT / 2);
+    parts.push({
+      shape: "box",
+      x: 0,
+      y,
+      z: 0,
+      sx: w,
+      sy: frameT,
+      sz: l,
+      colorOffset: i === 0 || i === rows ? 0 : -0.03,
+    });
+  }
+
+  for (let i = 0; i <= cols; i++) {
+    const xRaw = -w / 2 + (w * i) / cols;
+    const x = Math.min(Math.max(xRaw, -w / 2 + frameT / 2), w / 2 - frameT / 2);
+    parts.push({
+      shape: "box",
+      x,
+      y: h / 2,
+      z: 0,
+      sx: frameT,
+      sy: h,
+      sz: l,
+      colorOffset: i === 0 || i === cols ? 0 : -0.03,
+    });
+  }
+
+  return parts;
+};
+
+/** Open bookcase: two side panels, a thin back panel, and evenly spaced
+ * horizontal shelf boards with an open front -- BILLY/IVAR/HEMNES-style
+ * shelving, visually distinct from the closed-door `cabinetBox` family.
+ * Shelf count is derived from height against `shelfGap` (a real adjustable
+ * shelf's typical spacing) rather than a fixed param, so it fits low and
+ * tall variants of the same product line without per-item tuning. */
+const ladderShelf: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const shelfGap = num(params, "shelfGap", 34);
+  const shelfCount = Math.max(2, Math.round(h / shelfGap));
+  const sideT = Math.max(1.5, w * 0.035);
+  const shelfT = Math.max(1, h * 0.02);
+  const backT = Math.max(0.5, l * 0.04);
+  const innerW = Math.max(1, w - sideT * 2);
+
+  const parts: ProceduralPart[] = [];
+
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "box",
+      x: sx * (w / 2 - sideT / 2),
+      y: h / 2,
+      z: 0,
+      sx: sideT,
+      sy: h,
+      sz: l,
+      colorOffset: -0.05,
+    });
+  }
+
+  parts.push({
+    shape: "box",
+    x: 0,
+    y: h / 2,
+    z: -l / 2 + backT / 2,
+    sx: innerW,
+    sy: h,
+    sz: backT,
+    colorOffset: -0.1,
+  });
+
+  for (let i = 0; i < shelfCount; i++) {
+    const frac = shelfCount === 1 ? 0 : i / (shelfCount - 1);
+    const y = Math.min(Math.max(frac * h, shelfT / 2), h - shelfT / 2);
+    parts.push({ shape: "box", x: 0, y, z: 0, sx: innerW, sy: shelfT, sz: l });
+  }
+
+  return parts;
+};
+
+/** Tall door cabinet on short feet: a single body raised on four short legs,
+ * with vertical door-seam lines splitting the front into evenly sized
+ * leaves (count derived from width against `doorWidth`, a typical single
+ * door-leaf span) plus a small handle accent per leaf near its seam --
+ * PAX/BRIMNES/wardrobe-style, visually distinct from a plain box or the
+ * horizontal-line `cabinetBox` look. */
+const doorWardrobe: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const doorWidth = num(params, "doorWidth", 55);
+  const doorCount = Math.max(2, Math.round(w / doorWidth));
+  const legH = Math.max(1, h * 0.03);
+  const bodyH = Math.max(1, h - legH);
+  const legDiam = Math.max(1, Math.min(w, l) * 0.05);
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: legH + bodyH / 2, z: 0, sx: w, sy: bodyH, sz: l },
+  ];
+
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      parts.push({
+        shape: "cylinder",
+        x: sx * (w / 2 - legDiam),
+        y: legH / 2,
+        z: sz * (l / 2 - legDiam),
+        sx: legDiam,
+        sy: legH,
+        sz: legDiam,
+        colorOffset: -0.2,
+      });
+    }
+  }
+
+  const frontZ = l / 2 + 0.3;
+  for (let i = 1; i < doorCount; i++) {
+    const x = -w / 2 + (w * i) / doorCount;
+    parts.push({
+      shape: "box",
+      x,
+      y: legH + bodyH / 2,
+      z: frontZ,
+      sx: Math.max(0.5, w * 0.006),
+      sy: bodyH * 0.96,
+      sz: 1,
+      colorOffset: -0.2,
+    });
+  }
+
+  for (let i = 0; i < doorCount; i++) {
+    const leafCenter = -w / 2 + (w * (i + 0.5)) / doorCount;
+    const handleX = leafCenter + (i % 2 === 0 ? 1 : -1) * ((w / doorCount) * 0.38);
+    parts.push({
+      shape: "box",
+      x: handleX,
+      y: legH + bodyH * 0.5,
+      z: frontZ,
+      sx: Math.max(0.5, w * 0.01),
+      sy: bodyH * 0.12,
+      sz: 1.2,
+      colorOffset: 0.25,
     });
   }
 
@@ -731,6 +939,9 @@ const ballPit: ProceduralGenerator = (dims) => {
 export const PROCEDURAL_GENERATORS: Record<string, ProceduralGenerator> = {
   legFrame,
   cabinetBox,
+  cubeGridShelf,
+  ladderShelf,
+  doorWardrobe,
   panelAccentBox,
   pedestalFixture,
   tubShape,

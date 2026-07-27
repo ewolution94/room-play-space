@@ -27,11 +27,17 @@ import type { CustomCatalogItem } from "@/types/planner";
  * kitModel/proceduralModel/material carry over via customCatalogItemToPreset.
  * Where a product's real dimensions drift too far from that preset's own
  * default size (see kit-models.ts's KIT_ENVELOPE_MIN/MAX, roughly 0.7x-1.5x
- * per axis), ThreeDView.tsx already falls back to a plain box automatically
- * -- e.g. KALLAX's 147x39x146cm is nowhere near "bookshelf"'s 80x30x180cm
- * default, so it renders as a correctly-sized, correctly-colored box rather
- * than a stretched bookcase mesh. That's the system working as designed, not
- * a gap this catalog needs to work around. Bed heights below deliberately
+ * per axis), a kitModel-backed sourceKey falls back to a plain box
+ * automatically -- fine for beds/tables/seating below, whose sourceKeys are
+ * all real Kenney kitModels close enough in proportion to stay in-envelope.
+ * Shelving/storage/wardrobes are different: those product lines span too
+ * wide a size range for any single kitModel's envelope (a 42cm KALLAX 1x2 up
+ * to a 150cm PAX), so they're routed at proceduralModel-backed presets
+ * instead (`cube-shelf`/`ladder-bookcase`/`door-wardrobe`/`leg-cabinet`,
+ * planner-presets.ts) -- those read each item's own current w/h/l live and
+ * always render an exactly-fitting shape (open cube grid, open shelf boards,
+ * hinged door leaves), with no envelope to fall out of. Bed heights below
+ * deliberately
  * use each product's FOOTBOARD height (or, for NEIDEN's already-low-profile
  * headboard, its headboard height) rather than a tall headboard's height --
  * the built-in "bed-double"/"bed-single" presets themselves only model a
@@ -127,6 +133,41 @@ export const IKEA_CATALOG: IkeaCatalogEntry[] = [
   // ---------------------------------------------------------------------
   // Shelving / storage
   // ---------------------------------------------------------------------
+  // sourceKey routing below deliberately points at the dedicated
+  // proceduralModel presets (cube-shelf/ladder-bookcase/door-wardrobe/
+  // leg-cabinet in planner-presets.ts) rather than the older generic
+  // bookshelf/wardrobe/sideboard kitModel presets these used to borrow --
+  // those kitModels have a fixed stretch envelope a real product's actual
+  // size often falls outside of (e.g. KALLAX 147cm wide vs. "bookshelf"'s
+  // 80cm default), which silently fell back to a plain flat box. The
+  // proceduralModel families instead read each item's own current
+  // dimensions and always render an exactly-fitting, recognizable shape
+  // (open cube grid / open shelf boards / hinged door leaves), so every
+  // size in a product line looks right, including the ones added below.
+  ikeaItem({
+    id: "ikea-kallax-1x2",
+    productLine: "KALLAX",
+    category: "shelf",
+    nameEn: "KALLAX Shelf (1x2)",
+    nameDe: "KALLAX Regal (1x2)",
+    w: 42,
+    l: 39,
+    h: 77,
+    color: "#ffffff",
+    sourceKey: "cube-shelf",
+  }),
+  ikeaItem({
+    id: "ikea-kallax-2x2",
+    productLine: "KALLAX",
+    category: "shelf",
+    nameEn: "KALLAX Shelf (2x2)",
+    nameDe: "KALLAX Regal (2x2)",
+    w: 77,
+    l: 39,
+    h: 77,
+    color: "#2b2523",
+    sourceKey: "cube-shelf",
+  }),
   ikeaItem({
     id: "ikea-kallax-2x4",
     productLine: "KALLAX",
@@ -137,7 +178,19 @@ export const IKEA_CATALOG: IkeaCatalogEntry[] = [
     l: 39,
     h: 146.5,
     color: "#ffffff",
-    sourceKey: "bookshelf",
+    sourceKey: "cube-shelf",
+  }),
+  ikeaItem({
+    id: "ikea-kallax-4x2",
+    productLine: "KALLAX",
+    category: "shelf",
+    nameEn: "KALLAX Shelf (4x2)",
+    nameDe: "KALLAX Regal (4x2)",
+    w: 147,
+    l: 39,
+    h: 77,
+    color: "#ffffff",
+    sourceKey: "cube-shelf",
   }),
   ikeaItem({
     id: "ikea-kallax-4x4",
@@ -149,7 +202,43 @@ export const IKEA_CATALOG: IkeaCatalogEntry[] = [
     l: 39,
     h: 146,
     color: "#ffffff",
-    sourceKey: "bookshelf",
+    sourceKey: "cube-shelf",
+  }),
+  ikeaItem({
+    id: "ikea-eket-cabinet-2x2",
+    productLine: "EKET",
+    category: "shelf",
+    nameEn: "EKET Cabinet (2x2)",
+    nameDe: "EKET Schrank (2x2)",
+    w: 70,
+    l: 35,
+    h: 70,
+    color: "#8a9a8b",
+    sourceKey: "cube-shelf",
+  }),
+  ikeaItem({
+    id: "ikea-trofast-storage",
+    productLine: "TROFAST",
+    category: "storage",
+    nameEn: "TROFAST Storage Combination",
+    nameDe: "TROFAST Aufbewahrung",
+    w: 99,
+    l: 44,
+    h: 94,
+    color: "#eceae4",
+    sourceKey: "cube-shelf",
+  }),
+  ikeaItem({
+    id: "ikea-billy-bookcase-low",
+    productLine: "BILLY",
+    category: "shelf",
+    nameEn: "BILLY Bookcase (Low)",
+    nameDe: "BILLY Bücherregal (Niedrig)",
+    w: 80,
+    l: 28,
+    h: 106,
+    color: "#ffffff",
+    sourceKey: "ladder-bookcase",
   }),
   ikeaItem({
     id: "ikea-billy-bookcase",
@@ -161,7 +250,7 @@ export const IKEA_CATALOG: IkeaCatalogEntry[] = [
     l: 28,
     h: 202,
     color: "#ffffff",
-    sourceKey: "bookshelf",
+    sourceKey: "ladder-bookcase",
   }),
   ikeaItem({
     id: "ikea-ivar-shelving",
@@ -173,7 +262,31 @@ export const IKEA_CATALOG: IkeaCatalogEntry[] = [
     l: 30,
     h: 179,
     color: "#d9c39a",
-    sourceKey: "bookshelf",
+    sourceKey: "ladder-bookcase",
+  }),
+  ikeaItem({
+    id: "ikea-hemnes-bookcase",
+    productLine: "HEMNES",
+    category: "shelf",
+    nameEn: "HEMNES Bookcase",
+    nameDe: "HEMNES Bücherregal",
+    w: 90,
+    l: 37,
+    h: 197,
+    color: "#e3ded2",
+    sourceKey: "ladder-bookcase",
+  }),
+  ikeaItem({
+    id: "ikea-hemnes-glass-cabinet",
+    productLine: "HEMNES",
+    category: "storage",
+    nameEn: "HEMNES Glass-Door Cabinet",
+    nameDe: "HEMNES Vitrine",
+    w: 90,
+    l: 37,
+    h: 197,
+    color: "#2b2523",
+    sourceKey: "door-wardrobe",
   }),
   ikeaItem({
     id: "ikea-besta-tv-storage",
@@ -185,7 +298,19 @@ export const IKEA_CATALOG: IkeaCatalogEntry[] = [
     l: 42,
     h: 74,
     color: "#2b2523",
-    sourceKey: "sideboard",
+    sourceKey: "leg-cabinet",
+  }),
+  ikeaItem({
+    id: "ikea-besta-tall-cabinet",
+    productLine: "BESTÅ",
+    category: "storage",
+    nameEn: "BESTÅ Tall Cabinet",
+    nameDe: "BESTÅ Hochschrank",
+    w: 60,
+    l: 42,
+    h: 193,
+    color: "#2b2523",
+    sourceKey: "door-wardrobe",
   }),
   ikeaItem({
     id: "ikea-pax-wardrobe",
@@ -197,7 +322,31 @@ export const IKEA_CATALOG: IkeaCatalogEntry[] = [
     l: 60,
     h: 236,
     color: "#ffffff",
-    sourceKey: "wardrobe",
+    sourceKey: "door-wardrobe",
+  }),
+  ikeaItem({
+    id: "ikea-pax-wardrobe-wide",
+    productLine: "PAX",
+    category: "storage",
+    nameEn: "PAX Wardrobe (Wide)",
+    nameDe: "PAX Kleiderschrank (Breit)",
+    w: 150,
+    l: 60,
+    h: 236,
+    color: "#ffffff",
+    sourceKey: "door-wardrobe",
+  }),
+  ikeaItem({
+    id: "ikea-brimnes-wardrobe",
+    productLine: "BRIMNES",
+    category: "storage",
+    nameEn: "BRIMNES Wardrobe",
+    nameDe: "BRIMNES Kleiderschrank",
+    w: 117,
+    l: 50,
+    h: 190,
+    color: "#9a9a94",
+    sourceKey: "door-wardrobe",
   }),
 
   // ---------------------------------------------------------------------

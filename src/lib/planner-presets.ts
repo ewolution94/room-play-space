@@ -456,6 +456,75 @@ export const PRESETS: Preset[] = [
     },
   },
   {
+    // Open cube-grid shelving (KALLAX/EKET/TROFAST-style) -- a proceduralModel
+    // rather than a kitModel deliberately, since these product lines' real
+    // dimensions span a much wider range (a 42cm-wide KALLAX 1x2 up to a
+    // 147cm-wide 4x4) than any single Kenney kit-model envelope tolerates;
+    // cubeGridShelf reads the item's own current w/h and always renders an
+    // exactly-fitting grid, so it never falls back to a plain flat box the
+    // way an out-of-envelope kitModel item would.
+    key: "cube-shelf",
+    category: "storage",
+    nameEn: "Cube Storage Shelf",
+    nameDe: "Würfelregal",
+    w: 77,
+    l: 39,
+    h: 147,
+    color: "#ffffff",
+    material: "wood",
+    proceduralModel: { family: "cubeGridShelf" },
+  },
+  {
+    // Open bookcase (BILLY/IVAR/HEMNES-style) -- side panels + evenly spaced
+    // shelf boards, open front. See "cube-shelf" above for why this is a
+    // proceduralModel: BILLY alone ranges from a 106cm-tall low unit to a
+    // 202cm tall one, well past one kitModel's usable stretch envelope.
+    key: "ladder-bookcase",
+    category: "storage",
+    nameEn: "Ladder Bookcase",
+    nameDe: "Standregal",
+    w: 80,
+    l: 28,
+    h: 202,
+    color: "#ffffff",
+    material: "wood",
+    proceduralModel: { family: "ladderShelf" },
+  },
+  {
+    // Tall hinged-door wardrobe (PAX/BRIMNES-style) -- door-seam lines and
+    // handle accents split the front into leaves whose count is derived
+    // from width, so a 78cm 2-door BRIMNES and a 150cm 3-door PAX both read
+    // correctly from the one generator. See "cube-shelf" above for why this
+    // is a proceduralModel rather than a kitModel.
+    key: "door-wardrobe",
+    category: "storage",
+    nameEn: "Door Wardrobe",
+    nameDe: "Kleiderschrank mit Türen",
+    w: 100,
+    l: 60,
+    h: 220, // generic default kept within this app's freestanding-furniture height ceiling; the IKEA PAX entry (up to 236cm) sets its own real h and isn't bound by this preset's default
+
+    color: "#ffffff",
+    material: "wood",
+    proceduralModel: { family: "doorWardrobe" },
+  },
+  {
+    // Low storage cabinet on short feet (BESTÅ/sideboard-style) -- reuses
+    // cabinetBox's existing door-line accents with its `legs` option turned
+    // on, rather than a bespoke family, since a legged low cabinet is
+    // otherwise identical to the plain cabinetBox silhouette.
+    key: "leg-cabinet",
+    category: "storage",
+    nameEn: "Low Cabinet",
+    nameDe: "Sideboard",
+    w: 140,
+    l: 42,
+    h: 74,
+    color: "#2b2523",
+    material: "wood",
+    proceduralModel: { family: "cabinetBox", params: { doorLines: 2, legs: true } },
+  },
+  {
     // Was rendering in wood grain regardless of its gray color -- the old
     // keyword logic's metal-override check compared against a hardcoded
     // hex the preset's own default color never matched, so the "metal"
@@ -3096,6 +3165,10 @@ export const PRESET_ICON: Record<string, LucideIcon> = {
   bookshelf: BookOpen,
   wardrobe: Archive,
   "filing-cabinet": Files,
+  "cube-shelf": LayoutGrid,
+  "ladder-bookcase": BookOpen,
+  "door-wardrobe": Archive,
+  "leg-cabinet": Files,
   stove: CookingPot,
   sink: Droplets,
   fridge: Refrigerator,

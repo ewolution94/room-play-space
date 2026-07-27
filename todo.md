@@ -56,6 +56,23 @@
 - [x] New catalog items: small/large trash bin + recycling box (kitchen), baby gate "Babygitter" (kids, border-only `railGate` procedural family), ball pit "Bällebad" (kids, `ballPit` procedural family) -- a "Wickeltisch" already existed as `changing-table`, no new preset needed there
 - [x] Inspector: "Place on top of" -- attach any item to ride on any other placed item regardless of layer (`Item.placedOnId`). Position follows the host on drag, elevation auto-derives from the host's current height (`resolveEffectiveElevation`), collision is exempted between a host/child pair specifically. No rotation-following. Detaches (doesn't cascade-delete) if the host is removed.
 
+## Bug Fixes (2026-07-27)
+
+- [x] Duplicate React keys on IKEA catalog tiles -- `CatalogGrid` (`CatalogSection.tsx`) was using the Preset's `key` field (deliberately shared by several `IKEA_CATALOG` entries) as the React list key. Fixed by keying on `${cat}-${i}` instead.
+- [x] Custom item colors looked unchanged in 3D (reported: Tower PC) -- not actually a color-propagation bug, the color data was correct (verified against the live Three.js material). The `"metal"` material preset (`getMaterialParams` in `ThreeDView.tsx`) used `metalness: 0.88` with no environment/reflection map anywhere in the scene, and PBR metal surfaces get almost all their visible color from reflected environment light -- at that metalness, ANY base color rendered as near-black. Affects all 36 presets with `material: "metal"` that render via the box/procedural path (kit-model items are untouched -- their metalness comes from the Kenney-authored glb, not this function). Dialed back to `metalness: 0.4, roughness: 0.35`, a "brushed metal" compromise that still reads as metal while keeping custom colors visible. Verified against both the Tower PC (procedural) and the Filing cabinet (also procedural, light color) with no regression.
+
+## IKEA Catalog Expansion (2026-07-27)
+
+- [x] Three new proceduralModel families (`src/lib/procedural-models.ts`), each deriving its shape from the item's own current dimensions rather than a fixed param -- so one generator fits every size in a product line and never falls back to a plain box for being outside a kitModel's stretch envelope:
+  - `cubeGridShelf` -- open cube-grid lattice (back panel + horizontal/vertical dividers), grid size derived from w/h against a `cellSize` (~38cm, matching real module sizes). KALLAX/EKET/TROFAST-style.
+  - `ladderShelf` -- open bookcase (two side panels, a back panel, evenly spaced shelf boards), shelf count derived from height against `shelfGap` (~34cm). BILLY/IVAR/HEMNES-style.
+  - `doorWardrobe` -- tall cabinet on four short legs with vertical door-seam lines and handle accents, door count derived from width against `doorWidth` (~55cm). PAX/BRIMNES-style.
+  - `cabinetBox` gained an optional `legs` param (off by default, zero behavior change for existing users) for low sideboard-style cabinets on visible feet.
+- [x] Four new dedicated presets in `planner-presets.ts` (`cube-shelf`, `ladder-bookcase`, `door-wardrobe`, `leg-cabinet`) wiring the families above into the regular catalog/IKEA pipeline.
+- [x] Existing KALLAX/BILLY/IVAR/PAX/BESTÅ entries repointed from the generic kitModel `bookshelf`/`wardrobe`/`sideboard` presets to these new proceduralModel ones -- fixes the pre-existing "falls back to a plain box" gap for anything outside the kitModel's envelope (e.g. KALLAX 4x4's 147cm width vs. `bookshelf`'s 80cm default).
+- [x] 11 new IKEA products added, dimensions sourced from IKEA's own product pages: KALLAX (1x2, 2x2, 4x2), EKET Cabinet (2x2), TROFAST Storage Combination, BILLY Bookcase (Low), HEMNES Bookcase, HEMNES Glass-Door Cabinet, PAX Wardrobe (Wide), BRIMNES Wardrobe, BESTÅ Tall Cabinet. IKEA_CATALOG shelf/storage count: 6 → 17.
+- [x] Verified in-browser (KALLAX cube grid, BILLY open shelving, PAX door seams + legs, BESTÅ legs all visually confirmed; PAX cross-checked against the live Three.js scene graph's exact part count) and via the full suite (455/455, tsc clean, lint clean).
+
 ## Known Disabled Features (kept in code, not exposed in UI)
 
 - **Corner Dragging** (single-room 2D canvas): the "Enable Corner Dragging" checkbox has been removed from the 2D View Options panel because it caused confusion and could break the app in some ways. The underlying implementation is still in `src/components/planner/canvas/CanvasArea.tsx` (`enableCornerDrag` state, `onCornerPointerDown`, the draggable corner-handle rendering, and `clampOpeningsToWalls`) -- it's just permanently off (`const [enableCornerDrag] = useState(false)`), with no UI control to turn it back on. Revisit this once it's more robust, then reintroduce the checkbox.
