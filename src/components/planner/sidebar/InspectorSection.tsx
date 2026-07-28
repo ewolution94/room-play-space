@@ -25,11 +25,10 @@ import {
 } from "lucide-react";
 import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
-import { getDefaultHeight, resolveEffectiveElevation } from "../ThreeDView";
 import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import { FLOOR_MATERIALS } from "@/lib/floor-materials";
 import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
-import { PRESET_BY_KEY } from "@/lib/planner-presets";
+import { PRESET_BY_KEY, getDefaultHeight, resolveEffectiveElevation } from "@/lib/planner-presets";
 import { SWATCHES } from "@/lib/swatches";
 import { LayoutGrid } from "lucide-react";
 

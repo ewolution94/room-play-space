@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef, Suspense, lazy } from "react";
 import { Link } from "@tanstack/react-router";
 import type { CanvasAreaProps } from "@/types/planner";
 import {
@@ -9,7 +9,8 @@ import {
 } from "@/lib/hallway-shapes";
 import { closedSubIntervals } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
-import { ThreeDView, type RoomInstance3D } from "../ThreeDView";
+import type { RoomInstance3D } from "../ThreeDView";
+import { ThreeDViewFallback } from "../ThreeDViewFallback";
 import { RotateHint } from "../RotateHint";
 import { HintBanner } from "./HintBanner";
 import { RoomDimensionBadge } from "./RoomDimensionBadge";
@@ -32,6 +33,15 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
+
+// Code-split from the eagerly-loaded route bundle -- `three` (plus
+// GLTFLoader/OrbitControls) is a large dependency that only matters once a
+// user actually switches to 3D mode, and this used to be a *static* import
+// even though ThreeDView only ever rendered when threeDActive was true, so
+// every route paid for parsing/transforming the whole engine on load. Module
+// scope (not inside the component) so React only creates the lazy wrapper
+// once, not on every render.
+const ThreeDView = lazy(() => import("../ThreeDView").then((m) => ({ default: m.ThreeDView })));
 
 export function CanvasArea({
   t,
@@ -407,13 +417,15 @@ export function CanvasArea({
         <CanvasLoadingOverlay ready={stageReady} />
 
         {threeDActive ? (
-          <ThreeDView
-            t={t}
-            lang={lang}
-            rooms={threeDRooms}
-            selectedIds={selectedIds}
-            isDark={isDark}
-          />
+          <Suspense fallback={<ThreeDViewFallback />}>
+            <ThreeDView
+              t={t}
+              lang={lang}
+              rooms={threeDRooms}
+              selectedIds={selectedIds}
+              isDark={isDark}
+            />
+          </Suspense>
         ) : (
           scale > 0 && (
             <>

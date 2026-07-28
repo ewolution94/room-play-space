@@ -936,12 +936,794 @@ const ballPit: ProceduralGenerator = (dims) => {
   return parts;
 };
 
+// ---------------------------------------------------------------------
+// Content-expansion batch (laundry/garage/gym/pets categories + depth
+// additions to outdoor/media/kids/seating) -- see docs/LEARNINGS.md and
+// todo.md for the research/sourcing behind this batch. Same conventions as
+// every family above: pure, dimension-driven, no rotation support (cylinders
+// are always Y-axis, so anything that needs to read as horizontal -- a
+// ladder rung, a dumbbell bar, a pegboard peg -- is a box, not a cylinder).
+// ---------------------------------------------------------------------
+
+/** Open wire/garage shelving: four thin corner posts and evenly spaced
+ * horizontal shelf boards, with no back or side panels at all -- distinct
+ * from `ladderShelf`'s solid-panelled bookcase look. Shelf count derived
+ * from height against `shelfGap`. */
+const postShelfUnit: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const shelfGap = num(params, "shelfGap", 40);
+  const shelfCount = Math.max(2, Math.round(h / shelfGap));
+  const postDiam = Math.max(1, Math.min(w, l) * 0.05);
+  const shelfT = Math.max(1, h * 0.015);
+
+  const parts: ProceduralPart[] = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      parts.push({
+        shape: "cylinder",
+        x: sx * (w / 2 - postDiam / 2),
+        y: h / 2,
+        z: sz * (l / 2 - postDiam / 2),
+        sx: postDiam,
+        sy: h,
+        sz: postDiam,
+        colorOffset: -0.2,
+      });
+    }
+  }
+  for (let i = 0; i < shelfCount; i++) {
+    const frac = shelfCount === 1 ? 0.5 : i / (shelfCount - 1);
+    const y = Math.min(Math.max(frac * h, shelfT / 2), h - shelfT / 2);
+    parts.push({ shape: "box", x: 0, y, z: 0, sx: w, sy: shelfT, sz: l });
+  }
+  return parts;
+};
+
+/** A flat wall-mounted panel with a grid of small protruding pegs --
+ * garage/workshop pegboard. Grid size derived from width/height against
+ * `cellSize`. */
+const pegGridPanel: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const cellSize = num(params, "cellSize", 12);
+  const cols = Math.max(2, Math.round(w / cellSize));
+  const rows = Math.max(2, Math.round(h / cellSize));
+  const pegSize = Math.max(0.5, Math.min(w, h) * 0.015);
+  const pegDepth = Math.max(1, l * 0.6);
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: h / 2, z: 0, sx: w, sy: h, sz: l, colorOffset: -0.05 },
+  ];
+  for (let r = 1; r <= rows; r++) {
+    for (let c = 1; c <= cols; c++) {
+      const fx = c / (cols + 1);
+      const fy = r / (rows + 1);
+      parts.push({
+        shape: "box",
+        x: (fx - 0.5) * w * 0.9,
+        y: fy * h,
+        z: l / 2 + pegDepth / 2,
+        sx: pegSize,
+        sy: pegSize,
+        sz: pegDepth,
+        colorOffset: -0.3,
+      });
+    }
+  }
+  return parts;
+};
+
+/** Two vertical side rails with evenly spaced horizontal rungs between
+ * them -- a straight ladder at tall/narrow proportions, or (wide/short,
+ * more rungs) a foldable clothes drying rack. Rung count derived from
+ * height against `rungGap`. */
+const ladderShape: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const rungGap = num(params, "rungGap", 28);
+  const rungCount = Math.max(2, Math.round(h / rungGap));
+  const railDiam = Math.max(1, Math.min(w, l) * 0.4);
+  const rungT = Math.max(0.5, railDiam * 0.5);
+
+  const parts: ProceduralPart[] = [];
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "box",
+      x: sx * (w / 2 - railDiam / 2),
+      y: h / 2,
+      z: 0,
+      sx: railDiam,
+      sy: h,
+      sz: l,
+      colorOffset: -0.1,
+    });
+  }
+  for (let i = 1; i <= rungCount; i++) {
+    const frac = i / (rungCount + 1);
+    parts.push({
+      shape: "box",
+      x: 0,
+      y: frac * h,
+      z: 0,
+      sx: Math.max(1, w - railDiam * 2),
+      sy: rungT,
+      sz: rungT,
+      colorOffset: -0.05,
+    });
+  }
+  return parts;
+};
+
+/** A vertical cylindrical tank with a darker cap and a small pipe/valve
+ * accent poking above the top -- water heater / propane tank silhouette. */
+const cylinderTank: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const capH = Math.max(1, h * 0.08);
+  const pipeDiam = Math.max(1, Math.min(w, l) * 0.15);
+
+  return [
+    { shape: "cylinder", x: 0, y: (h - capH) / 2, z: 0, sx: w, sy: h - capH, sz: l },
+    {
+      shape: "cylinder",
+      x: 0,
+      y: h - capH / 2,
+      z: 0,
+      sx: w * 0.7,
+      sy: capH,
+      sz: l * 0.7,
+      colorOffset: -0.15,
+    },
+    {
+      shape: "cylinder",
+      x: 0,
+      y: h + pipeDiam / 2,
+      z: 0,
+      sx: pipeDiam,
+      sy: pipeDiam,
+      sz: pipeDiam,
+      colorOffset: 0.2,
+    },
+  ];
+};
+
+/** A body with a distinctly lighter, thinner lid slab on top -- stackable
+ * storage bin/tote silhouette. */
+const lidBox: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const lidH = Math.max(1, h * 0.12);
+  const bodyH = Math.max(1, h - lidH);
+
+  return [
+    { shape: "box", x: 0, y: bodyH / 2, z: 0, sx: w, sy: bodyH, sz: l },
+    {
+      shape: "box",
+      x: 0,
+      y: bodyH + lidH / 2,
+      z: 0,
+      sx: w * 1.03,
+      sy: lidH,
+      sz: l * 1.03,
+      colorOffset: 0.2,
+    },
+  ];
+};
+
+/** Treadmill: a long low running deck plus two angled-look console posts
+ * with a small display panel near the front. */
+const treadmillShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const deckH = Math.max(1, h * 0.15);
+  const postH = Math.max(1, h - deckH);
+  const postDiam = Math.max(1, w * 0.08);
+  const frontZ = -l / 2 + postDiam;
+
+  return [
+    { shape: "box", x: 0, y: deckH / 2, z: 0, sx: w * 0.85, sy: deckH, sz: l, colorOffset: -0.1 },
+    {
+      shape: "box",
+      x: -w * 0.35,
+      y: deckH + postH / 2,
+      z: frontZ,
+      sx: postDiam,
+      sy: postH,
+      sz: postDiam,
+    },
+    {
+      shape: "box",
+      x: w * 0.35,
+      y: deckH + postH / 2,
+      z: frontZ,
+      sx: postDiam,
+      sy: postH,
+      sz: postDiam,
+    },
+    {
+      shape: "box",
+      x: 0,
+      y: deckH + postH * 0.92,
+      z: frontZ,
+      sx: w * 0.7,
+      sy: postH * 0.22,
+      sz: 2,
+      colorOffset: 0.15,
+    },
+  ];
+};
+
+/** Stationary exercise bike: a base plank, a front flywheel hub, a rear
+ * seat post + saddle, and a forward handlebar post + bars. */
+const exerciseBikeShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const baseH = Math.max(1, h * 0.08);
+  const seatH = h * 0.75;
+  const barH = h * 0.95;
+  const postDiam = Math.max(1, Math.min(w, l) * 0.1);
+  const flywheelDiam = Math.max(1, Math.min(w, l) * 0.5);
+
+  return [
+    { shape: "box", x: 0, y: baseH / 2, z: 0, sx: w * 0.5, sy: baseH, sz: l, colorOffset: -0.1 },
+    {
+      shape: "cylinder",
+      x: 0,
+      y: baseH + flywheelDiam / 2,
+      z: -l * 0.35,
+      sx: flywheelDiam,
+      sy: flywheelDiam * 0.25,
+      sz: flywheelDiam,
+      colorOffset: -0.2,
+    },
+    {
+      shape: "cylinder",
+      x: 0,
+      y: baseH + seatH / 2,
+      z: l * 0.25,
+      sx: postDiam,
+      sy: seatH,
+      sz: postDiam,
+    },
+    {
+      shape: "box",
+      x: 0,
+      y: baseH + seatH,
+      z: l * 0.25,
+      sx: w * 0.35,
+      sy: postDiam,
+      sz: l * 0.2,
+      colorOffset: 0.1,
+    },
+    {
+      shape: "cylinder",
+      x: 0,
+      y: baseH + barH / 2,
+      z: -l * 0.1,
+      sx: postDiam,
+      sy: barH,
+      sz: postDiam,
+    },
+    {
+      shape: "box",
+      x: 0,
+      y: baseH + barH,
+      z: -l * 0.1,
+      sx: w * 0.7,
+      sy: postDiam,
+      sz: postDiam,
+      colorOffset: -0.1,
+    },
+  ];
+};
+
+/** Tiered dumbbell rack: two side frames, evenly spaced shelves (count via
+ * `tiers`), and a pair of sphere+bar dumbbell accents resting on each. */
+const dumbbellRackShape: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const tierCount = Math.max(2, Math.round(num(params, "tiers", 3)));
+  const frameDiam = Math.max(1, Math.min(w, l) * 0.08);
+  const shelfT = Math.max(1, h * 0.04);
+
+  const parts: ProceduralPart[] = [];
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "box",
+      x: sx * (w / 2 - frameDiam / 2),
+      y: h / 2,
+      z: 0,
+      sx: frameDiam,
+      sy: h,
+      sz: l,
+      colorOffset: -0.15,
+    });
+  }
+  for (let i = 0; i < tierCount; i++) {
+    const frac = (i + 1) / (tierCount + 1);
+    const y = frac * h;
+    parts.push({ shape: "box", x: 0, y, z: 0, sx: w, sy: shelfT, sz: l, colorOffset: -0.05 });
+    const ballDiam = Math.max(1, l * 0.4);
+    for (const dSign of [-1, 1]) {
+      const dx = dSign * w * 0.22;
+      parts.push({
+        shape: "sphere",
+        x: dx - dSign * ballDiam * 0.35,
+        y: y + ballDiam / 2,
+        z: 0,
+        sx: ballDiam,
+        sy: ballDiam,
+        sz: ballDiam,
+        colorOffset: 0.15,
+      });
+      parts.push({
+        shape: "sphere",
+        x: dx + dSign * ballDiam * 0.35,
+        y: y + ballDiam / 2,
+        z: 0,
+        sx: ballDiam,
+        sy: ballDiam,
+        sz: ballDiam,
+        colorOffset: 0.15,
+      });
+      parts.push({
+        shape: "box",
+        x: dx,
+        y: y + ballDiam / 2,
+        z: 0,
+        sx: ballDiam * 0.6,
+        sy: ballDiam * 0.35,
+        sz: ballDiam * 0.35,
+        colorOffset: -0.1,
+      });
+    }
+  }
+  return parts;
+};
+
+/** Squat/power rack: four tall vertical posts joined by a top brace and a
+ * mid-height safety-bar brace, front and back. */
+const squatRackShape: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const postDiam = Math.max(1, Math.min(w, l) * 0.08);
+  const braceT = Math.max(1, postDiam * 0.6);
+  const midFrac = num(params, "midFrac", 0.4);
+
+  const parts: ProceduralPart[] = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      parts.push({
+        shape: "box",
+        x: sx * (w / 2 - postDiam / 2),
+        y: h / 2,
+        z: sz * (l / 2 - postDiam / 2),
+        sx: postDiam,
+        sy: h,
+        sz: postDiam,
+        colorOffset: -0.15,
+      });
+    }
+  }
+  for (const sz of [-1, 1]) {
+    parts.push({
+      shape: "box",
+      x: 0,
+      y: h - braceT / 2,
+      z: sz * (l / 2 - postDiam / 2),
+      sx: w,
+      sy: braceT,
+      sz: braceT,
+      colorOffset: -0.05,
+    });
+    parts.push({
+      shape: "box",
+      x: 0,
+      y: h * midFrac,
+      z: sz * (l / 2 - postDiam / 2),
+      sx: w,
+      sy: braceT,
+      sz: braceT,
+      colorOffset: 0.05,
+    });
+  }
+  return parts;
+};
+
+/** Wall-mounted pull-up bar: two small brackets and a horizontal bar
+ * between them. */
+const wallBarShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const bracketW = Math.max(1, w * 0.12);
+  const barDiam = Math.max(1, Math.min(h, l) * 0.5);
+
+  const parts: ProceduralPart[] = [];
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "box",
+      x: sx * (w / 2 - bracketW / 2),
+      y: h / 2,
+      z: 0,
+      sx: bracketW,
+      sy: h,
+      sz: l,
+      colorOffset: -0.2,
+    });
+  }
+  parts.push({
+    shape: "box",
+    x: 0,
+    y: h * 0.85,
+    z: 0,
+    sx: Math.max(1, w - bracketW * 2),
+    sy: barDiam,
+    sz: barDiam,
+  });
+  return parts;
+};
+
+/** Cat tree: a base platform, one carpeted vertical post, and one or more
+ * perch platforms at different heights (count via `perches`). */
+const catTreeShape: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const baseH = Math.max(1, h * 0.08);
+  const postDiam = Math.max(1, Math.min(w, l) * 0.35);
+  const perchCount = Math.max(1, Math.round(num(params, "perches", 2)));
+
+  const parts: ProceduralPart[] = [
+    { shape: "cylinder", x: 0, y: baseH / 2, z: 0, sx: w, sy: baseH, sz: l, colorOffset: -0.1 },
+    {
+      shape: "cylinder",
+      x: 0,
+      y: baseH + (h - baseH) / 2,
+      z: 0,
+      sx: postDiam,
+      sy: h - baseH,
+      sz: postDiam,
+      colorOffset: 0.05,
+    },
+  ];
+  for (let i = 1; i <= perchCount; i++) {
+    const frac = Math.min(0.95, i / (perchCount + 1) + 0.15);
+    const y = h * frac;
+    const perchDiam = w * (0.6 + i * 0.1);
+    parts.push({
+      shape: "cylinder",
+      x: (i % 2 === 0 ? 1 : -1) * w * 0.1,
+      y,
+      z: 0,
+      sx: perchDiam,
+      sy: baseH * 0.6,
+      sz: perchDiam,
+      colorOffset: -0.05,
+    });
+  }
+  return parts;
+};
+
+/** Open wire pet crate: a solid base tray, four corner posts, and a top
+ * frame outline -- open sides implied by leaving them absent, same
+ * philosophy as `railGate`. */
+const crateShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const trayH = Math.max(1, h * 0.08);
+  const postDiam = Math.max(1, Math.min(w, l) * 0.04);
+  const frameT = Math.max(0.5, postDiam * 0.7);
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: trayH / 2, z: 0, sx: w, sy: trayH, sz: l, colorOffset: -0.15 },
+  ];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      parts.push({
+        shape: "cylinder",
+        x: sx * (w / 2 - postDiam / 2),
+        y: h / 2,
+        z: sz * (l / 2 - postDiam / 2),
+        sx: postDiam,
+        sy: h,
+        sz: postDiam,
+        colorOffset: -0.1,
+      });
+    }
+  }
+  for (const sz of [-1, 1]) {
+    parts.push({
+      shape: "box",
+      x: 0,
+      y: h - frameT / 2,
+      z: sz * (l / 2 - postDiam / 2),
+      sx: w,
+      sy: frameT,
+      sz: frameT,
+      colorOffset: 0.1,
+    });
+  }
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "box",
+      x: sx * (w / 2 - postDiam / 2),
+      y: h - frameT / 2,
+      z: 0,
+      sx: postDiam,
+      sy: frameT,
+      sz: l,
+      colorOffset: 0.1,
+    });
+  }
+  return parts;
+};
+
+/** A flat floor mat with two shallow bowls -- pet food/water station. */
+const bowlStation: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const matH = Math.max(0.5, h * 0.15);
+  const bowlH = Math.max(1, h - matH);
+  const bowlDiam = Math.min(w, l) * 0.35;
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: matH / 2, z: 0, sx: w, sy: matH, sz: l, colorOffset: -0.05 },
+  ];
+  for (const sx of [-1, 1]) {
+    parts.push({
+      shape: "cylinder",
+      x: sx * w * 0.22,
+      y: matH + bowlH / 2,
+      z: 0,
+      sx: bowlDiam,
+      sy: bowlH,
+      sz: bowlDiam,
+      colorOffset: sx > 0 ? 0.15 : -0.15,
+    });
+  }
+  return parts;
+};
+
+/** Round fire pit: an outer rim, a darker recessed inner bowl (like
+ * `tubShape`'s basin trick), and a small flame cone. */
+const firePitShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const wallThickness = Math.min(w, l) * 0.15;
+  const flameH = h * 0.6;
+
+  return [
+    { shape: "cylinder", x: 0, y: h / 2, z: 0, sx: w, sy: h, sz: l, colorOffset: -0.1 },
+    {
+      shape: "cylinder",
+      x: 0,
+      y: h * 0.55 + (h * 0.45) / 2,
+      z: 0,
+      sx: Math.max(1, w - wallThickness * 2),
+      sy: h * 0.45,
+      sz: Math.max(1, l - wallThickness * 2),
+      colorOffset: -0.3,
+    },
+    {
+      shape: "cone",
+      x: 0,
+      y: h + flameH / 2,
+      z: 0,
+      sx: w * 0.3,
+      sy: flameH,
+      sz: l * 0.3,
+      colorOffset: 0.4,
+    },
+  ];
+};
+
+/** Hammock: two end uprights (each with a small crossbar accent) and a
+ * shallow bed slung between them at mid-height. */
+const hammockShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const postDiam = Math.max(1, Math.min(w, h) * 0.08);
+  const bedH = h * 0.4;
+
+  const parts: ProceduralPart[] = [];
+  for (const sz of [-1, 1]) {
+    parts.push({
+      shape: "cylinder",
+      x: 0,
+      y: h / 2,
+      z: sz * (l / 2 - postDiam / 2),
+      sx: postDiam,
+      sy: h,
+      sz: postDiam,
+      colorOffset: -0.15,
+    });
+    parts.push({
+      shape: "box",
+      x: 0,
+      y: h * 0.92,
+      z: sz * (l / 2 - postDiam / 2),
+      sx: w * 0.5,
+      sy: postDiam * 0.6,
+      sz: postDiam,
+      colorOffset: -0.05,
+    });
+  }
+  parts.push({
+    shape: "box",
+    x: 0,
+    y: bedH,
+    z: 0,
+    sx: w,
+    sy: Math.max(1, h * 0.08),
+    sz: l * 0.7,
+    colorOffset: 0.1,
+  });
+  return parts;
+};
+
+/** Crib: a mattress slab, four tall corner posts, and vertical slatted
+ * side rails (like `railGate`'s spindle technique). Spindle count via
+ * `spindleCount`. */
+const cribShape: ProceduralGenerator = (dims, params) => {
+  const { w, h, l } = dims;
+  const mattressH = Math.max(1, h * 0.15);
+  const postDiam = Math.max(1, Math.min(w, l) * 0.06);
+  const spindleCount = Math.max(2, Math.round(num(params, "spindleCount", 6)));
+  const spindleDiam = Math.max(0.5, postDiam * 0.35);
+
+  const parts: ProceduralPart[] = [
+    {
+      shape: "box",
+      x: 0,
+      y: Math.min(h * 0.95, mattressH * 1.5),
+      z: 0,
+      sx: w * 0.94,
+      sy: mattressH,
+      sz: l * 0.94,
+      colorOffset: 0.1,
+    },
+  ];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      parts.push({
+        shape: "cylinder",
+        x: sx * (w / 2 - postDiam / 2),
+        y: h / 2,
+        z: sz * (l / 2 - postDiam / 2),
+        sx: postDiam,
+        sy: h,
+        sz: postDiam,
+        colorOffset: -0.1,
+      });
+    }
+  }
+  for (const sz of [-1, 1]) {
+    for (let i = 1; i <= spindleCount; i++) {
+      const frac = i / (spindleCount + 1);
+      parts.push({
+        shape: "cylinder",
+        x: (frac - 0.5) * Math.max(1, w - postDiam * 2),
+        y: h * 0.6,
+        z: sz * (l / 2 - postDiam / 2),
+        sx: spindleDiam,
+        sy: h * 0.8,
+        sz: spindleDiam,
+        colorOffset: -0.05,
+      });
+    }
+  }
+  return parts;
+};
+
+/** High chair: a seat box with a backrest panel on four tall thin legs,
+ * plus a small forward tray. */
+const highChairShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const seatH = h * 0.55;
+  const seatT = Math.max(1, h * 0.08);
+  const legDiam = Math.max(1, Math.min(w, l) * 0.08);
+  const backH = Math.max(1, h - seatH);
+
+  const parts: ProceduralPart[] = [
+    { shape: "box", x: 0, y: seatH, z: 0, sx: w * 0.85, sy: seatT, sz: l * 0.85 },
+    {
+      shape: "box",
+      x: 0,
+      y: seatH + backH / 2,
+      z: -l * 0.38,
+      sx: w * 0.8,
+      sy: backH,
+      sz: Math.max(1, l * 0.1),
+      colorOffset: -0.05,
+    },
+    {
+      shape: "box",
+      x: 0,
+      y: seatH + seatT,
+      z: l * 0.3,
+      sx: w * 0.75,
+      sy: Math.max(1, h * 0.03),
+      sz: l * 0.25,
+      colorOffset: 0.15,
+    },
+  ];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      parts.push({
+        shape: "cylinder",
+        x: sx * (w / 2 - legDiam),
+        y: seatH / 2,
+        z: sz * (l / 2 - legDiam),
+        sx: legDiam,
+        sy: seatH,
+        sz: legDiam,
+        colorOffset: -0.15,
+      });
+    }
+  }
+  return parts;
+};
+
+/** Bean bag chair: a large squashed sphere body with a smaller fold
+ * accent near the top. */
+const beanBagShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  return [
+    { shape: "sphere", x: 0, y: h * 0.42, z: 0, sx: w, sy: h * 0.85, sz: l },
+    {
+      shape: "sphere",
+      x: 0,
+      y: h * 0.72,
+      z: 0,
+      sx: w * 0.5,
+      sy: h * 0.35,
+      sz: l * 0.5,
+      colorOffset: -0.08,
+    },
+  ];
+};
+
+/** Low padded base with a thick cushion slab on top -- futon/daybed
+ * silhouette. */
+const paddedBaseShape: ProceduralGenerator = (dims) => {
+  const { w, h, l } = dims;
+  const baseH = h * 0.35;
+  const cushionH = Math.max(1, h - baseH);
+
+  return [
+    {
+      shape: "box",
+      x: 0,
+      y: baseH / 2,
+      z: 0,
+      sx: w * 0.96,
+      sy: baseH,
+      sz: l * 0.96,
+      colorOffset: -0.15,
+    },
+    {
+      shape: "box",
+      x: 0,
+      y: baseH + cushionH / 2,
+      z: 0,
+      sx: w,
+      sy: cushionH,
+      sz: l,
+      colorOffset: 0.12,
+    },
+  ];
+};
+
 export const PROCEDURAL_GENERATORS: Record<string, ProceduralGenerator> = {
   legFrame,
   cabinetBox,
   cubeGridShelf,
   ladderShelf,
   doorWardrobe,
+  postShelfUnit,
+  pegGridPanel,
+  ladderShape,
+  cylinderTank,
+  lidBox,
+  treadmillShape,
+  exerciseBikeShape,
+  dumbbellRackShape,
+  squatRackShape,
+  wallBarShape,
+  catTreeShape,
+  crateShape,
+  bowlStation,
+  firePitShape,
+  hammockShape,
+  cribShape,
+  highChairShape,
+  beanBagShape,
+  paddedBaseShape,
   panelAccentBox,
   pedestalFixture,
   tubShape,

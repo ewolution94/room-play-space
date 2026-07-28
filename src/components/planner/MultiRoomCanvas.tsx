@@ -1,4 +1,13 @@
-import React, { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+  Suspense,
+  lazy,
+} from "react";
 import { toast } from "sonner";
 import type { RoomLayout, Point, Floor } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
@@ -33,7 +42,8 @@ import {
 import { HelpCircle, FolderOpen, Box, SlidersHorizontal } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { MultiRoomInspector } from "./MultiRoomInspector";
-import { ThreeDView, type RoomInstance3D } from "./ThreeDView";
+import type { RoomInstance3D } from "./ThreeDView";
+import { ThreeDViewFallback } from "./ThreeDViewFallback";
 import { RotateHint } from "./RotateHint";
 import { MobileZoomButtons } from "./canvas/MobileZoomButtons";
 import { FloorSwitcher } from "./FloorSwitcher";
@@ -110,6 +120,10 @@ interface MultiRoomCanvasProps {
   onDeleteFloor: (id: string) => void;
   onReorderFloors: (orderedIds: string[]) => void;
 }
+
+// Code-split from the eagerly-loaded route bundle -- see the matching
+// comment in canvas/CanvasArea.tsx (the other ThreeDView consumer).
+const ThreeDView = lazy(() => import("./ThreeDView").then((m) => ({ default: m.ThreeDView })));
 
 export function MultiRoomCanvas({
   t,
@@ -1125,13 +1139,15 @@ export function MultiRoomCanvas({
             generalization) rather than a separate implementation. */}
         {threeDActive && (
           <div className="absolute inset-0 z-10">
-            <ThreeDView
-              t={t}
-              lang={lang}
-              rooms={roomInstances}
-              selectedIds={new Set()}
-              isDark={isDark}
-            />
+            <Suspense fallback={<ThreeDViewFallback />}>
+              <ThreeDView
+                t={t}
+                lang={lang}
+                rooms={roomInstances}
+                selectedIds={new Set()}
+                isDark={isDark}
+              />
+            </Suspense>
           </div>
         )}
 
