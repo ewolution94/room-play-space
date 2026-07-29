@@ -1,5 +1,5 @@
-# Lovable to NAS Deployment Manifest & Blueprint
-This document serves as a guide and template for deploying **Lovable-exported TanStack Start applications** directly to a self-hosted **Docker container (via Portainer)** on a **home NAS** (Synology, QNAP, etc.).
+# NAS Deployment Manifest & Blueprint
+This document serves as a guide and template for deploying **TanStack Start applications** directly to a self-hosted **Docker container (via Portainer)** on a **home NAS** (Synology, QNAP, etc.).
 
 It details how to bypass Cloudflare's runtime dependency (`workerd`/Wrangler) while keeping build compatibility, and how to rewrite SSR error handling to prevent swallowed stack traces.
 
@@ -7,7 +7,7 @@ It details how to bypass Cloudflare's runtime dependency (`workerd`/Wrangler) wh
 
 ## 📋 The Problem Statement
 
-1. **The Cloudflare Lock-in**: Lovable-exported projects utilize `@lovable.dev/vite-tanstack-config` which builds the project as a Cloudflare Pages Worker bundle (`dist/server/index.js`).
+1. **The Cloudflare Lock-in**: this project's `vite.config.ts` uses `@cloudflare/vite-plugin` (at build time only) to produce a Cloudflare Pages Worker bundle (`dist/server/index.js`) — a natural fit if you deploy to Cloudflare, but not something a home NAS can run directly.
 2. **Workerd NAS Compatibility**: Running the default production preview command (`bun run preview`) runs `workerd` (Cloudflare Workers runtime). This binary frequently crashes or fails to start on consumer NAS devices because:
    - It requires specific CPU instruction sets (e.g., **AVX instructions**), which are missing on Intel Celeron/Pentium/Atom or older ARM processors commonly used in NAS hardware.
    - It runs virtualized V8 isolates which carry high memory overhead.
@@ -25,7 +25,7 @@ We solve this using a two-pronged approach:
 
 ## 📁 Required Files & Setup
 
-For any new Lovable project, copy or create the following files:
+For a fresh TanStack Start + Cloudflare-adapter project, copy or create the following files:
 
 ### 1. `entry.js` (Project Root)
 This is the production server entry point. It loads the compiled Worker bundle and serves static files from `dist/client`.
@@ -260,18 +260,11 @@ export function renderErrorPage(): string {
 
 ---
 
-### 6. `vite.config.ts` Update
-Ensure the config references our custom entry:
+### 6. `vite.config.ts`
+This project's `vite.config.ts` (root of the repo) is a plain, direct Vite config with no third-party wrapper — see that file for the full, current version. The two things that matter for this deployment blueprint specifically:
 
-```typescript
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-
-export default defineConfig({
-  tanstackStart: {
-    server: { entry: "server" },
-  },
-});
-```
+- The `tanstackStart(...)` plugin call passes `server: { entry: "server" }`, redirecting TanStack Start's bundled server entry to `src/server.ts` (the SSR error wrapper above) instead of its own default.
+- The `@cloudflare/vite-plugin` import is conditional on `command === "build"`, so `vite dev` never touches `workerd` at all — only `vite build` produces the Cloudflare Worker bundle format `entry.js` loads.
 
 ---
 

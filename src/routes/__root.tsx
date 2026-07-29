@@ -79,7 +79,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "description",
         content: "Design and visualize home office furniture layouts with drag-and-drop placement.",
       },
-      { name: "author", content: "Lovable" },
       { property: "og:title", content: "Büro Planner" },
       {
         property: "og:description",
@@ -87,21 +86,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Büro Planner" },
       {
         name: "twitter:description",
         content: "Design and visualize home office furniture layouts with drag-and-drop placement.",
-      },
-      {
-        property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c6329083-bb8a-4b32-8634-20e611e5f9a9/id-preview-2a2d64e0--0df7d15b-a1ee-4f56-9742-da1693d9eac1.lovable.app-1779115077126.png",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c6329083-bb8a-4b32-8634-20e611e5f9a9/id-preview-2a2d64e0--0df7d15b-a1ee-4f56-9742-da1693d9eac1.lovable.app-1779115077126.png",
       },
     ],
     links: [

@@ -24,6 +24,5 @@ npx tsc --noEmit -p tsconfig.json   # type-check
   touching `planner-math.ts`, `hallway-shapes.ts`, `ThreeDView.tsx`, or
   `CanvasArea.tsx`.
 - [`todo.md`](todo.md) — feature checklist / backlog.
-- [`LOVABLE_NAS_DEPLOYMENT.md`](LOVABLE_NAS_DEPLOYMENT.md) — deploying this
-  Lovable-exported TanStack Start app to a self-hosted NAS/Docker instead of
-  Cloudflare Pages.
+- [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md) — deploying this TanStack Start
+  app to a self-hosted NAS/Docker instead of Cloudflare Pages.
