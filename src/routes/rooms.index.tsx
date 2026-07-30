@@ -4,6 +4,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
+import { useSettings } from "@/hooks/use-settings";
 import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-catalog";
 import { STRINGS } from "@/lib/planner-translations";
 import type { RoomLayout, Lang, Floor } from "@/types/planner";
@@ -39,7 +40,7 @@ import {
   Sun,
   Moon,
   LayoutGrid,
-  Sparkles,
+  LayoutDashboard,
   ArrowRight,
   FileStack,
   MoreHorizontal,
@@ -52,15 +53,6 @@ export const Route = createFileRoute("/rooms/")({
   component: MultiRoomOverview,
 });
 
-// Tracks whether this browser tab has already generated the default
-// apartment layout this session. Module-level (not component state) so it
-// survives SPA navigation
-// between /rooms and /rooms/$roomId -- it only resets on an actual page
-// reload, which is what "on startup" should mean. Without this, navigating
-// back to /rooms after editing a room inside /rooms/$roomId would regenerate
-// a fresh layout and wipe out the edit you just made.
-let hasGeneratedRoomsThisSession = false;
-
 function MultiRoomOverview() {
   const { theme, toggleTheme, isDark } = useTheme();
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
@@ -71,19 +63,13 @@ function MultiRoomOverview() {
   // items" checkbox on the floor/building export/import dialogs below.
   const customCatalog = useCustomCatalog();
 
-  // Language management
-  const [lang, setLang] = useState<Lang>("en");
+  // Language + other cross-route preferences.
+  const { settings, update: updateSettings, recordLastActive } = useSettings();
+  const lang = settings.lang;
   const t = STRINGS[lang];
 
-  useEffect(() => {
-    const saved =
-      typeof window !== "undefined" ? window.localStorage.getItem("planner-lang") : null;
-    if (saved === "en" || saved === "de") setLang(saved);
-  }, []);
-
   const changeLanguage = (l: Lang) => {
-    setLang(l);
-    if (typeof window !== "undefined") window.localStorage.setItem("planner-lang", l);
+    updateSettings({ lang: l });
   };
 
   // Building state loaded from localStorage -- floors[] is the whole
@@ -281,29 +267,22 @@ function MultiRoomOverview() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const startFresh = () => {
-      // No name passed -- auto-named from position (index 0 -> "Ground
-      // Floor"/"Erdgeschoss"), same reasoning as addFloor above.
-      const floor = createFloor(generateDefaultApartmentLayout(lang));
-      setFloors([floor]);
-      setActiveFloorId(floor.id);
-      saveFloors([floor]);
-      saveActiveFloorId(floor.id);
-    };
-
-    if (!hasGeneratedRoomsThisSession) {
-      hasGeneratedRoomsThisSession = true;
-      startFresh();
-      return;
-    }
-
     const saved = loadFloors();
     if (saved && saved.length > 0) {
       setFloors(saved);
       setActiveFloorId(loadActiveFloorId(saved));
-    } else {
-      startFresh();
+      return;
     }
+
+    // Truly nothing saved yet (first-ever visit) -- seed with the
+    // showcase apartment. No name passed -- auto-named from position
+    // (index 0 -> "Ground Floor"/"Erdgeschoss"), same reasoning as
+    // addFloor above.
+    const floor = createFloor(generateDefaultApartmentLayout(lang));
+    setFloors([floor]);
+    setActiveFloorId(floor.id);
+    saveFloors([floor]);
+    saveActiveFloorId(floor.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -319,7 +298,8 @@ function MultiRoomOverview() {
   useEffect(() => {
     if (typeof window === "undefined" || !activeFloorId) return;
     saveActiveFloorId(activeFloorId);
-  }, [activeFloorId]);
+    recordLastActive({ type: "floor" });
+  }, [activeFloorId, recordLastActive]);
 
   // -------- Export / Import --------
   // Two scopes: just the currently-active floor, or the whole building
@@ -535,9 +515,9 @@ function MultiRoomOverview() {
             </div>
             {!isPortrait && (
               <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 shrink-0">
-                <Link to="/">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                  <span>{lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}</span>
+                <Link to="/dashboard">
+                  <LayoutDashboard className="h-4 w-4 text-amber-500" />
+                  <span>Dashboard</span>
                 </Link>
               </Button>
             )}
@@ -553,10 +533,10 @@ function MultiRoomOverview() {
           {isMobileViewOnly ? (
             <div className="flex items-center gap-2">
               {isPortrait && (
-                <HoverTooltip content={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
+                <HoverTooltip content="Dashboard">
                   <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
-                    <Link to="/">
-                      <Sparkles className="h-4 w-4 text-amber-500" />
+                    <Link to="/dashboard">
+                      <LayoutDashboard className="h-4 w-4 text-amber-500" />
                     </Link>
                   </Button>
                 </HoverTooltip>
@@ -599,10 +579,10 @@ function MultiRoomOverview() {
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               {isPortrait && (
-                <HoverTooltip content={lang === "de" ? "Einzelraum Planer" : "Single Room Planner"}>
+                <HoverTooltip content="Dashboard">
                   <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
-                    <Link to="/">
-                      <Sparkles className="h-4 w-4 text-amber-500" />
+                    <Link to="/dashboard">
+                      <LayoutDashboard className="h-4 w-4 text-amber-500" />
                     </Link>
                   </Button>
                 </HoverTooltip>

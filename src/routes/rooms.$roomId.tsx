@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
 import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
+import { useSettings } from "@/hooks/use-settings";
 import type { CatalogSaveDraft } from "@/types/planner";
 import { SWATCHES } from "@/lib/swatches";
 import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-catalog";
 import { Header } from "@/components/planner/Header";
 import { Sidebar } from "@/components/planner/sidebar";
 import { SaveToCatalogDialog } from "@/components/planner/sidebar/SaveToCatalogDialog";
+import { SettingsDialog } from "@/components/planner/SettingsDialog";
 import { CanvasArea } from "@/components/planner/canvas";
 import { TourOverlay } from "@/components/planner/TourOverlay";
 import {
@@ -33,6 +35,11 @@ function RoomPlannerWrapper() {
   const planner = useRoomPlanner(roomId);
   const { t, resetMode, setResetMode, confirmReset } = planner;
   const { collapsed: sidebarCollapsed, toggle: toggleSidebarCollapsed } = useSidebarCollapsed();
+  const { settings, update: updateSettings, recordLastActive } = useSettings();
+  useEffect(() => {
+    recordLastActive({ type: "room", roomId });
+  }, [roomId, recordLastActive]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // "My Own Catalog" -- see routes/index.tsx's matching block for why this
   // is owned at the route level rather than by Sidebar or CanvasArea.
@@ -122,6 +129,23 @@ function RoomPlannerWrapper() {
         setTourStep={planner.setTourStep}
         theme={theme}
         toggleTheme={toggleTheme}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={settings}
+        updateSettings={updateSettings}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebarCollapsed={toggleSidebarCollapsed}
+        onTakeTour={() => {
+          setSettingsOpen(false);
+          planner.setTourStep(0);
+          planner.setTourOpen(true);
+        }}
       />
 
       <AlertDialog open={resetMode !== null} onOpenChange={(o) => !o && setResetMode(null)}>

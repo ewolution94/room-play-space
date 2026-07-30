@@ -91,7 +91,22 @@ export function wallOutwardNormal(a: Point, b: Point): Point {
   return { x: dy / len, y: -dx / len };
 }
 
-const NAMED_WALLS = ["top", "right", "bottom", "left"];
+/**
+ * Intersection of two infinite lines, each given as a point plus a
+ * direction vector (need not be normalized). Returns null for parallel
+ * (including collinear) lines, which have either no intersection or
+ * infinitely many -- callers should have a fallback for that case, since a
+ * genuinely degenerate polygon (a straight 180-degree "corner") could hit
+ * it, even though none of the standard room-shapes.ts templates ever do.
+ */
+export function lineIntersection(p1: Point, d1: Point, p2: Point, d2: Point): Point | null {
+  const denom = d1.x * d2.y - d1.y * d2.x;
+  if (Math.abs(denom) < 1e-9) return null;
+  const t = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / denom;
+  return { x: p1.x + t * d1.x, y: p1.y + t * d1.y };
+}
+
+export const NAMED_WALLS = ["top", "right", "bottom", "left"] as const;
 
 /**
  * The key used to look up wall `index`'s tint in a room's `wallColors`

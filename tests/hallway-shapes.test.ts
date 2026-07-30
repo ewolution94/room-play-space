@@ -13,6 +13,7 @@ import {
   buildLHallwayCorners,
   buildTHallwayCorners,
   polygonClipPathPercent,
+  lineIntersection,
 } from "@/lib/hallway-shapes";
 import type { Point } from "@/types/planner";
 
@@ -333,5 +334,40 @@ describe("buildTHallwayCorners", () => {
     const stemCenter = (stemLeft + stemRight) / 2;
     const barCenter = (barLeft + barRight) / 2;
     assert.ok(Math.abs(stemCenter - barCenter) < 1e-9);
+  });
+});
+
+describe("lineIntersection", () => {
+  test("two perpendicular lines intersect at the expected point", () => {
+    const p = lineIntersection({ x: 0, y: 5 }, { x: 1, y: 0 }, { x: 3, y: 0 }, { x: 0, y: 1 });
+    assert.ok(p);
+    assert.ok(Math.abs(p!.x - 3) < 1e-9);
+    assert.ok(Math.abs(p!.y - 5) < 1e-9);
+  });
+
+  test("parallel lines return null", () => {
+    const p = lineIntersection({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 5 }, { x: 2, y: 0 });
+    assert.equal(p, null);
+  });
+
+  test("collinear lines return null (no unique intersection)", () => {
+    const p = lineIntersection({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 5, y: 0 }, { x: -1, y: 0 });
+    assert.equal(p, null);
+  });
+
+  test("works for non-axis-aligned (diagonal) lines", () => {
+    // y = x  and  y = -x + 4  meet at (2, 2)
+    const p = lineIntersection({ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 4, y: 0 }, { x: -1, y: 1 });
+    assert.ok(p);
+    assert.ok(Math.abs(p!.x - 2) < 1e-9);
+    assert.ok(Math.abs(p!.y - 2) < 1e-9);
+  });
+
+  test("direction vector length doesn't affect the result", () => {
+    const p1 = lineIntersection({ x: 0, y: 5 }, { x: 1, y: 0 }, { x: 3, y: 0 }, { x: 0, y: 1 });
+    const p2 = lineIntersection({ x: 0, y: 5 }, { x: 50, y: 0 }, { x: 3, y: 0 }, { x: 0, y: 0.01 });
+    assert.ok(p1 && p2);
+    assert.ok(Math.abs(p1!.x - p2!.x) < 1e-9);
+    assert.ok(Math.abs(p1!.y - p2!.y) < 1e-9);
   });
 });

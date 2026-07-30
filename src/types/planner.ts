@@ -313,6 +313,40 @@ export interface UseCustomCatalogReturn {
   replaceAll: (items: CustomCatalogItem[]) => void;
 }
 
+export type PlannerView = "2d" | "3d";
+
+// "floor" carries no id: /rooms already tracks + persists its own
+// activeFloorId (see rooms.index.tsx / FloorSwitcher.tsx) independently of
+// this settings store, so "last active thing was a floor" only needs to
+// mean "send them to /rooms" -- that route resolves which floor itself.
+export type LastActiveTarget = { type: "room"; roomId: string } | { type: "floor" };
+
+export interface PlannerSettings {
+  lang: Lang;
+  /** When true, `/` skips the dashboard and jumps straight to lastActive. */
+  quickEntry: boolean;
+  defaultView: PlannerView;
+  defaultZoom: number;
+  collisionDefault: boolean;
+  lastActive: LastActiveTarget | null;
+}
+
+/** Return shape of useSettings() (hooks/use-settings.ts) -- kept here for
+ * the same reason as UseCustomCatalogReturn above: components that only
+ * need the type (Header, SettingsDialog, Dashboard) shouldn't have to
+ * import the hook module itself. */
+export interface UseSettingsReturn {
+  settings: PlannerSettings;
+  /** False until the real localStorage value has been read (see
+   * use-settings.ts's doc comment) -- `settings` is DEFAULT_SETTINGS until
+   * then. Callers that need to seed one-time state from `settings` (rather
+   * than just render it) should wait for this to flip true first, or they'll
+   * capture the SSR-safe placeholder instead of the user's real value. */
+  hydrated: boolean;
+  update: (patch: Partial<PlannerSettings>) => void;
+  recordLastActive: (target: LastActiveTarget) => void;
+}
+
 // Rectangular rooms (exactly 4 corners) address a wall by name, as they
 // always have. Polygon rooms (hallways with an L/T floor shape, 5+ corners)
 // address a wall by its numeric index into `corners` -- see
@@ -463,6 +497,9 @@ export interface HeaderProps {
   setTourStep: (step: React.SetStateAction<number>) => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
+  /** Opens SettingsDialog -- owned by the route (rooms.$roomId.tsx), not by
+   * Header itself, same reasoning as every other dialog trigger here. */
+  onOpenSettings: () => void;
   roomsUrl?: string;
   /** Mobile "view only" mode (see useMobileViewOnly) -- strips the header
    * down to just identity + theme/language + navigation, since every
@@ -620,7 +657,7 @@ export interface TourOverlayProps {
 export interface UseRoomPlannerReturn {
   // State
   lang: Lang;
-  setLang: React.Dispatch<React.SetStateAction<Lang>>;
+  setLang: (lang: Lang) => void;
   t: TranslationStrings;
   roomW: number;
   setRoomW: React.Dispatch<React.SetStateAction<number>>;

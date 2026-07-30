@@ -21,6 +21,8 @@ import {
   Sun,
   Moon,
   LayoutGrid,
+  LayoutDashboard,
+  Settings,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
 import { Link } from "@tanstack/react-router";
@@ -47,6 +49,7 @@ export function Header({
   setTourStep,
   theme,
   toggleTheme,
+  onOpenSettings,
   roomsUrl,
   viewOnly,
 }: HeaderProps) {
@@ -256,6 +259,16 @@ export function Header({
                   }}
                 >
                   <HelpCircle className="mr-2 h-4 w-4" /> {t.takeTheTour}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onOpenSettings}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  {lang === "de" ? "Einstellungen" : "Settings"}
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setLang(lang === "en" ? "de" : "en")}>
                   <Languages className="mr-2 h-4 w-4" />

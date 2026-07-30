@@ -351,6 +351,52 @@ export function createHallwayLayout(
   };
 }
 
+/**
+ * Builds a new room from an arbitrary polygon (the IKEA-style wizard's
+ * shape gallery -- rectangle/L-shape/cut-corner, see room-shapes.ts) --
+ * same corners-to-RoomLayout shape as createHallwayLayout above (bounding
+ * box for width/length, explicit `corners`, free-spot placement), but for
+ * a plain room: no roomKind, no auto-placed doors (the wizard's own
+ * openings step decides what -- if anything -- gets added), and openings
+ * are supplied by the caller rather than derived from the shape itself.
+ */
+export function createRoomLayoutWithCorners(
+  rooms: RoomLayout[],
+  opts: {
+    name: string;
+    corners: Point[];
+    color: string;
+    openings?: Opening[];
+    x?: number;
+    y?: number;
+  },
+): RoomLayout {
+  const bb = polygonBoundingBox(opts.corners);
+  const width = bb.width;
+  const length = bb.height;
+
+  const spot =
+    opts.x !== undefined && opts.y !== undefined
+      ? { x: opts.x, y: opts.y }
+      : findFreeRoomSpot(rooms, width, length);
+
+  return {
+    id: crypto.randomUUID(),
+    name: opts.name,
+    width,
+    length,
+    x: spot.x,
+    y: spot.y,
+    rotation: 0,
+    color: opts.color,
+    items: [],
+    openings: opts.openings ?? [],
+    corners: opts.corners,
+    wallColors: {},
+    flooring: { ...DEFAULT_FLOORING },
+  };
+}
+
 const RANDOM_ROOM_TEMPLATES: {
   nameEn: string;
   nameDe: string;

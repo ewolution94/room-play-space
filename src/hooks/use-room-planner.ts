@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import type {
   Lang,
@@ -35,6 +35,7 @@ import {
 } from "@/lib/room-adjacency";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
+import { useSettings } from "@/hooks/use-settings";
 
 // Typical desk/table/counter height (cm) -- the default elevation a
 // newly-placed "on-top" item (lamp, laptop, vase, ...) gets so the 3D view
@@ -64,6 +65,15 @@ const WALL_MOUNT_DEFAULT_ELEVATION = 150;
 // every kitModel-mapped piece here renders as the real 3D model.
 export const DEFAULT_ROOM_W = 500;
 export const DEFAULT_ROOM_L = 400;
+
+// localStorage flag marking the onboarding tour as seen -- exported so the
+// dashboard's create flows (CreateSingleRoomFlow/CreateFloorFlow) can set
+// it directly at creation time. Without that, the tour still auto-opens
+// the first time useRoomPlanner mounts regardless of how the user got
+// there, which now means it ambushes a room/floor someone just deliberately
+// built from the dashboard, hiding the very content they asked for -- see
+// those components' own comments.
+export const TOUR_KEY = "planner-tour-v1-done";
 
 let defaultItemIdCounter = 0;
 function defaultOfficeItem(
@@ -186,16 +196,10 @@ export function buildDefaultOfficeItems(): Item[] {
 const itemHeight = (it: Item) => it.height ?? getDefaultHeight(it.icon, it.kind);
 
 export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
-  const [lang, setLang] = useState<Lang>("en");
+  const { settings, hydrated: settingsHydrated, update: updateSettings } = useSettings();
+  const lang = settings.lang;
+  const setLang = useCallback((l: Lang) => updateSettings({ lang: l }), [updateSettings]);
   const t = STRINGS[lang];
-  useEffect(() => {
-    const saved =
-      typeof window !== "undefined" ? window.localStorage.getItem("planner-lang") : null;
-    if (saved === "en" || saved === "de") setLang(saved);
-  }, []);
-  useEffect(() => {
-    if (typeof window !== "undefined") window.localStorage.setItem("planner-lang", lang);
-  }, [lang]);
 
   // Load data for a specific room if requested. Also hangs onto its own
   // floor's sibling rooms (read once, at mount) purely so `openWalls` below
@@ -844,8 +848,27 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     if (!rulerMode) clearRuler();
   }, [rulerMode]);
 
+  // -------- Apply user defaults (Settings dialog) on open --------
+  // threeDActive/zoomFactor/collisionEnabled above all start at fixed
+  // literals because useSettings() itself starts at DEFAULT_SETTINGS and
+  // only reflects the real saved value after its own hydration effect --
+  // reading settings.defaultView etc. directly in those useState()
+  // initializers would just capture that placeholder forever. Once
+  // settingsHydrated flips true (guaranteed to carry the real values, set
+  // together in the same update -- see useSettings' own doc comment), this
+  // applies them exactly once via the appliedDefaultsRef guard: these are
+  // "what a room starts as when opened," not something that should snap an
+  // already-open room to match if the user tweaks Settings mid-session.
+  const appliedDefaultsRef = useRef(false);
+  useEffect(() => {
+    if (!settingsHydrated || appliedDefaultsRef.current) return;
+    appliedDefaultsRef.current = true;
+    setThreeDActive(settings.defaultView === "3d");
+    setZoomFactor(settings.defaultZoom);
+    setCollisionEnabled(settings.collisionDefault);
+  }, [settingsHydrated, settings.defaultView, settings.defaultZoom, settings.collisionDefault]);
+
   // -------- Onboarding tour --------
-  const TOUR_KEY = "planner-tour-v1-done";
   const [tourOpen, setTourOpen] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   useEffect(() => {
