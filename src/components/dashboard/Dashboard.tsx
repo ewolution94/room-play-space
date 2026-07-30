@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { loadFloors } from "@/lib/floors";
-import type { Floor, Lang, PlannerSettings } from "@/types/planner";
+import { loadSingleRooms } from "@/lib/single-rooms";
+import { buildHomeOfficeRoom } from "@/lib/single-room-templates";
+import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
+import { TOUR_KEY } from "@/hooks/use-room-planner";
+import type { Lang, PlannerSettings } from "@/types/planner";
 import { CreateSingleRoomFlow } from "@/components/dashboard/CreateSingleRoomFlow";
 import { CreateFloorFlow } from "@/components/dashboard/CreateFloorFlow";
 import { RecentlyOpened } from "@/components/dashboard/RecentlyOpened";
+import { SingleRoomsList } from "@/components/dashboard/SingleRoomsList";
+import { FloorPlansList } from "@/components/dashboard/FloorPlansList";
 import { IkeaRoomWizard } from "@/components/dashboard/IkeaRoomWizard";
 import { SettingsDialog } from "@/components/planner/SettingsDialog";
 import type { Theme } from "@/hooks/use-theme";
@@ -21,19 +27,43 @@ interface DashboardProps {
 
 export function Dashboard({ settings, updateSettings, theme, toggleTheme }: DashboardProps) {
   const lang: Lang = settings.lang;
-  const [singleRoomMode, setSingleRoomMode] = useState<"scratch" | "example" | null>(null);
+  const createSingleRoom = useCreateSingleRoom();
+  const navigate = useNavigate();
+  const [scratchRoomOpen, setScratchRoomOpen] = useState(false);
   const [ikeaWizardOpen, setIkeaWizardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Client-only, same SSR-hydration-safe pattern as the app's other
-  // localStorage-backed reads (useCustomCatalog etc.) -- starts empty
-  // (matching what the server rendered) then fills in once mounted.
-  const [floors, setFloors] = useState<Floor[] | null>(null);
-  useEffect(() => {
-    setFloors(loadFloors() ?? []);
-  }, []);
 
-  const roomCount = floors?.reduce((sum, f) => sum + f.rooms.length, 0) ?? 0;
-  const hasSavedContent = (floors?.length ?? 0) > 0;
+  /**
+   * The tour explains the room editor, so it can only run inside a room --
+   * which is why the dashboard's Settings dialog showed no "take the tour"
+   * option at all, even though the identical dialog inside a room does.
+   * Rather than duplicate the tour here, this clears the seen-flag and
+   * opens a room, letting useRoomPlanner's existing first-mount auto-open
+   * do the rest. Returns null when there's no room to tour yet, which
+   * leaves the button hidden (see SettingsDialog's `onTakeTour`).
+   */
+  const startTour = () => {
+    const single = loadSingleRooms()[0];
+    if (single) {
+      window.localStorage.removeItem(TOUR_KEY);
+      navigate({ to: "/room/$roomId", params: { roomId: single.id } });
+      return;
+    }
+    const floorRoom = (loadFloors() ?? []).flatMap((f) => f.rooms)[0];
+    if (!floorRoom) return;
+    window.localStorage.removeItem(TOUR_KEY);
+    navigate({ to: "/rooms/$roomId", params: { roomId: floorRoom.id } });
+  };
+
+  // Only offered when there's actually somewhere to run it. Read after
+  // mount, not during render -- same SSR-hydration-safe pattern as the
+  // saved lists below.
+  const [hasAnyRoom, setHasAnyRoom] = useState(false);
+  useEffect(() => {
+    setHasAnyRoom(
+      loadSingleRooms().length > 0 || (loadFloors() ?? []).some((f) => f.rooms.length > 0),
+    );
+  }, []);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -82,6 +112,10 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
       </header>
 
       <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8">
+        {/* First thing on the page: for a returning user, resuming is
+            almost always what they came to do. */}
+        <RecentlyOpened lang={lang} lastActive={settings.lastActive} />
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -98,7 +132,7 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
             <CardContent className="grid grid-cols-3 gap-3">
               <button
                 type="button"
-                onClick={() => setSingleRoomMode("scratch")}
+                onClick={() => setScratchRoomOpen(true)}
                 className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:bg-accent hover:border-primary/40"
               >
                 <DoorOpen className="h-5 w-5 text-muted-foreground" />
@@ -106,9 +140,12 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
                   {lang === "de" ? "Von Grund auf" : "From scratch"}
                 </span>
               </button>
+              {/* No picker in between -- this builds the app's one example
+                  room (the hand-tuned home office) and opens it. See
+                  buildHomeOfficeRoom's doc comment. */}
               <button
                 type="button"
-                onClick={() => setSingleRoomMode("example")}
+                onClick={() => createSingleRoom(buildHomeOfficeRoom(lang))}
                 className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:bg-accent hover:border-primary/40"
               >
                 <Sparkles className="h-5 w-5 text-muted-foreground" />
@@ -147,39 +184,49 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <LayoutGrid className="h-5 w-5 text-primary" />
-              {lang === "de" ? "Gespeicherte Räume laden" : "Load Saved Rooms"}
-            </CardTitle>
-            <CardDescription>
-              {hasSavedContent
-                ? lang === "de"
-                  ? `${floors?.length ?? 0} Etage(n), ${roomCount} Raum/Räume gespeichert.`
-                  : `${floors?.length ?? 0} floor(s), ${roomCount} room(s) saved.`
-                : lang === "de"
-                  ? "Noch nichts gespeichert -- erstelle oben deinen ersten Raum."
-                  : "Nothing saved yet -- create your first room above."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <RecentlyOpened lang={lang} lastActive={settings.lastActive} />
-            <Button variant="outline" asChild className="w-full sm:w-auto">
-              <Link to="/rooms">
-                <LayoutGrid className="h-4 w-4" />
-                {lang === "de" ? "Alle Grundrisse öffnen" : "Open All Floor Plans"}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Saved content, split the same way the creation cards above are:
+            standalone rooms and floor plans are two separate systems with
+            separate storage and separate routes (see lib/single-rooms.ts),
+            so listing them together would put back exactly the confusion
+            that split was meant to remove. */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <DoorOpen className="h-5 w-5 text-primary" />
+                {lang === "de" ? "Deine einzelnen Räume" : "Your Single Rooms"}
+              </CardTitle>
+              <CardDescription>
+                {lang === "de"
+                  ? "Räume für sich, unabhängig von jedem Grundriss."
+                  : "Rooms on their own, independent of any floor plan."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SingleRoomsList lang={lang} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <LayoutGrid className="h-5 w-5 text-primary" />
+                {lang === "de" ? "Deine Grundrisse" : "Your Floor Plans"}
+              </CardTitle>
+              <CardDescription>
+                {lang === "de"
+                  ? "Mehrere Räume pro Etage, als zusammenhängendes Gebäude."
+                  : "Multiple rooms per floor, as one connected building."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FloorPlansList lang={lang} />
+            </CardContent>
+          </Card>
+        </div>
       </main>
 
-      <CreateSingleRoomFlow
-        lang={lang}
-        mode={singleRoomMode}
-        onOpenChange={(o) => !o && setSingleRoomMode(null)}
-      />
+      <CreateSingleRoomFlow lang={lang} open={scratchRoomOpen} onOpenChange={setScratchRoomOpen} />
       <IkeaRoomWizard lang={lang} open={ikeaWizardOpen} onOpenChange={setIkeaWizardOpen} />
       <SettingsDialog
         open={settingsOpen}
@@ -188,6 +235,7 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
         updateSettings={updateSettings}
         theme={theme}
         toggleTheme={toggleTheme}
+        onTakeTour={hasAnyRoom ? startTour : undefined}
       />
     </div>
   );

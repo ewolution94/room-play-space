@@ -361,6 +361,133 @@ isn't, use it — it caught things the three checks above can't (e.g. confirming
 a double-click handler's mobile-only guard actually left the user on the
 right screen, not just that it compiled).
 
+### When the browser _is_ available, four things that cost real time
+
+- **Test first-run flows against a genuinely empty browser profile.** Existing
+  localStorage masks exactly the bugs that only bite new users. Verifying an
+  onboarding change against a profile that already had data hid a tour that
+  ambushed freshly-created rooms, a floor that never got selected, and the
+  hydration bug described above — all of which showed up immediately on a
+  cleared profile.
+- **Assert against `localStorage`, not the UI.** For anything about *where data
+  landed*, read the actual keys via `javascript_tool`. That's what proved the
+  single-room flows create zero floors, and what caught the example apartment
+  stacking itself onto an upper storey while the screen looked perfectly fine.
+- **`screenshot` returns a scaled image** (e.g. 800×450 for a 1280×720
+  viewport) that does not map 1:1 to click coordinates. For anything needing
+  precision, query the DOM (`element.getBoundingClientRect()`) instead of
+  eyeballing pixels. Cached element refs also go stale after a layout shift —
+  re-read the page rather than trusting the last set.
+- **A drag that "does nothing" may be a guard doing its job.** Check
+  before/after DOM state before concluding an interaction is broken; a
+  wall-drag that was being correctly rejected for shrinking the room below the
+  minimum looked identical to a click that never registered. Similarly, a
+  long-lived tab's console history isn't evidence of current state — HMR leaves
+  stale errors for identifiers deleted two edits ago. Hard-reload before
+  believing one.
+
+## A room persists two different ways, and which one is never guessed
+
+A `RoomLayout` lives in one of two entirely separate stores:
+
+- **Inside a `Floor`** — `lib/floors.ts`, key `planner-multi-floors`, edited at
+  `/rooms/$roomId`, aware of its sibling rooms for wall-adjacency purposes.
+- **Standalone** — `lib/single-rooms.ts`, key `planner-single-rooms`, a bare
+  `RoomLayout[]` with no `Floor` wrapper, edited at `/room/$roomId` (singular).
+
+This split exists because for a while it didn't. Every "single room" the
+dashboard created was quietly wrapped in a one-room `Floor` and appended to the
+multi-floor array, which meant a standalone room showed up in the floor
+switcher as its own storey, got a "Back to Overview" button into the multi-room
+UI, and added another floor to the list every time someone made one. The two
+concepts were the same data and the same route, and users felt it.
+
+The load-bearing decision is that **nothing infers which store a room is in.**
+An explicit `RoomSource` ("floor" | "single") is threaded through
+`useRoomPlanner(roomId, source)`, `RoomEditor`'s prop, and `LastActiveTarget`'s
+`"room"` vs `"single-room"` variants. The tempting alternative — look the id up
+in one store and fall back to the other — silently picks the wrong backend the
+moment the two disagree, and the route always knows the answer for certain
+anyway. Don't add a "search both stores" helper; that's the conflation coming
+back.
+
+Two consequences worth knowing before touching this:
+
+- **Both routes render the same `components/planner/RoomEditor.tsx`.** The
+  routes are ~8 lines each and differ only in `source`; everything that varies
+  with it (which store, which `lastActive` variant, where the back pill points
+  and what it says) is derived *inside* the editor, so a route can't
+  accidentally pair one system's storage with the other's navigation. Edit the
+  editor, not the routes.
+- **New standalone-room entry points must go through `useCreateSingleRoom()`.**
+  It saves to the right store, marks the onboarding tour seen, and navigates to
+  `/room/$roomId`. The three creation flows each did this inline once and had
+  already drifted apart — only one of them also set an active floor — which is
+  exactly the class of bug a shared hook prevents.
+
+A related placement rule: **the apartment example is a *ground floor*, not "a
+floor."** `CreateFloorFlow`'s example path writes into floor index 0 (confirming
+first if that floor already has rooms); only "from scratch" appends. When it
+appended, the example arrived as "1st Floor"/"2nd Floor" and two clicks left
+duplicate apartments stacked on different storeys. Relatedly, don't treat
+`lib/default-apartment.ts`'s long decimal coordinates as arbitrary noise to
+tidy up — they're the user's own hand-dragged positions, re-imported verbatim.
+
+## One-shot state seeded from localStorage needs a hydration gate
+
+`useSettings()` starts at `DEFAULT_SETTINGS` (an SSR-safe placeholder) and only
+reflects the real stored value after its own effect fires. Anything that seeds
+*other* state from a setting exactly once — `use-room-planner.ts` applying
+`defaultView`/`defaultZoom`/`collisionDefault`, say — has to wait for the
+`hydrated` flag to flip true rather than reading `settings` directly. A
+`useState` initializer or one-shot effect runs once and only once, so reading
+too early bakes in the placeholder permanently and the setting appears to do
+nothing at all. This was a real bug, found only because a fresh browser profile
+was used for testing.
+
+The same "first mount is special" trap applies to the onboarding tour:
+`useRoomPlanner` auto-opens it the first time it ever mounts, regardless of how
+the user got there. Every deliberate room-creation path therefore marks
+`TOUR_KEY` as seen at creation time, or the tour covers the very room the user
+just asked to build.
+
+## Live-editable shapes in an SVG viewBox
+
+Two non-obvious rules, both learned by shipping the violation first, in the
+guided room-shape wizard (`RoomShapeCanvas.tsx`, `lib/room-shapes.ts`):
+
+1. **Never derive the `viewBox` from the shape being edited.** Recomputing it
+   from the live corners on every drag frame makes the whole canvas visibly
+   rescale in lockstep with the drag, because the rendered size is fixed while
+   the coordinate space moves. `computeStableViewBox()` is computed once, from
+   the *starting* shape, generously padded, and held fixed for the rest of the
+   session.
+2. **Stabilizing the viewBox doesn't stabilize anything sized from the live
+   shape.** `vector-effect="non-scaling-stroke"` keeps stroke widths constant
+   at any viewBox scale, but there is **no SVG equivalent for `font-size`** —
+   dimension labels kept growing and shrinking during drags even after fix (1),
+   because their `fontSize` was expressed in viewBox units derived from the
+   live bounding box. Text that must stay a constant on-screen size has to be
+   plain HTML, absolutely positioned and percentage-mapped into the stable
+   viewBox, not SVG `<text>`.
+
+The drag itself (`dragWallEdge()`) is "constrained whole-wall parallel
+translation": project the drag delta onto the dragged wall's own outward normal
+(an along-wall component is a no-op), translate that wall, then re-intersect it
+with each *unchanged* neighbouring wall's line (`lineIntersection`,
+`lib/hallway-shapes.ts`) to get the two new corner positions — rejecting the
+whole drag if it would invert a neighbour or shrink the bounding box below
+~60cm. It deliberately rounds every committed corner to 2 decimals: the
+intersection math produces values like `501.60711669921875`, which surfaced as
+15-digit dimension labels. That rounding is a fix, not a style choice.
+
+Note this is *not* the old `enableCornerDrag` code in `CanvasArea.tsx` (still
+hardcoded off) — that is genuinely unconstrained per-vertex dragging with no
+guards. The wizard has its own small, isolated canvas with no
+furniture/collision/opening-clamping concerns, so don't assume `dragWallEdge`
+can be dropped into the real editor as-is; "reshape a room that's already
+furnished" is a materially harder problem.
+
 ## Reusing the whole rendering/collision pipeline for a "variant" catalog item
 
 "My Own Catalog" and the built-in IKEA catalog (`lib/custom-catalog.ts`,

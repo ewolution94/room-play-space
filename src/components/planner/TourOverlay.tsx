@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import type { TourOverlayProps } from "@/types/planner";
@@ -51,9 +51,28 @@ export function TourOverlay({
     { key: "threeDControls" as const, selector: "#tour-sidebar" },
   ];
 
-  // Synchronize 3D active state with current tour step
+  // The view mode the user was in before the tour borrowed it. null means
+  // "not captured yet" -- a plain boolean can't distinguish that from
+  // "they were in 2D".
+  const viewBeforeTour = useRef<boolean | null>(null);
+
+  // Synchronize 3D active state with the current tour step, then hand the
+  // view back. The tour drives 3D itself for its last two steps, so without
+  // the restore below, finishing (or skipping from) those steps drops you
+  // into 3D mode you never asked for -- and silently overrides the
+  // defaultView setting for the rest of the session.
   useEffect(() => {
-    if (!tourOpen || !setThreeDActive) return;
+    if (!setThreeDActive) return;
+
+    if (!tourOpen) {
+      if (viewBeforeTour.current !== null) {
+        setThreeDActive(viewBeforeTour.current);
+        viewBeforeTour.current = null;
+      }
+      return;
+    }
+
+    if (viewBeforeTour.current === null) viewBeforeTour.current = threeDActive;
 
     const step = steps[Math.min(tourStep, steps.length - 1)];
     const is3dStep = step.key === "threeD" || step.key === "threeDControls";

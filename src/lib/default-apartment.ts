@@ -156,7 +156,7 @@ function buildRoom(spec: RoomSpec): RoomLayout {
 // --- Living room (north row) ---------------------------------------------
 const LIVING_W = 420;
 const LIVING_L = 380;
-export function buildLivingRoom(lang: Lang): RoomLayout {
+function buildLivingRoom(lang: Lang): RoomLayout {
   const doorPos = 165;
   return buildRoom({
     name: lang === "de" ? "Wohnzimmer" : "Living Room",
@@ -194,7 +194,7 @@ export function buildLivingRoom(lang: Lang): RoomLayout {
 // --- Kitchen (north row) ---------------------------------------------------
 const KITCHEN_W = 320;
 const KITCHEN_L = 300;
-export function buildKitchen(lang: Lang): RoomLayout {
+function buildKitchen(lang: Lang): RoomLayout {
   return buildRoom({
     name: lang === "de" ? "Küche" : "Kitchen",
     color: "#f59e0b",
@@ -233,7 +233,7 @@ export function buildKitchen(lang: Lang): RoomLayout {
 // --- Bathroom (north row) ---------------------------------------------------
 const BATH_W = 220;
 const BATH_L = 240;
-export function buildBathroom(lang: Lang): RoomLayout {
+function buildBathroom(lang: Lang): RoomLayout {
   return buildRoom({
     name: lang === "de" ? "Badezimmer" : "Bathroom",
     color: "#06b6d4",
@@ -257,7 +257,7 @@ export function buildBathroom(lang: Lang): RoomLayout {
 // --- Bedroom (south row) ----------------------------------------------------
 const BED_W = 380;
 const BED_L = 340;
-export function buildBedroom(lang: Lang): RoomLayout {
+function buildBedroom(lang: Lang): RoomLayout {
   return buildRoom({
     name: lang === "de" ? "Schlafzimmer" : "Bedroom",
     color: "#8b5cf6",
@@ -328,7 +328,7 @@ function buildOffice(lang: Lang): RoomLayout {
 // --- Dining room (south row) -------------------------------------------------
 const DINING_W = 340;
 const DINING_L = 300;
-export function buildDiningRoom(lang: Lang): RoomLayout {
+function buildDiningRoom(lang: Lang): RoomLayout {
   return buildRoom({
     name: lang === "de" ? "Esszimmer" : "Dining Room",
     color: "#ef4444",

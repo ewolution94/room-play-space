@@ -15,6 +15,7 @@ import type {
   UseRoomPlannerReturn,
   RoomLayout,
   RoomFlooring,
+  RoomSource,
 } from "@/types/planner";
 import { STRINGS } from "@/lib/planner-translations";
 import {
@@ -26,6 +27,7 @@ import {
 import { importSchema, formatZodError } from "@/lib/planner-schema";
 import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { loadFloors, saveFloors } from "@/lib/floors";
+import { findSingleRoom, updateSingleRoom } from "@/lib/single-rooms";
 import { DEFAULT_FLOORING } from "@/lib/floor-materials";
 import { buildExportFilename } from "@/lib/export-filename";
 import {
@@ -195,24 +197,30 @@ export function buildDefaultOfficeItems(): Item[] {
 // an explicit `height`.
 const itemHeight = (it: Item) => it.height ?? getDefaultHeight(it.icon, it.kind);
 
-export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
+export function useRoomPlanner(
+  roomId?: string,
+  source: RoomSource = "floor",
+): UseRoomPlannerReturn {
   const { settings, hydrated: settingsHydrated, update: updateSettings } = useSettings();
   const lang = settings.lang;
   const setLang = useCallback((l: Lang) => updateSettings({ lang: l }), [updateSettings]);
   const t = STRINGS[lang];
 
-  // Load data for a specific room if requested. Also hangs onto its own
-  // floor's sibling rooms (read once, at mount) purely so `openWalls` below
-  // can auto-detect which of *this* room's walls touch a neighbor's --
-  // siblings are never referenced again after this, and are not kept
-  // reactive: the single-room and multi-room views are different routes, so
-  // there's no way to be looking at a sibling's live position while editing
-  // this room. Deliberately scoped to the room's OWN floor only (see
-  // Floor in types/planner.ts) -- two floors never share a physical wall,
-  // so a room on another floor should never be treated as a touching
-  // neighbor here.
+  // Load data for a specific room if requested, from whichever store this
+  // room actually lives in (see RoomSource in types/planner.ts). Also hangs
+  // onto its own floor's sibling rooms (read once, at mount) purely so
+  // `openWalls` below can auto-detect which of *this* room's walls touch a
+  // neighbor's -- siblings are never referenced again after this, and are
+  // not kept reactive: the room editor and the multi-room overview are
+  // different routes, so there's no way to be looking at a sibling's live
+  // position while editing this room. Deliberately scoped to the room's OWN
+  // floor only (see Floor in types/planner.ts) -- two floors never share a
+  // physical wall, so a room on another floor should never be treated as a
+  // touching neighbor here. A "single" room has no siblings at all, by
+  // definition: it isn't part of any floor plan, so nothing can touch it.
   const getInitialRoomData = (): { room: any; siblings: RoomLayout[] } => {
     if (typeof window === "undefined" || !roomId) return { room: null, siblings: [] };
+    if (source === "single") return { room: findSingleRoom(roomId), siblings: [] };
     const floors = loadFloors();
     if (!floors) return { room: null, siblings: [] };
     const owningFloor = floors.find((f) => f.rooms.some((r) => r.id === roomId));
@@ -282,11 +290,24 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
     () => initialRoom?.openings ?? buildDefaultOfficeOpenings(),
   );
 
-  // Sync changes back to whichever floor this room actually belongs to --
-  // every other floor's rooms pass through untouched (see loadFloors/
+  // Sync changes back to whichever store this room came from. For a
+  // standalone room that's a one-line patch of its own entry; for a floor
+  // room, every other floor's rooms pass through untouched (see loadFloors/
   // saveFloors in lib/floors.ts).
   useEffect(() => {
     if (typeof window === "undefined" || !roomId) return;
+    if (source === "single") {
+      updateSingleRoom(roomId, {
+        width: roomW,
+        length: roomL,
+        items,
+        openings,
+        corners,
+        wallColors,
+        flooring,
+      });
+      return;
+    }
     const floors = loadFloors();
     if (!floors) return;
     const updatedFloors = floors.map((floor) => {
@@ -301,7 +322,7 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       };
     });
     saveFloors(updatedFloors);
-  }, [roomId, roomW, roomL, items, openings, corners, wallColors, flooring]);
+  }, [source, roomId, roomW, roomL, items, openings, corners, wallColors, flooring]);
 
   // -------- History (undo / redo) --------
   const stateRef = useRef<Snapshot>({
@@ -1299,10 +1320,10 @@ export function useRoomPlanner(roomId?: string): UseRoomPlannerReturn {
       lang === "de" ? `${items.length} Objekte` : `${items.length} items`,
       lang === "de" ? `${openings.length} Öffnungen` : `${openings.length} openings`,
     ];
-    // Prefer the room's own name (set when it's a room inside a floor --
-    // see RoomLayout.name) as the filename's basis; the standalone
-    // single-room planner (no roomId) has no such name, so falls back to a
-    // generic "Room"/"Raum" label instead. Either way, buildExportFilename
+    // Prefer the room's own name (every saved room has one, in either
+    // store -- see RoomLayout.name) as the filename's basis, falling back
+    // to a generic "Room"/"Raum" label when there's no saved room behind
+    // this editor at all. Either way, buildExportFilename
     // slugifies it and appends today's date -- just the starting point
     // shown in the dialog's editable filename field, not the final say.
     const roomLabel = initialRoom?.name || (lang === "de" ? "Raum" : "Room");

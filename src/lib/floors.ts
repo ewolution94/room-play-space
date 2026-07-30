@@ -25,7 +25,16 @@ export const ACTIVE_FLOOR_ID_KEY = "planner-active-floor-id";
 // migration source when MULTI_FLOORS_KEY has nothing saved yet.
 const LEGACY_ROOMS_KEY = "planner-multi-rooms";
 
-function isRoomLayoutArray(v: unknown): v is RoomLayout[] {
+/**
+ * Shallow "is this our own previously-saved room data" guard, shared with
+ * lib/single-rooms.ts -- both stores read back `RoomLayout[]` they wrote
+ * themselves, so they want the same cheap check (user-supplied *files* go
+ * through planner-schema.ts's far stricter zod schemas instead). Sharing
+ * one guard doesn't blur the two stores: what keeps them separate is
+ * distinct keys and distinct routes, not distinct copies of a type
+ * predicate.
+ */
+export function isRoomLayoutArray(v: unknown): v is RoomLayout[] {
   return (
     Array.isArray(v) &&
     v.every((r: Record<string, unknown>) => {

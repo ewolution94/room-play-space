@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -14,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/ui/number-field";
 import { RoomShapeCanvas } from "@/components/dashboard/RoomShapeCanvas";
+import { ColorSwatchPicker } from "@/components/dashboard/ColorSwatchPicker";
 import {
   ROOM_SHAPE_TEMPLATES,
   resizeRoomShape,
@@ -22,8 +22,7 @@ import {
 } from "@/lib/room-shapes";
 import { NAMED_WALLS, polygonBoundingBox, resolveWallSegment } from "@/lib/hallway-shapes";
 import { createRoomLayoutWithCorners } from "@/lib/multi-room-actions";
-import { createFloor, loadFloors, saveActiveFloorId, saveFloors } from "@/lib/floors";
-import { TOUR_KEY } from "@/hooks/use-room-planner";
+import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
 import { STRINGS } from "@/lib/planner-translations";
 import { SWATCHES } from "@/lib/swatches";
 import type { Lang, Opening, Point } from "@/types/planner";
@@ -49,7 +48,7 @@ const DEFAULT_OPENING_WIDTH = 90;
  * RoomShapeCanvas has none of that canvas's furniture/collision concerns.
  */
 export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps) {
-  const navigate = useNavigate();
+  const createSingleRoom = useCreateSingleRoom();
   const t = STRINGS[lang];
 
   const [step, setStep] = useState<WizardStep>("shape");
@@ -144,21 +143,16 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
   const finish = () => {
     if (!shapeKind || corners.length === 0) return;
     const trimmedName = roomName.trim() || (lang === "de" ? "Neuer Raum" : "New Room");
-    const floors = loadFloors() ?? [];
     const room = createRoomLayoutWithCorners([], {
       name: trimmedName,
       corners,
       color,
       openings,
+      x: 0,
+      y: 0,
     });
-    const floor = createFloor([room]);
-    saveFloors([...floors, floor]);
-    saveActiveFloorId(floor.id);
-    // Same reasoning as the other dashboard creation flows: don't ambush a
-    // just-built room with the separate first-visit tour overlay.
-    window.localStorage.setItem(TOUR_KEY, "1");
     onOpenChange(false);
-    navigate({ to: "/rooms/$roomId", params: { roomId: room.id } });
+    createSingleRoom(room);
   };
 
   return (
@@ -302,24 +296,7 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
                 autoFocus
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>{lang === "de" ? "Farbe" : "Color"}</Label>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {SWATCHES.map((sw) => (
-                  <button
-                    key={sw.value}
-                    type="button"
-                    onClick={() => setColor(sw.value)}
-                    className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${
-                      color.toLowerCase() === sw.value.toLowerCase()
-                        ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
-                        : "border-border/60"
-                    }`}
-                    style={{ backgroundColor: sw.value }}
-                  />
-                ))}
-              </div>
-            </div>
+            <ColorSwatchPicker lang={lang} value={color} onChange={setColor} />
 
             <DialogFooter className="sm:justify-between">
               <Button variant="outline" onClick={() => setStep("dimensions")}>

@@ -24,7 +24,17 @@ function IndexRoute() {
     if (!hydrated) return;
 
     if (settings.quickEntry && settings.lastActive) {
-      if (settings.lastActive.type === "room") {
+      // Each target resolves to its own system's route -- a standalone
+      // single room is NOT reachable at /rooms/$roomId (different store,
+      // see lib/single-rooms.ts), so the two roomId-carrying variants can't
+      // share a branch here.
+      if (settings.lastActive.type === "single-room") {
+        navigate({
+          to: "/room/$roomId",
+          params: { roomId: settings.lastActive.roomId },
+          replace: true,
+        });
+      } else if (settings.lastActive.type === "room") {
         navigate({
           to: "/rooms/$roomId",
           params: { roomId: settings.lastActive.roomId },

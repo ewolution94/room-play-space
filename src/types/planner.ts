@@ -319,7 +319,18 @@ export type PlannerView = "2d" | "3d";
 // activeFloorId (see rooms.index.tsx / FloorSwitcher.tsx) independently of
 // this settings store, so "last active thing was a floor" only needs to
 // mean "send them to /rooms" -- that route resolves which floor itself.
-export type LastActiveTarget = { type: "room"; roomId: string } | { type: "floor" };
+/**
+ * What "continue where you left off" should reopen. "room" and
+ * "single-room" both carry a roomId but resolve against different stores
+ * and different routes (see RoomSource below) -- collapsing them into one
+ * variant is exactly how a standalone room ends up being reopened inside
+ * the multi-room UI. "floor" needs no id: the multi-room overview restores
+ * its own active floor (see loadActiveFloorId in lib/floors.ts).
+ */
+export type LastActiveTarget =
+  | { type: "room"; roomId: string }
+  | { type: "single-room"; roomId: string }
+  | { type: "floor" };
 
 export interface PlannerSettings {
   lang: Lang;
@@ -631,12 +642,17 @@ export interface CanvasAreaProps {
   // siblings in the multi-room overview. See room-adjacency.ts.
   openWalls: Map<string, WallOpenInterval[]>;
   // When set, renders a labeled "back" pill at the bottom-left of the
-  // canvas that navigates here -- e.g. "/rooms", for a single room opened
-  // from the multi-room overview (see rooms.$roomId.tsx). Undefined on the
-  // standalone single-room planner route, which has no overview to return
-  // to. Previously this lived as a small icon-only button in the header
+  // canvas that navigates here -- "/rooms" for a room opened from the
+  // multi-room overview (rooms.$roomId.tsx), "/dashboard" for a standalone
+  // single room (room.$roomId.tsx), which has no overview to return to.
+  // Previously this lived as a small icon-only button in the header
   // instead; see Header.tsx's doc comment on why it moved.
   backUrl?: string;
+  // Overrides the pill's default "Back to Overview" wording. Required
+  // wherever backUrl doesn't actually point at the multi-room overview --
+  // sending someone to the dashboard under an "Overview" label is exactly
+  // the single-room/multi-room conflation this route split exists to undo.
+  backLabel?: string;
   // Opens the "Save to My Catalog" dialog, prefilled from a draft --
   // threaded down to InspectorSection's "Save to My Catalog" action on a
   // selected item. See SidebarProps.openSaveDialog's doc comment for why
@@ -653,6 +669,24 @@ export interface TourOverlayProps {
   threeDActive?: boolean;
   setThreeDActive?: React.Dispatch<React.SetStateAction<boolean>>;
 }
+
+/**
+ * Which store a room being edited actually lives in -- the two are
+ * genuinely separate systems, not two views of one dataset:
+ *
+ * - "floor": a room inside a multi-room floor plan (lib/floors.ts's
+ *   `planner-multi-floors`), edited at /rooms/$roomId, aware of its sibling
+ *   rooms for wall-adjacency purposes.
+ * - "single": a standalone room (lib/single-rooms.ts's
+ *   `planner-single-rooms`), edited at /room/$roomId. Has no siblings and
+ *   no floor to go "back" to.
+ *
+ * Passed explicitly to useRoomPlanner rather than inferred by looking the
+ * id up in both stores: an id-based guess would silently pick the wrong
+ * backend if the two ever collided, and "which system am I in" is a fact
+ * the route already knows for certain.
+ */
+export type RoomSource = "floor" | "single";
 
 export interface UseRoomPlannerReturn {
   // State

@@ -25,7 +25,11 @@ function isLastActive(v: unknown): v is LastActiveTarget | null {
   if (typeof v !== "object") return false;
   const obj = v as Record<string, unknown>;
   if (obj.type === "floor") return true;
-  if (obj.type === "room") return typeof obj.roomId === "string";
+  // A "room" written by a build that predates the single-room split still
+  // means what it said then -- a room inside a floor -- so it keeps
+  // resolving against /rooms/$roomId. Nothing needs migrating: rooms
+  // created as one-room floors back then really are floor rooms.
+  if (obj.type === "room" || obj.type === "single-room") return typeof obj.roomId === "string";
   return false;
 }
 
