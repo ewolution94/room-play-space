@@ -15,6 +15,7 @@ import { RotateHint } from "../RotateHint";
 import { HintBanner } from "./HintBanner";
 import { RoomDimensionBadge } from "./RoomDimensionBadge";
 import { CanvasOpenings } from "./CanvasOpenings";
+import { CanvasSlopes } from "./CanvasSlopes";
 import { CanvasItems } from "./CanvasItems";
 import { CanvasMarquee } from "./CanvasMarquee";
 import { CanvasRuler } from "./CanvasRuler";
@@ -106,6 +107,11 @@ export function CanvasArea({
   updateOpening,
   removeOpening,
   openWalls,
+  ceilingHeight,
+  setCeilingHeight,
+  wallSlopes,
+  setWallSlopes,
+  slopeIssues,
   backUrl,
   backLabel,
   openSaveDialog,
@@ -184,9 +190,10 @@ export function CanvasArea({
         wallColors,
         openWalls,
         flooring,
+        ceilingHeight,
       },
     ],
-    [roomW, roomL, corners, items, openings, wallColors, openWalls, flooring],
+    [roomW, roomL, corners, items, openings, wallColors, openWalls, flooring, ceilingHeight],
   );
 
   // Auto-expand inspector when selection changes
@@ -642,6 +649,17 @@ export function CanvasArea({
                         </g>
                       );
                     })}
+
+                  {/* Sloped ceilings, drawn over the floor but under the
+                      openings/items layers that follow -- see CanvasSlopes. */}
+                  <CanvasSlopes
+                    corners={corners}
+                    wallSlopes={wallSlopes}
+                    ceilingHeight={ceilingHeight}
+                    cm={cm}
+                    idKey={String(scaleKey)}
+                    lang={lang}
+                  />
                 </svg>
 
                 {/* openings -- viewOnly makes a tap/drag on a door or
@@ -673,6 +691,7 @@ export function CanvasArea({
                   onItemPointerDown={isMobileViewOnly ? () => {} : onItemPointerDown}
                   onRotateHandleDown={isMobileViewOnly ? () => {} : onRotateHandleDown}
                   dragToRotateLabel={t.dragToRotate}
+                  slopeIssues={slopeIssues}
                 />
 
                 {/* marquee */}
@@ -1056,6 +1075,10 @@ export function CanvasArea({
               setWallColors={setWallColors}
               flooring={flooring}
               setFlooring={setFlooring}
+              ceilingHeight={ceilingHeight}
+              setCeilingHeight={setCeilingHeight}
+              wallSlopes={wallSlopes}
+              setWallSlopes={setWallSlopes}
               corners={corners}
               items={items}
               updateItem={updateItem}

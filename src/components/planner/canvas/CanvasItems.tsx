@@ -12,6 +12,11 @@ interface CanvasItemsProps {
   onItemPointerDown: (e: React.PointerEvent, item: Item) => void;
   onRotateHandleDown: (e: React.PointerEvent, item: Item) => void;
   dragToRotateLabel: string;
+  /** Items that are too tall for the sloped ceiling where they currently
+   * sit, keyed by item id (see SlopeFitIssue in CanvasArea.tsx). Deliberately
+   * a persistent marker rather than a drop-time toast: a layout you come back
+   * to tomorrow should still tell you what's wrong with it. */
+  slopeIssues?: Map<string, { available: number; required: number; shortfall: number }>;
 }
 
 // Base stacking order by layer -- "under" items (rugs, mats) always render
@@ -33,6 +38,7 @@ export function CanvasItems({
   onItemPointerDown,
   onRotateHandleDown,
   dragToRotateLabel,
+  slopeIssues,
 }: CanvasItemsProps) {
   return (
     <>
@@ -51,6 +57,7 @@ export function CanvasItems({
         const preset = it.icon ? PRESET_BY_KEY[it.icon] : undefined;
         const isKitTinted =
           !!preset?.kitModel && it.color.toLowerCase() !== preset.color.toLowerCase();
+        const slopeIssue = slopeIssues?.get(it.id);
         return (
           <div
             key={it.id}
@@ -66,10 +73,22 @@ export function CanvasItems({
               userSelect: "none",
               transform: `rotate(${it.rotation}deg)`,
               transformOrigin: "center center",
-              outline: isSelected ? "2px solid var(--primary)" : undefined,
-              outlineOffset: isSelected ? 2 : undefined,
+              // Selection wins the outline when both apply -- you need to
+              // see what you've got hold of. The slope warning still reads
+              // through via the badge below.
+              outline: isSelected
+                ? "2px solid var(--primary)"
+                : slopeIssue
+                  ? "2px dashed #f59e0b"
+                  : undefined,
+              outlineOffset: isSelected || slopeIssue ? 2 : undefined,
               zIndex: isSelected ? baseZ + 10 : baseZ,
             }}
+            title={
+              slopeIssue
+                ? `Needs ${Math.round(slopeIssue.required)} cm, only ${Math.round(slopeIssue.available)} cm available here`
+                : undefined
+            }
           >
             {/* Visible swatch -- separate from the outer hit box so the
                 collision/drag/rotation footprint always stays the full
@@ -89,6 +108,20 @@ export function CanvasItems({
                 aria-hidden="true"
               >
                 <Wand2 className="h-2.5 w-2.5" strokeWidth={3} />
+              </span>
+            )}
+            {/* Available headroom, shown on the item that's currently
+                selected -- which includes the one being dragged, since a
+                drag selects it and `items` updates live, so this reads as a
+                continuous "max NNN cm here" while you move something under
+                a slope. Counter-rotated so the text stays upright on a
+                rotated item. */}
+            {slopeIssue && isSelected && (
+              <span
+                className="pointer-events-none absolute -top-6 left-1/2 whitespace-nowrap rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-amber-950 shadow-sm"
+                style={{ transform: `translateX(-50%) rotate(${-it.rotation}deg)` }}
+              >
+                {Math.round(slopeIssue.available)} cm · −{Math.round(slopeIssue.shortfall)} cm
               </span>
             )}
             {(() => {

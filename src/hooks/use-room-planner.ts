@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import type {
   Lang,
@@ -16,6 +16,7 @@ import type {
   RoomLayout,
   RoomFlooring,
   RoomSource,
+  SlopeFitIssue,
 } from "@/types/planner";
 import { STRINGS } from "@/lib/planner-translations";
 import {
@@ -25,9 +26,14 @@ import {
   computeOnTopElevation,
 } from "@/lib/planner-math";
 import { importSchema, formatZodError } from "@/lib/planner-schema";
-import { getDefaultHeight, PRESET_BY_KEY } from "@/lib/planner-presets";
+import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { loadFloors, saveFloors } from "@/lib/floors";
 import { findSingleRoom, updateSingleRoom } from "@/lib/single-rooms";
+import {
+  DEFAULT_CEILING_HEIGHT,
+  checkItemFitsUnderSlopes,
+  type WallSlopeMap,
+} from "@/lib/wall-slopes";
 import { DEFAULT_FLOORING } from "@/lib/floor-materials";
 import { buildExportFilename } from "@/lib/export-filename";
 import {
@@ -279,6 +285,13 @@ export function useRoomPlanner(
   const [flooring, setFlooring] = useState<RoomFlooring>(
     () => initialRoom?.flooring ?? { ...DEFAULT_FLOORING },
   );
+  // Room height + sloped ceilings. Both default to "a plain box of the
+  // height the 3D view used to hardcode", so a room saved before either
+  // field existed behaves exactly as it always did.
+  const [ceilingHeight, setCeilingHeight] = useState<number>(
+    () => initialRoom?.ceilingHeight ?? DEFAULT_CEILING_HEIGHT,
+  );
+  const [wallSlopes, setWallSlopes] = useState<WallSlopeMap>(() => initialRoom?.wallSlopes ?? {});
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
   // Fully-furnished home office default -- see buildDefaultOfficeItems above.
@@ -305,6 +318,8 @@ export function useRoomPlanner(
         corners,
         wallColors,
         flooring,
+        ceilingHeight,
+        wallSlopes,
       });
       return;
     }
@@ -316,13 +331,69 @@ export function useRoomPlanner(
         ...floor,
         rooms: floor.rooms.map((r) =>
           r.id === roomId
-            ? { ...r, width: roomW, length: roomL, items, openings, corners, wallColors, flooring }
+            ? {
+                ...r,
+                width: roomW,
+                length: roomL,
+                items,
+                openings,
+                corners,
+                wallColors,
+                flooring,
+                ceilingHeight,
+                wallSlopes,
+              }
             : r,
         ),
       };
     });
     saveFloors(updatedFloors);
-  }, [source, roomId, roomW, roomL, items, openings, corners, wallColors, flooring]);
+  }, [
+    source,
+    roomId,
+    roomW,
+    roomL,
+    items,
+    openings,
+    corners,
+    wallColors,
+    flooring,
+    ceilingHeight,
+    wallSlopes,
+  ]);
+
+  /**
+   * Which items are too tall for the sloped ceiling above them, and by how
+   * much. Recomputed whenever anything that could change the answer moves --
+   * including mid-drag, since `items` updates live, which is what makes the
+   * on-item readout track continuously rather than only settling on drop.
+   *
+   * Lives here rather than in the canvas because the Elements list needs the
+   * exact same answer, and those two are siblings -- see CatalogSaveDraft's
+   * doc comment for the same reasoning about My Catalog. Costs nothing for
+   * the overwhelmingly common no-slopes room: it bails before touching items.
+   */
+  const slopeIssues = useMemo(() => {
+    const issues = new Map<string, SlopeFitIssue>();
+    if (Object.keys(wallSlopes).length === 0) return issues;
+    for (const it of items) {
+      // An item riding on top of something needs its host's height too --
+      // resolveEffectiveElevation already resolves that chain.
+      const required =
+        resolveEffectiveElevation(it, items) + (it.height ?? getDefaultHeight(it.icon, it.kind));
+      const { fits, availableHeight, shortfallCm } = checkItemFitsUnderSlopes(
+        it,
+        required,
+        corners,
+        wallSlopes,
+        ceilingHeight,
+      );
+      if (!fits) {
+        issues.set(it.id, { available: availableHeight, required, shortfall: shortfallCm });
+      }
+    }
+    return issues;
+  }, [items, corners, wallSlopes, ceilingHeight]);
 
   // -------- History (undo / redo) --------
   const stateRef = useRef<Snapshot>({
@@ -333,10 +404,22 @@ export function useRoomPlanner(
     corners,
     wallColors,
     flooring,
+    ceilingHeight,
+    wallSlopes,
   });
   useEffect(() => {
-    stateRef.current = { items, openings, roomW, roomL, corners, wallColors, flooring };
-  }, [items, openings, roomW, roomL, corners, wallColors, flooring]);
+    stateRef.current = {
+      items,
+      openings,
+      roomW,
+      roomL,
+      corners,
+      wallColors,
+      flooring,
+      ceilingHeight,
+      wallSlopes,
+    };
+  }, [items, openings, roomW, roomL, corners, wallColors, flooring, ceilingHeight, wallSlopes]);
 
   const historyRef = useRef<Snapshot[]>([]);
   const futureRef = useRef<Snapshot[]>([]);
@@ -383,6 +466,8 @@ export function useRoomPlanner(
       });
     }
     setFlooring(s.flooring ?? { ...DEFAULT_FLOORING });
+    setCeilingHeight(s.ceilingHeight ?? DEFAULT_CEILING_HEIGHT);
+    setWallSlopes(s.wallSlopes ?? {});
   };
 
   const undo = () => {
@@ -698,9 +783,7 @@ export function useRoomPlanner(
       p
         .filter((i) => !ids.has(i.id))
         .map((i) =>
-          i.placedOnId && ids.has(i.placedOnId)
-            ? { ...i, placedOnId: undefined, elevation: 0 }
-            : i,
+          i.placedOnId && ids.has(i.placedOnId) ? { ...i, placedOnId: undefined, elevation: 0 } : i,
         ),
     );
     setSelectedIds(new Set());
@@ -1314,6 +1397,8 @@ export function useRoomPlanner(
       corners,
       wallColors,
       flooring,
+      ceilingHeight,
+      wallSlopes,
     };
     const summaryLines = [
       `${roomW} × ${roomL} cm`,
@@ -1393,6 +1478,8 @@ export function useRoomPlanner(
       }
 
       setFlooring(data.flooring ?? { ...DEFAULT_FLOORING });
+      setCeilingHeight(data.ceilingHeight ?? DEFAULT_CEILING_HEIGHT);
+      setWallSlopes(data.wallSlopes ?? {});
 
       setOpenings(
         data.openings.map((o) => ({
@@ -1541,6 +1628,11 @@ export function useRoomPlanner(
     setWallColors,
     flooring,
     setFlooring,
+    ceilingHeight,
+    setCeilingHeight,
+    wallSlopes,
+    setWallSlopes,
+    slopeIssues,
     selectedOpeningId,
     setSelectedOpeningId,
     openWalls,

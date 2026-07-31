@@ -243,8 +243,60 @@ User: *"fix the fully furnished apartment room example. the way it was/should be
 - [x] **Real bug found and fixed: the tour left you stranded in 3D.** It switches to 3D for its last two steps but never handed the view back, so finishing (or skipping from) those steps dumped you into a mode you never chose -- and silently overrode the `defaultView` setting for the rest of the session. `TourOverlay` now captures the view mode when the tour opens and restores it when it closes.
 - [x] **Fixed: the tour was unreachable from the dashboard.** The same Settings dialog shows "Take the tour again" inside a room but hid it on the dashboard, because `onTakeTour` was never passed. The dashboard now clears `TOUR_KEY` and opens a room, letting `useRoomPlanner`'s existing first-mount auto-open run the tour -- no duplicated tour machinery. Hidden when there's no room to tour yet.
 
+### Deleting every floor is now allowed (2026-07-31)
+
+User: *"The last floor can't be deleted -> i should be able to. same logic as with single room: users can always get back the example layout i provided via the path 'From example'."*
+
+- [x] Removed the last-floor guard from `FloorPlansList`. The blocker was never the delete itself -- it was that `/rooms` re-seeded the **example apartment** whenever the store was empty, so deleting your only floor looked like it silently failed.
+- [x] `/rooms` now seeds a **blank** floor instead of the example apartment when nothing is saved. The example only ever arrives when explicitly asked for, via the dashboard's "From example" -- which is exactly what makes deleting everything safe. An empty floor rather than zero floors because the whole route assumes an active floor exists, and a blank Ground Floor with the add-room sidebar is a usable starting point rather than a dead end.
+- [x] The floor switcher *inside* `/rooms` keeps its own can't-delete-the-last-one rule -- deleting the floor you're currently standing on has nowhere to land. Consistent in intent: you can delete everything, just not while standing on it.
+- [x] Verified the full round trip: delete the only floor -> empty state, single rooms untouched -> visit `/rooms` -> blank Ground Floor, example did **not** resurrect -> "From example" -> all 7 rooms restored to the ground floor.
+
+### Sloped ceilings / "Schrägen" -- proposal + geometry layer (2026-07-31)
+
+Design written up in **`docs/SLOPED-WALLS-PROPOSAL.md`** -- read that first. Summary:
+
+- [x] **Geometry layer built and unit-tested** (`src/lib/wall-slopes.ts`, 25 tests). Deliberately **not wired into any UI** -- zero behaviour change, so it's safe to review and refine before anything depends on it.
+- Model: a slope belongs to a **wall**, described as `{ kneeHeight, run }` -- the low knee wall ("Kniestock") and how far into the room the ceiling takes to reach full height. Height at a point is the **minimum** over all sloped walls, so a gabled attic (two opposite slopes meeting at a ridge) composes for free. Keyed exactly like `wallColors`, so the existing per-wall UI pattern transfers.
+- The point of the whole feature is answering "how tall can something be here?" -- so `checkItemFitsUnderSlopes()` returns the shortfall in cm, not just a boolean.
+- [ ] **Prerequisite found: rooms have no height at all today.** `ThreeDView.tsx:780` hardcodes `const wallHeight = 240`, and the `roomHeight: "Wall Height (cm)"` translation string is wired to nothing. Slopes can't be expressed against a constant -- giving `RoomLayout` a real `ceilingHeight` is Phase 0 and is worth doing regardless.
+- [ ] Phases 2-5 (2D slope band + standing-height line, Inspector editing, furniture fit toast, 3D geometry, wizard step) -- see the proposal's phasing table. Phases 0-3 deliver the whole planning value without touching the 3D renderer.
+- [ ] Six open questions for the user in the proposal: block vs. warn on too-tall furniture; whether single/gable is enough (dormers scoped out); per-room vs. per-floor roofs; where slope editing lives; ceiling default on/off; per-room vs. per-floor ceiling height.
+
+**Extended 2026-07-31 with configurable wall height + a real ceiling** (user request). Findings that changed the plan:
+
+- Configurable wall height is **small and mechanical**: `wallHeight` occurs 7 times in `ThreeDView.tsx`, all inside one wall-building function, so it becomes `room.ceilingHeight ?? 240` at the top of the per-room loop. Everything else is the same set of seams `flooring` was added through (types, 2 room-instance construction sites, use-room-planner state + save-back + `Snapshot` for undo, schema, one Inspector field). Translation string already exists in both languages.
+- A ceiling is **easier than it sounds in two of three parts**: the mesh is literally the floor's `Shape`+`ShapeGeometry` code at `y = ceilingHeight` (polygon rooms included, free), and "how do you see in?" is already solved -- `ThreeDView` has a camera-aware fade system with hysteresis and a user-facing opacity control, so a ceiling registers with the same mechanism under a simpler predicate (camera above -> fade, camera inside -> solid). **The real risk is lighting**: the scene is currently lit through an open top, and the lamp fixtures were tuned that way.
+- **The ceiling should be built with the slopes, not after.** Without a ceiling surface a Dachschräge renders as "one wall is oddly short" -- it reads as a bug, not a roof. And a flat ceiling and a slanted one are one mesh family differing only in vertex heights, wanting the same fade and the same lighting fix. Doing slopes alone first means shipping a broken-looking 3D view and then redoing the same code. Phasing table updated accordingly (4a flat ceiling / 4b lighting / 4c slope surface -- one piece of work, split to show where the risk is).
+
+### Fixed: `/rooms` kept resurrecting a deleted floor (2026-07-31)
+
+User: *"the deleting of the default rooms entry works now but when i reload the page it is there again."*
+
+Reproduced exactly: delete every floor -> dashboard correctly shows "No floors yet" -> visit `/rooms` (or land there via the resume card / quick entry, since `lastActive` is `{type:"floor"}`) -> a floor silently reappears in the list.
+
+Root cause was my own previous fix being half a fix. `/rooms` auto-seeded on an empty store -- originally the whole example apartment, then (after that made deleting impossible) a *blank* floor. Both are the same bug: **visiting a page silently wrote data**, so the delete looked like it had failed either way.
+
+- [x] `/rooms` now creates **nothing** when there's nothing saved. Zero floors is a real, persisted state.
+- [x] Added an explicit empty state on `/rooms` -- "No floors yet", with a "Create a floor" button and a link back to the dashboard. Offers the action instead of performing it behind your back.
+- [x] Added a `hydrated` flag: the persist effect was guarded on `floors.length === 0` (to stop the pre-load placeholder clobbering saved data), which also made an empty building unsavable. Gating on `hydrated` instead expresses the real intent and lets "no floors" persist.
+- [x] Verified: delete all -> stays deleted across repeated reloads *and* route switches between `/rooms` and `/dashboard`; store stays `[]`; "Create a floor" then works and persists normally.
+
+### Sloped ceilings: Phases 0-3 shipped (2026-07-31)
+
+Design in `docs/SLOPED-WALLS-PROPOSAL.md`. Phases 0-3 deliver the whole planning value without touching the 3D renderer; phase 4 (ceiling mesh + 3D slope surfaces) is deliberately not started.
+
+- [x] **Phase 0 -- rooms have a real height.** `RoomLayout.ceilingHeight` (optional, defaults to 240 = the value `ThreeDView` used to hardcode, so every existing room is byte-identical). `wallHeight` in `ThreeDView.tsx` went from a module-level `const` to a per-room read inside the room loop -- all 7 uses (wall segments + door/window lintel maths) follow automatically because `buildWallSegments` is defined inside that loop and closes over it. Threaded through `RoomInstance3D` and both construction sites, use-room-planner state/save-back/`Snapshot`/export/import, `planner-schema` (bounded, it's the user-supplied-file path), and a new Inspector field using the `roomHeight` string that had been sitting unused in both languages.
+- [x] **Phase 2a -- slopes are authored and persisted.** `RoomLayout.wallSlopes`, keyed exactly like `wallColors`. New `RoomHeightSection.tsx` in the Inspector (split out rather than growing the 1000-line `InspectorSection`): per-wall add/remove, knee-wall + depth fields, and a derived readout -- *"Stand upright from 92 cm in · 41° pitch"*, which matched the unit test's 92.3cm exactly on first run.
+- [x] **Phase 2b -- the 2D overlay** (`CanvasSlopes.tsx`): gradient band `run` cm deep and darkest at the wall, dashed inner edge, contour lines at 100/150/**190**/220 with the standing-height line emphasised, and a "110 → 240 cm" range label. Clipped to the room polygon, so L-shaped rooms trim correctly for free. Contour labels are distributed *along* the wall, not stacked at its midpoint -- verified zero overlap by measuring the rendered text boxes.
+- [x] **Phase 3 -- fit feedback, warn-never-block.** Items too tall for the ceiling above them get a dashed amber outline + tooltip on the canvas, a live "113 cm · −87 cm" badge while selected/dragged (tracks continuously because `items` updates live), and a matching amber warning in the Elements list. Computed once in `useRoomPlanner` and shared, so the plan and the list can't disagree.
+- [x] **Bug found and fixed by the geometry, not by eye**: the band first drew *outside* the room. `resolveWallSegment` deliberately walks "bottom" and "left" in reverse winding order (kept that way so existing rooms render identically), which silently inverts any normal derived from `a`→`b`. New `inwardNormal()` probes the polygon with `pointInPolygon` instead of trusting winding. Locked down with 5 regression tests covering all four named walls plus an L-shaped polygon's numeric walls.
+- [x] Verified end-to-end in the browser against `localStorage`: 200cm wardrobe at x=3 against a 110cm knee wall -> flagged "Needs 200 cm, only 113 cm available here" (110 + 130×3/150 = 112.6, correct); moved to x=243, clear of the 150cm run -> all warnings gone. 538 tests, tsc clean, lint 18 errors/19 warnings against a 36/19 baseline.
+
 ### Still open
 
+- [ ] **Phase 4 (3D)**: ceiling mesh + show/hide checkbox, ambient compensation, then sloped wall profiles + the slanted ceiling surface. Not started -- see the proposal's phasing table.
+- [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` yet; roof windows (*Dachfenster*) remain out of scope.
 - [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it (e.g. `/rooms` → open a room from the auto-seeded apartment). Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.
 - [ ] The canvas's floating Room Inspector can overlap the bottom-left back pill at shorter viewport heights (~720px). Pre-existing and identical on `/rooms/$roomId` -- not introduced by this change, but now more visible since the back pill is a single room's main way out.
 - [ ] Pre-existing duplicate apartment floors from before the placement fix aren't cleaned up retroactively -- they're just ordinary floors now, deletable from the floor switcher (or now from the dashboard).

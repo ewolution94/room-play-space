@@ -10,6 +10,7 @@ import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/li
 import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/lib/kit-models";
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
+import { DEFAULT_CEILING_HEIGHT } from "@/lib/wall-slopes";
 import { getFloorTexture } from "@/lib/floor-textures";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
@@ -144,6 +145,9 @@ export interface RoomInstance3D {
   // Missing/undefined (rooms saved before this feature existed) falls back
   // to DEFAULT_FLOORING wherever this is read (see getFloorTexture below).
   flooring?: RoomFlooring;
+  // Floor-to-ceiling height in cm. Absent falls back to
+  // DEFAULT_CEILING_HEIGHT, which is the value this file used to hardcode.
+  ceilingHeight?: number;
 }
 
 interface ThreeDViewProps {
@@ -777,7 +781,9 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     scene.add(gridHelper);
 
     // --- Draw segmented walls with door/window openings ---
-    const wallHeight = 240; // cm
+    // NOTE: wall HEIGHT is per-room (see `wallHeight` inside the room loop
+    // below) -- rooms carry their own ceilingHeight now. Thickness stays
+    // global; nothing has ever varied it per room.
     const wallThickness = 6; // cm
     const wallMat = new THREE.MeshStandardMaterial({
       color: "#f1f5f9", // slate-100
@@ -837,6 +843,12 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     // untouched.
     for (const [roomIndex, room] of rooms.entries()) {
       const isPolygonRoom = room.corners.length !== 4;
+      // This room's own floor-to-ceiling height. Everything below that used
+      // to read a single module-level 240 -- wall segments, and the lintel
+      // maths above doors and windows -- now scales with it automatically,
+      // since buildWallSegments is defined inside this loop and closes over
+      // it.
+      const wallHeight = room.ceilingHeight ?? DEFAULT_CEILING_HEIGHT;
 
       // --- Floor mesh (wood/tile/concrete/carpet/etc, see floor-textures.ts) ---
       // Built directly from this room's own corners (works for both plain

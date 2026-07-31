@@ -10,7 +10,6 @@ import { STRINGS } from "@/lib/planner-translations";
 import type { RoomLayout, Lang, Floor } from "@/types/planner";
 import { MultiRoomCanvas } from "@/components/planner/MultiRoomCanvas";
 import { MultiRoomSidebar } from "@/components/planner/MultiRoomSidebar";
-import { generateDefaultApartmentLayout } from "@/lib/default-apartment";
 import {
   loadFloors,
   saveFloors,
@@ -44,6 +43,7 @@ import {
   ArrowRight,
   FileStack,
   MoreHorizontal,
+  Plus,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
@@ -81,6 +81,13 @@ function MultiRoomOverview() {
   // needs to know floors exist at all.
   const [floors, setFloors] = useState<Floor[]>([]);
   const [activeFloorId, setActiveFloorId] = useState<string>("");
+  // False until the load effect below has read localStorage. Everything
+  // that writes floors back has to wait for this: `floors` starts as [] to
+  // match what the server rendered, and persisting that placeholder would
+  // wipe the real saved building on every mount. Distinguishing "not read
+  // yet" from "genuinely has no floors" is also what lets an empty
+  // building be a real, savable state instead of an impossible one.
+  const [hydrated, setHydrated] = useState(false);
   // Which way the floor-switch transition animation should play -- "up"
   // when the newly-active floor sits higher in the stack (floors[] index)
   // than the one we just left, "down" otherwise. Set right before
@@ -254,43 +261,41 @@ function MultiRoomOverview() {
   // toggle (see use-room-planner.ts).
   const [threeDActive, setThreeDActive] = useState(false);
 
-  // Load the building's initial state. On true app startup (first mount
-  // this session) we always generate a single ground floor with the
-  // default fully-furnished 6-room apartment (see default-apartment.ts)
-  // rather than reloading whatever was left over from last time, so every
-  // session starts from the same deliberate showcase layout instead of
-  // accumulating leftover test edits. Returning to this route later in the
-  // same session (e.g. back from /rooms/$roomId) just reloads from
-  // localStorage as normal (transparently migrating a legacy single-floor
-  // save if that's all that's there -- see loadFloors in lib/floors.ts),
-  // preserving whatever you were just editing, floors included.
+  // Load the building's saved state. Deliberately creates NOTHING when
+  // there's nothing saved.
+  //
+  // This route used to auto-seed on an empty store -- first the
+  // fully-furnished showcase apartment, then (after that made deleting
+  // everything impossible) a blank floor. Both were wrong for the same
+  // reason: visiting a page silently wrote data, so deleting your last
+  // floor and coming back here resurrected one, and the delete looked like
+  // it had failed. Nothing here creates a floor now; the empty state below
+  // offers an explicit button instead, and the example apartment only ever
+  // arrives via the dashboard's "From example". `rooms` already resolves to
+  // [] when there's no active floor (see above), so zero floors is a state
+  // the rest of this route handles rather than a case to be avoided.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const saved = loadFloors();
-    if (saved && saved.length > 0) {
-      setFloors(saved);
-      setActiveFloorId(loadActiveFloorId(saved));
+    if (!saved || saved.length === 0) {
+      setHydrated(true);
       return;
     }
-
-    // Truly nothing saved yet (first-ever visit) -- seed with the
-    // showcase apartment. No name passed -- auto-named from position
-    // (index 0 -> "Ground Floor"/"Erdgeschoss"), same reasoning as
-    // addFloor above.
-    const floor = createFloor(generateDefaultApartmentLayout(lang));
-    setFloors([floor]);
-    setActiveFloorId(floor.id);
-    saveFloors([floor]);
-    saveActiveFloorId(floor.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setFloors(saved);
+    setActiveFloorId(loadActiveFloorId(saved));
+    setHydrated(true);
   }, []);
 
-  // Persist the building (all floors) to localStorage on any change.
+  // Persist the building (all floors) to localStorage on any change. Gated
+  // on `hydrated` rather than on floors being non-empty: the old
+  // length-based guard existed to stop the pre-load placeholder clobbering
+  // saved data, but it also made "no floors" unsavable, which is now a
+  // legitimate state.
   useEffect(() => {
-    if (typeof window === "undefined" || floors.length === 0) return;
+    if (typeof window === "undefined" || !hydrated) return;
     saveFloors(floors);
-  }, [floors]);
+  }, [floors, hydrated]);
 
   // Persist which floor is active separately -- see ACTIVE_FLOOR_ID_KEY's
   // doc comment in lib/floors.ts for why this isn't folded into the floors
@@ -744,8 +749,41 @@ function MultiRoomOverview() {
         }}
       />
 
+      {/* No floors at all -- the planner UI would be a floor plan of
+          nothing, and auto-creating one here is exactly what made deleting
+          your last floor feel broken (it silently came back). Offer the
+          action instead of performing it. */}
+      {hydrated && floors.length === 0 && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+          <LayoutGrid className="h-10 w-10 text-muted-foreground/50" />
+          <div>
+            <p className="text-base font-medium">
+              {lang === "de" ? "Noch keine Etage" : "No floors yet"}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {lang === "de"
+                ? "Erstelle eine leere Etage, oder lade die Beispiel-Wohnung vom Dashboard."
+                : "Create an empty floor, or load the example apartment from the dashboard."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button onClick={addFloor}>
+              <Plus className="h-4 w-4" />
+              {lang === "de" ? "Etage erstellen" : "Create a floor"}
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/dashboard">
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Main floor-plan planner panel */}
       <div
+        hidden={hydrated && floors.length === 0}
         className={
           isMobileViewOnly
             ? "flex flex-1 min-h-0 w-full flex-col p-2"

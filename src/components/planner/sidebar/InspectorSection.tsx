@@ -26,6 +26,8 @@ import {
 import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
+import type { WallSlopeMap } from "@/lib/wall-slopes";
+import { RoomHeightSection } from "@/components/planner/sidebar/RoomHeightSection";
 import { FLOOR_MATERIALS } from "@/lib/floor-materials";
 import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
 import { PRESET_BY_KEY, getDefaultHeight, resolveEffectiveElevation } from "@/lib/planner-presets";
@@ -57,6 +59,10 @@ interface InspectorSectionProps {
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   flooring: RoomFlooring;
   setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
+  ceilingHeight: number;
+  setCeilingHeight: (h: number) => void;
+  wallSlopes: WallSlopeMap;
+  setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
   corners: Point[];
   items: Item[];
   updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
@@ -93,6 +99,10 @@ export function InspectorSection({
   setSelectedOpeningId,
   wallColors,
   setWallColors,
+  ceilingHeight,
+  setCeilingHeight,
+  wallSlopes,
+  setWallSlopes,
   flooring,
   setFlooring,
   corners,
@@ -362,7 +372,9 @@ export function InspectorSection({
                       <input
                         type="color"
                         value={selectedOpening.color || "#475569"}
-                        onChange={(e) => updateOpening(selectedOpening.id, { color: e.target.value })}
+                        onChange={(e) =>
+                          updateOpening(selectedOpening.id, { color: e.target.value })
+                        }
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                         disabled={threeDActive}
                       />
@@ -911,6 +923,20 @@ export function InspectorSection({
 
               <div className="h-px bg-border/20 my-3" />
 
+              {/* Room height + sloped ceilings ("Dachschrägen") */}
+              <RoomHeightSection
+                t={t}
+                lang={lang}
+                corners={corners}
+                ceilingHeight={ceilingHeight}
+                setCeilingHeight={setCeilingHeight}
+                wallSlopes={wallSlopes}
+                setWallSlopes={setWallSlopes}
+                disabled={threeDActive}
+              />
+
+              <div className="h-px bg-border/20 my-3" />
+
               {/* Wall Colors Section */}
               <div className="space-y-2">
                 <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -1020,7 +1046,11 @@ export function InspectorSection({
                               : "border-border/40 hover:border-border/80"
                           }`}
                         >
-                          <FloorSwatchPreview materialKey={mat.key} color={previewColor} size={32} />
+                          <FloorSwatchPreview
+                            materialKey={mat.key}
+                            color={previewColor}
+                            size={32}
+                          />
                         </button>
                       </HoverTooltip>
                     );
@@ -1036,7 +1066,9 @@ export function InspectorSection({
                       <input
                         type="color"
                         value={flooring.color}
-                        onChange={(e) => setFlooring((prev) => ({ ...prev, color: e.target.value }))}
+                        onChange={(e) =>
+                          setFlooring((prev) => ({ ...prev, color: e.target.value }))
+                        }
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                         disabled={threeDActive}
                       />

@@ -41,6 +41,25 @@ const openingSchema = z.object({
   color: z.string().optional(),
 });
 
+// Room height and sloped ceilings ("Dachschrägen"), shared by the
+// single-room import shape and the per-room shape inside a multi-floor
+// import so the two can't drift. Bounded for the same reason every other
+// field here is: this is the user-supplied-file path, and a NaN/absurd
+// ceiling height feeds straight into wall geometry and the furniture-fit
+// maths. `run` is capped at a room's own max dimension rather than
+// something tighter -- a slope longer than the room is harmless (it just
+// never reaches full height indoors) and rejecting it would be a
+// false-positive on a legitimately shallow pitch.
+const ceilingHeightSchema = z.number().min(50).max(2000).optional();
+const wallSlopesSchema = z
+  .record(
+    z.object({
+      kneeHeight: z.number().min(0).max(2000),
+      run: z.number().min(0).max(10000),
+    }),
+  )
+  .optional();
+
 export const importSchema = z.object({
   version: z.number().optional(),
   room: z.object({
@@ -57,6 +76,8 @@ export const importSchema = z.object({
       color: z.string(),
     })
     .optional(),
+  ceilingHeight: ceilingHeightSchema,
+  wallSlopes: wallSlopesSchema,
 });
 
 // A single room embedded in a multi-floor (whole-building) import -- the
@@ -97,6 +118,8 @@ const roomLayoutSchema = z.object({
     .optional(),
   roomKind: z.enum(["room", "hallway"]).optional(),
   wallOverrides: z.record(z.boolean()).optional(),
+  ceilingHeight: ceilingHeightSchema,
+  wallSlopes: wallSlopesSchema,
 });
 
 // A legacy flat export (pre-dating the floors feature) is just a bare

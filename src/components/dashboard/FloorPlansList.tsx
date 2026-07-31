@@ -31,15 +31,18 @@ interface FloorPlansListProps {
  * -- the multi-room counterpart to SingleRoomsList, so both halves of the
  * app are managed the same way from the same place.
  *
- * Two things differ from the single-room list, both forced by the fact that
- * a floor is part of a building rather than a free-standing thing:
+ * One thing differs from the single-room list, forced by the fact that a
+ * floor is part of a building rather than a free-standing thing: opening
+ * one has to set the active floor first, since /rooms shows whichever floor
+ * is active rather than taking one in the URL.
  *
- * - Opening one has to set the active floor first, since /rooms shows
- *   whichever floor is active rather than taking one in the URL.
- * - The last remaining floor can't be deleted, mirroring the floor
- *   switcher's own rule (see deleteFloor in routes/rooms.index.tsx). /rooms
- *   re-seeds the example apartment whenever the store is empty, so allowing
- *   it would look like the deleted floor came back from the dead.
+ * Deleting every floor is allowed, exactly like deleting every single room.
+ * That's only safe because /rooms no longer re-seeds the example apartment
+ * on an empty store (it seeds a blank floor instead) -- the example is one
+ * click away via the dashboard's "From example" whenever it's wanted, so
+ * nothing is ever really lost. The floor switcher inside /rooms keeps its
+ * own can't-delete-the-last-one rule, since deleting the floor you're
+ * currently standing on has nowhere to land.
  */
 export function FloorPlansList({ lang }: FloorPlansListProps) {
   // Client-only, same SSR-hydration-safe pattern as the app's other
@@ -74,8 +77,6 @@ export function FloorPlansList({ lang }: FloorPlansListProps) {
     );
   }
 
-  const isOnlyFloor = floors.length === 1;
-
   return (
     <>
       <ul className="space-y-2">
@@ -105,16 +106,8 @@ export function FloorPlansList({ lang }: FloorPlansListProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={isOnlyFloor}
                 onClick={() => setPendingDelete(floor)}
                 aria-label={lang === "de" ? "Etage löschen" : "Delete floor"}
-                title={
-                  isOnlyFloor
-                    ? lang === "de"
-                      ? "Die letzte Etage kann nicht gelöscht werden."
-                      : "The last remaining floor can't be deleted."
-                    : undefined
-                }
                 className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />

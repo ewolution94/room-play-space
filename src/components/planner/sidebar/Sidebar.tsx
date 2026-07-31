@@ -49,6 +49,7 @@ export function Sidebar({
   selectedOpeningId,
   setSelectedOpeningId,
   openWalls,
+  slopeIssues,
   customCatalog,
   openSaveDialog,
   collapsed,
@@ -67,12 +68,7 @@ export function Sidebar({
     return (
       <aside className="flex flex-col items-center gap-2 py-1 lg:h-full lg:shrink-0">
         <HoverTooltip content={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggleCollapsed}
-            className="h-9 w-9 p-0"
-          >
+          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-9 w-9 p-0">
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
         </HoverTooltip>
@@ -175,7 +171,12 @@ export function Sidebar({
           </Button>
         </div>
         <HoverTooltip content={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}>
-          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-9 w-9 p-0 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleCollapsed}
+            className="h-9 w-9 p-0 shrink-0"
+          >
             <PanelLeftClose className="h-4 w-4" />
           </Button>
         </HoverTooltip>
@@ -265,6 +266,7 @@ export function Sidebar({
             setSelectedOpeningId={setSelectedOpeningId}
             removeItem={removeItem}
             removeOpening={removeOpening}
+            slopeIssues={slopeIssues}
           />
         )}
       </div>

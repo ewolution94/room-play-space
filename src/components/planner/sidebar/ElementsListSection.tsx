@@ -2,9 +2,10 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import type { Item, Opening } from "@/types/planner";
 import { wallLabel } from "@/lib/hallway-shapes";
+import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface ElementsListSectionProps {
   t: any;
@@ -18,6 +19,9 @@ interface ElementsListSectionProps {
   setSelectedOpeningId?: (id: string | null) => void;
   removeItem: (id: string) => void;
   removeOpening: (id: string) => void;
+  /** Items too tall for the sloped ceiling where they sit -- same map the
+   * canvas marks up, so the list and the plan can't disagree. */
+  slopeIssues?: Map<string, { available: number; required: number; shortfall: number }>;
 }
 
 export function ElementsListSection({
@@ -32,6 +36,7 @@ export function ElementsListSection({
   setSelectedOpeningId,
   removeItem,
   removeOpening,
+  slopeIssues,
 }: ElementsListSectionProps) {
   return (
     <Card className="border-border/40 shadow-sm bg-card/60 backdrop-blur-sm flex-1">
@@ -82,6 +87,17 @@ export function ElementsListSection({
                         style={{ background: it.color }}
                       />
                       <span className="truncate">{it.name}</span>
+                      {slopeIssues?.has(it.id) && (
+                        <HoverTooltip
+                          content={
+                            lang === "de"
+                              ? `Zu hoch für die Schräge: braucht ${Math.round(slopeIssues.get(it.id)!.required)} cm, nur ${Math.round(slopeIssues.get(it.id)!.available)} cm vorhanden`
+                              : `Too tall for the slope: needs ${Math.round(slopeIssues.get(it.id)!.required)} cm, only ${Math.round(slopeIssues.get(it.id)!.available)} cm available`
+                          }
+                        >
+                          <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
+                        </HoverTooltip>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-[10px] text-muted-foreground">

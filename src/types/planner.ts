@@ -1,6 +1,7 @@
 import type React from "react";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
+import type { WallSlopeMap } from "@/lib/wall-slopes";
 
 export type Lang = "en" | "de";
 
@@ -383,6 +384,8 @@ export interface Snapshot {
   corners?: Point[];
   wallColors?: Record<string, string>;
   flooring?: RoomFlooring;
+  ceilingHeight?: number;
+  wallSlopes?: WallSlopeMap;
 }
 
 export interface RoomLayout {
@@ -419,6 +422,21 @@ export interface RoomLayout {
   // -- it is purely which wall segments get drawn/extruded and which walls
   // can host a door/window.
   wallOverrides?: Record<string, boolean>;
+  // Floor-to-ceiling height in cm. Absent means DEFAULT_CEILING_HEIGHT
+  // (lib/wall-slopes.ts) -- which is the 240 the 3D view used to hardcode,
+  // so every room saved before this field existed renders exactly as it
+  // did. Needed in its own right (2.4m is not universal) and a hard
+  // prerequisite for wallSlopes below: "the ceiling is lower over there"
+  // is meaningless without a "there" to be lower than.
+  ceilingHeight?: number;
+  // Sloped ceilings / "Dachschrägen", keyed exactly like `wallColors` (see
+  // wallColorKey() in hallway-shapes.ts). Each entry says this wall's
+  // ceiling starts at `kneeHeight` and rises to `ceilingHeight` over `run`
+  // cm measured perpendicular into the room. Absent = a flat ceiling.
+  // Deliberately does NOT touch `corners`: the floor footprint is unchanged
+  // by a slope, so collision, adjacency and openings all stay correct
+  // without knowing about this. See lib/wall-slopes.ts for the full model.
+  wallSlopes?: WallSlopeMap;
 }
 
 // A single story of the building (e.g. "Ground Floor", "1st Floor"). Each
@@ -558,6 +576,10 @@ export interface SidebarProps {
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   openWalls: Map<string, WallOpenInterval[]>;
+  /** Items too tall for the sloped ceiling where they sit -- computed once
+   * in useRoomPlanner and shared with the canvas, so the Elements list and
+   * the plan can never disagree about what's flagged. */
+  slopeIssues: Map<string, SlopeFitIssue>;
   // "My Own Catalog" -- lifted to the route level (not owned by Sidebar
   // itself) because the Inspector's own "Save to My Catalog" action
   // (InspectorSection.tsx, rendered inside CanvasArea) needs to open the
@@ -628,6 +650,14 @@ export interface CanvasAreaProps {
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   flooring: RoomFlooring;
   setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
+  // Room height + sloped ceilings -- see RoomLayout's own doc comments and
+  // lib/wall-slopes.ts. The canvas needs both to draw the slope overlay and
+  // to work out what fits where.
+  ceilingHeight: number;
+  setCeilingHeight: React.Dispatch<React.SetStateAction<number>>;
+  wallSlopes: WallSlopeMap;
+  setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
+  slopeIssues: Map<string, SlopeFitIssue>;
   zoomFactor: number;
   setZoomFactor: React.Dispatch<React.SetStateAction<number>>;
   isDark: boolean;
@@ -687,6 +717,17 @@ export interface TourOverlayProps {
  * the route already knows for certain.
  */
 export type RoomSource = "floor" | "single";
+
+/** One item that doesn't fit under the sloped ceiling where it currently
+ * sits. `required` includes whatever the item is raised by, so something on
+ * a desk is measured from the desk's surface. Computed once in
+ * useRoomPlanner and shared by the canvas and the Elements list, so the two
+ * can never disagree about what's flagged. */
+export interface SlopeFitIssue {
+  available: number;
+  required: number;
+  shortfall: number;
+}
 
 export interface UseRoomPlannerReturn {
   // State
@@ -800,4 +841,9 @@ export interface UseRoomPlannerReturn {
   openWalls: Map<string, WallOpenInterval[]>;
   flooring: RoomFlooring;
   setFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>>;
+  ceilingHeight: number;
+  setCeilingHeight: React.Dispatch<React.SetStateAction<number>>;
+  wallSlopes: WallSlopeMap;
+  setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
+  slopeIssues: Map<string, SlopeFitIssue>;
 }
