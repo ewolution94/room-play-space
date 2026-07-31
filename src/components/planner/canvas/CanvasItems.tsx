@@ -1,7 +1,7 @@
 import React from "react";
 import { RotateCw, Wand2 } from "lucide-react";
 import { readableText } from "@/lib/planner-math";
-import { PRESET_BY_KEY } from "@/lib/planner-presets";
+import { PRESET_BY_KEY, getDefaultHeight } from "@/lib/planner-presets";
 import type { Item } from "@/types/planner";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
@@ -12,6 +12,8 @@ interface CanvasItemsProps {
   onItemPointerDown: (e: React.PointerEvent, item: Item) => void;
   onRotateHandleDown: (e: React.PointerEvent, item: Item) => void;
   dragToRotateLabel: string;
+  /** Tooltip clarifying the compact "L×W×H" figure on each box. */
+  dimsLabel: string;
   /** Items that are too tall for the sloped ceiling where they currently
    * sit, keyed by item id (see SlopeFitIssue in CanvasArea.tsx). Deliberately
    * a persistent marker rather than a drop-time toast: a layout you come back
@@ -38,8 +40,12 @@ export function CanvasItems({
   onItemPointerDown,
   onRotateHandleDown,
   dragToRotateLabel,
+  dimsLabel,
   slopeIssues,
 }: CanvasItemsProps) {
+  // Whole cm -- a dragged item's raw float would otherwise render 15 digits
+  // in a box a few pixels wide.
+  const round = (v: number) => Math.round(v);
   return (
     <>
       {items.map((it) => {
@@ -153,9 +159,16 @@ export function CanvasItems({
                       {it.name}
                     </span>
                   </HoverTooltip>
-                  <span style={{ fontSize: dimSize, opacity: 0.8 }}>
-                    {it.width}×{it.length}
-                  </span>
+                  {/* Length × Width × Height. Height comes from the item's
+                      own value, falling back to its preset default -- the
+                      same number the 3D view and the slope fit-check use,
+                      so all three agree. */}
+                  <HoverTooltip content={dimsLabel}>
+                    <span style={{ fontSize: dimSize, opacity: 0.8 }}>
+                      {round(it.length)}×{round(it.width)}×
+                      {round(it.height ?? getDefaultHeight(it.icon, it.kind))}
+                    </span>
+                  </HoverTooltip>
                 </div>
               );
             })()}

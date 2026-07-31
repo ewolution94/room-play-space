@@ -10,7 +10,7 @@ import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/li
 import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/lib/kit-models";
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
-import { DEFAULT_CEILING_HEIGHT } from "@/lib/wall-slopes";
+import { DEFAULT_CEILING_HEIGHT, buildCeilingSurface, type WallSlopeMap } from "@/lib/wall-slopes";
 import { getFloorTexture } from "@/lib/floor-textures";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
@@ -148,6 +148,9 @@ export interface RoomInstance3D {
   // Floor-to-ceiling height in cm. Absent falls back to
   // DEFAULT_CEILING_HEIGHT, which is the value this file used to hardcode.
   ceilingHeight?: number;
+  // Sloped ceilings, keyed like wallColors -- see lib/wall-slopes.ts.
+  // Absent/empty means a flat ceiling.
+  wallSlopes?: WallSlopeMap;
 }
 
 interface ThreeDViewProps {
@@ -473,6 +476,11 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
   // panel, and shared by both the single-room and whole-apartment 3D
   // views since they're both this same component (see RoomInstance3D).
   const [showFlooring, setShowFlooring] = useState(true);
+  // Ceilings default OFF: today's open-topped look is what every existing
+  // room was authored against, and closing one darkens the interior. As a
+  // deliberate toggle it only has to look good when someone asks for it --
+  // which is what keeps a full lighting overhaul off the critical path.
+  const [showCeiling, setShowCeiling] = useState(false);
 
   // Toggleable "mood lighting" for lamp/ceiling-light/sconce-style items
   // (see Preset.isLightSource) -- an opt-in accent on top of the ambient/
@@ -729,7 +737,15 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     controlsRef.current = controls;
 
     // --- Lighting ---
-    const ambientLight = new THREE.AmbientLight("#ffffff", isDark ? 0.45 : 0.65);
+    // A closed ceiling blocks the sky/sun contribution that lights an
+    // open-topped room, so lift the ambient floor when one is shown.
+    // Cheap compensation, deliberately not a full relight -- see the
+    // proposal's phase 4b.
+    const ceilingAmbientBoost = showCeiling ? 1.45 : 1;
+    const ambientLight = new THREE.AmbientLight(
+      "#ffffff",
+      (isDark ? 0.45 : 0.65) * ceilingAmbientBoost,
+    );
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight("#ffffff", 0.85);
@@ -834,6 +850,12 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
       isBlockingState: boolean;
     }[] = [];
 
+    // Ceilings fade on a much simpler rule than walls (see the animation
+    // loop): a wall asks "is the camera outside my plane", a ceiling only
+    // asks "is the camera above me" -- which is exactly the difference
+    // between looking at a floor plan from outside and standing in the room.
+    const ceilings: { group: THREE.Group; currentOpacity: number; height: number }[] = [];
+
     // Every room/hallway instance builds its own walls independently, each
     // offset by its own x/y into the shared scene (0 for a standalone
     // single-room view) and centered against the OVERALL scene bounds
@@ -903,6 +925,71 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         scene.add(floorMesh);
       }
 
+      // --- Ceiling (flat, or following this room's Dachschrägen) ---
+      // Built from the same polygon as the floor, so polygon/hallway rooms
+      // work for free. Unlike the floor it is NOT a rotated flat plane:
+      // vertex heights vary across a sloped room, so the surface is built
+      // directly in (x, height, z) and needs no rotation at all.
+      //
+      // This is the piece that makes a slope legible in 3D. Without it a
+      // Dachschräge reads as "one wall is oddly short" rather than a roof.
+      if (showCeiling) {
+        const ceilingVerts = buildCeilingSurface(
+          room.corners,
+          room.wallSlopes,
+          wallHeight,
+          // THREE owns the polygon triangulation; wall-slopes.ts stays free
+          // of any three.js import by taking it as a callback.
+          (poly) => {
+            const shape = new THREE.Shape(poly.map((c) => new THREE.Vector2(c.x, c.y)));
+            const geo = new THREE.ShapeGeometry(shape);
+            const pos = geo.getAttribute("position");
+            // ShapeGeometry is INDEXED -- `position` holds each unique
+            // corner once, and `index` is what groups them into triangles.
+            // Walking `position` in threes instead reads past the end of a
+            // 4-corner rectangle and yields NaN vertices, which three.js
+            // only surfaces later as "Computed radius is NaN".
+            const index = geo.getIndex();
+            const at = (i: number): Point => ({ x: pos.getX(i), y: pos.getY(i) });
+            const tris: [Point, Point, Point][] = [];
+            if (index) {
+              for (let i = 0; i < index.count; i += 3) {
+                tris.push([at(index.getX(i)), at(index.getX(i + 1)), at(index.getX(i + 2))]);
+              }
+            } else {
+              for (let i = 0; i < pos.count; i += 3) {
+                tris.push([at(i), at(i + 1), at(i + 2)]);
+              }
+            }
+            geo.dispose();
+            return tris;
+          },
+        );
+
+        const ceilGeo = new THREE.BufferGeometry();
+        ceilGeo.setAttribute("position", new THREE.Float32BufferAttribute(ceilingVerts, 3));
+        ceilGeo.computeVertexNormals();
+        const ceilMat = new THREE.MeshStandardMaterial({
+          color: "#e2e8f0", // slate-200, a touch darker than the walls
+          roughness: 0.95,
+          metalness: 0.02,
+          // DoubleSide so it reads as a surface from inside the room as
+          // well as from above while it's fading out.
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 1,
+        });
+        const ceilMesh = new THREE.Mesh(ceilGeo, ceilMat);
+        ceilMesh.position.set(room.x - centerX, 0, room.y - centerZ);
+        const ceilGroup = new THREE.Group();
+        ceilGroup.add(ceilMesh);
+        scene.add(ceilGroup);
+        // Registered for the camera fade below on its own list: a wall
+        // fades on a horizontal dot-product test, whereas a ceiling's only
+        // meaningful question is "is the camera above it?".
+        ceilings.push({ group: ceilGroup, currentOpacity: 1, height: wallHeight });
+      }
+
       // Rectangular rooms (the overwhelming common case) keep the exact
       // original precise-miter math: each corner's offset is
       // halfThick/sin(interior angle), which produces a clean mitered joint
@@ -960,6 +1047,22 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
 
         // Clone base materials to fade each wall group independently
         const colorKey = typeof wallSide === "string" ? wallSide : String(wallSide);
+
+        // A wall carrying a Dachschräge is a knee wall: it stops at
+        // kneeHeight instead of running to the ceiling. Without this the
+        // wall shoots straight past the sloped ceiling surface built above,
+        // which reads as clipping rather than as a roof. Every other wall
+        // keeps the room's full height, so an unsloped room is unchanged.
+        //
+        // Openings inherit this height too (the lintel maths below all
+        // reads segmentHeight), which is the right default -- though a
+        // window taller than its knee wall still isn't validated anywhere.
+        const wallSlope = room.wallSlopes?.[colorKey];
+        const segmentHeight =
+          wallSlope && wallSlope.run > 0 && wallSlope.kneeHeight < wallHeight
+            ? wallSlope.kneeHeight
+            : wallHeight;
+
         const localWallMat = wallMat.clone();
         localWallMat.color.set(room.wallColors[colorKey] || "#f1f5f9");
 
@@ -1052,11 +1155,11 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             sillMesh.receiveShadow = true;
             wallGroup.add(sillMesh);
 
-            const lintelH = wallHeight - (sillHeight + windowHeight);
+            const lintelH = segmentHeight - (sillHeight + windowHeight);
             if (lintelH > 0) {
               const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
               const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-              lintelMesh.position.set(opCenterLocal, wallHeight - lintelH / 2, 0);
+              lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
               lintelMesh.castShadow = true;
               lintelMesh.receiveShadow = true;
               wallGroup.add(lintelMesh);
@@ -1129,11 +1232,11 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             rightPost.receiveShadow = true;
             wallGroup.add(rightPost);
           } else if (o.kind === "door") {
-            const lintelH = wallHeight - doorHeight;
+            const lintelH = segmentHeight - doorHeight;
             if (lintelH > 0) {
               const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
               const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-              lintelMesh.position.set(opCenterLocal, wallHeight - lintelH / 2, 0);
+              lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
               lintelMesh.castShadow = true;
               lintelMesh.receiveShadow = true;
               wallGroup.add(lintelMesh);
@@ -1193,10 +1296,10 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         for (const seg of finalSegments) {
           const segLen = seg.end - seg.start;
           if (segLen <= 0.1) continue;
-          const segGeo = new THREE.BoxGeometry(segLen, wallHeight, wallThickness);
+          const segGeo = new THREE.BoxGeometry(segLen, segmentHeight, wallThickness);
           const segMesh = new THREE.Mesh(segGeo, localWallMat);
           const localCenter = (seg.start + seg.end) / 2 - length / 2;
-          segMesh.position.set(localCenter, wallHeight / 2, 0);
+          segMesh.position.set(localCenter, segmentHeight / 2, 0);
           segMesh.castShadow = true;
           segMesh.receiveShadow = true;
           wallGroup.add(segMesh);
@@ -1675,6 +1778,26 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         fadeFactor = Math.min(1, (phi - 0.8) / 0.3);
       }
 
+      for (const c of ceilings) {
+        // Solid from inside the room, dissolved once the camera climbs
+        // above it so the look-down-into-the-room view still works. The
+        // 40cm band gives the transition somewhere to happen instead of
+        // snapping exactly at ceiling level.
+        const above = THREE.MathUtils.clamp((camera.position.y - c.height) / 40, 0, 1);
+        const target = THREE.MathUtils.lerp(1, wallFadeOpacityRef.current * 0.4, above);
+        c.currentOpacity = THREE.MathUtils.lerp(c.currentOpacity, target, 0.12);
+        c.group.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((m) => {
+              m.transparent = true;
+              m.opacity = c.currentOpacity;
+              m.depthWrite = c.currentOpacity > 0.95;
+            });
+          }
+        });
+      }
+
       for (const w of walls) {
         let targetOpacity = 1.0;
 
@@ -1807,6 +1930,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     sunlightEnabled,
     kitModelVersion,
     showFlooring,
+    showCeiling,
     // lightingEnabled/lightsOff deliberately NOT here -- see the separate
     // "Toggleable Light Sources" effect right below, which handles those
     // without rebuilding this entire (expensive) scene.
@@ -2071,6 +2195,16 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
           />
           <span>{isDe ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
+        </label>
+
+        <label className="flex items-center gap-2 cursor-pointer font-medium">
+          <input
+            type="checkbox"
+            checked={showCeiling}
+            onChange={(e) => setShowCeiling(e.target.checked)}
+            className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+          />
+          <span>{isDe ? "Decke anzeigen" : "Show Ceiling"}</span>
         </label>
 
         <label className="flex items-center gap-2 cursor-pointer font-medium">

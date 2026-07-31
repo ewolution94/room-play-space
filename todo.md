@@ -293,10 +293,35 @@ Design in `docs/SLOPED-WALLS-PROPOSAL.md`. Phases 0-3 deliver the whole planning
 - [x] **Bug found and fixed by the geometry, not by eye**: the band first drew *outside* the room. `resolveWallSegment` deliberately walks "bottom" and "left" in reverse winding order (kept that way so existing rooms render identically), which silently inverts any normal derived from `a`→`b`. New `inwardNormal()` probes the polygon with `pointInPolygon` instead of trusting winding. Locked down with 5 regression tests covering all four named walls plus an L-shaped polygon's numeric walls.
 - [x] Verified end-to-end in the browser against `localStorage`: 200cm wardrobe at x=3 against a 110cm knee wall -> flagged "Needs 200 cm, only 113 cm available here" (110 + 130×3/150 = 112.6, correct); moved to x=243, clear of the 150cm run -> all warnings gone. 538 tests, tsc clean, lint 18 errors/19 warnings against a 36/19 baseline.
 
+### Fixed: deleted floors resurrected from the LEGACY storage key (2026-07-31)
+
+User, after the previous fix: *"the rooms entry still reappears after a hard reload."* They were right, and my earlier verification was worthless because I had tested on a `localStorage.clear()`ed profile -- which wipes the very key that causes it.
+
+Root cause was not in the delete path at all. `isFloorArray()` in `lib/floors.ts` required `v.length > 0`, so a deliberately-saved **empty** building was judged *invalid*, `loadFloors()` fell through to its legacy `planner-multi-rooms` migration branch, and **re-saved the pre-floors rooms on every single load**. Anyone carrying that old key could never make a delete stick.
+
+- [x] `isFloorArray` now accepts `[]` -- an empty building is a real saved state, distinct from "nothing ever saved". The legacy migration is now only reachable when the new key is genuinely absent or unparseable.
+- [x] Two regression tests, including one that plants a legacy save alongside an empty building and asserts the ghost stays dead.
+- [x] Reproduced first (planted a legacy key + empty floors -> "Ghost Room" came back on a plain dashboard load), then verified fixed with the legacy key still present.
+- **Lesson**: testing storage-migration behaviour on a cleared profile proves nothing about users carrying legacy keys. Plant the old key explicitly.
+
+### Item labels now show L×W×H (2026-07-31)
+
+- [x] Canvas boxes and the Elements list both show `length×width×height` instead of `width×length`, with a translated `dimsLWH` tooltip ("Length × Width × Height (cm)" / "Länge × Breite × Höhe (cm)") since three bare numbers are ambiguous. Height comes from `item.height ?? getDefaultHeight(...)` -- the same value the 3D view and the slope fit-check use, so all three agree. **Note this reorders the first two numbers** from what was there before.
+
+### Sloped ceilings: Phase 4 (3D) shipped (2026-07-31)
+
+- [x] **Flat ceiling mesh**, built from the same polygon as the floor, so polygon/hallway rooms work for free. Unlike the floor it is not a rotated flat plane -- vertex heights vary, so it is built directly in (x, height, z) with no rotation.
+- [x] **Camera-aware fade**, on its own registry beside the walls': a wall asks "is the camera outside my plane", a ceiling only asks "is the camera above me", over a 40cm band. Solid standing inside, dissolved looking down from outside -- so the familiar floor-plan view still works with the ceiling on.
+- [x] **"Show Ceiling" checkbox** in the 3D control overlay, **off by default** -- which is what kept a lighting overhaul off the critical path. Ambient light gets a 1.45x boost when it's on, since a closed room loses the sky contribution.
+- [x] **Slanted ceiling surface**: `buildCeilingSurface()` triangulates the polygon, subdivides midpoint-only until edges are ~15cm so the fold where slope meets flat ceiling is legible, and samples `availableHeightAt` per vertex. Midpoint-only subdivision keeps the room outline exact. A room with no slopes skips subdivision entirely and stays 2 triangles.
+- [x] **Knee walls**: a wall carrying a slope now stops at its `kneeHeight` instead of running to the ceiling. Without this the wall shot straight past the slanted ceiling, reading as clipping rather than a roof.
+- [x] **Bug found in the browser, not by tests**: `THREE.ShapeGeometry` is *indexed*, so reading its `position` attribute in threes ran off the end of a 4-corner rectangle and produced NaN vertices -- surfaced by three.js only much later as an opaque "computeBoundingSphere(): Computed radius is NaN". Fixed to walk the index buffer, plus `buildCeilingSurface` now drops non-finite triangles defensively so a bad triangulator can never poison a mesh again. 6 new tests.
+
 ### Still open
 
-- [ ] **Phase 4 (3D)**: ceiling mesh + show/hide checkbox, ambient compensation, then sloped wall profiles + the slanted ceiling surface. Not started -- see the proposal's phasing table.
-- [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` yet; roof windows (*Dachfenster*) remain out of scope.
+- [ ] **Walls perpendicular to a sloped wall are still full-height rectangles**, not trapezoids, so they can poke above the slanted ceiling. The knee wall itself and the ceiling surface are correct; this is the remaining piece of the 3D geometry (needs `THREE.Shape` + `ExtrudeGeometry` per segment instead of a box).
+- [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` -- a window can currently be taller than the knee wall it sits in. Roof windows (*Dachfenster*) remain out of scope.
+- [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.
 - [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it (e.g. `/rooms` → open a room from the auto-seeded apartment). Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.
 - [ ] The canvas's floating Room Inspector can overlap the bottom-left back pill at shorter viewport heights (~720px). Pre-existing and identical on `/rooms/$roomId` -- not introduced by this change, but now more visible since the back pill is a single room's main way out.
 - [ ] Pre-existing duplicate apartment floors from before the placement fix aren't cleaned up retroactively -- they're just ordinary floors now, deletable from the floor switcher (or now from the dashboard).

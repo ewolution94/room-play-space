@@ -43,10 +43,21 @@ export function isRoomLayoutArray(v: unknown): v is RoomLayout[] {
   );
 }
 
+/**
+ * Note there is deliberately NO `length > 0` check. An empty array is a
+ * legitimate saved building now -- "I deleted every floor" -- and is
+ * different from "nothing has ever been saved".
+ *
+ * It used to require a non-empty array, which meant a saved `[]` was judged
+ * invalid, fell through to the legacy-key migration below, and silently
+ * resurrected a pre-floors save on every single load. That made deleting
+ * your last floor impossible to make stick for anyone who still had the old
+ * key sitting in localStorage -- and invisible to anyone testing on a
+ * cleared profile, since clearing wipes the legacy key too.
+ */
 function isFloorArray(v: unknown): v is Floor[] {
   return (
     Array.isArray(v) &&
-    v.length > 0 &&
     v.every((f: Record<string, unknown>) => {
       return (
         f &&
@@ -125,8 +136,11 @@ export function loadFloors(): Floor[] | null {
     }
   }
 
-  // Nothing valid under the new key -- fall back to the legacy flat array
-  // and migrate it in place so this only ever happens once.
+  // Nothing saved under the new key AT ALL -- fall back to the legacy flat
+  // array and migrate it in place so this only ever happens once. Reaching
+  // here means the key is absent or unparseable, never that it holds a
+  // deliberately-empty building (see isFloorArray above): migrating on an
+  // empty-but-present store is what used to resurrect deleted floors.
   const legacy = window.localStorage.getItem(LEGACY_ROOMS_KEY);
   if (legacy) {
     try {

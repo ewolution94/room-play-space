@@ -105,6 +105,10 @@ export const STRINGS = {
     threeDMode: "3D Mode",
     twoDMode: "2D Mode",
     roomHeight: "Wall Height (cm)",
+    // Tooltip for the compact "L×W×H" figure on each item, in the canvas
+    // box and the Elements list -- the numbers alone are ambiguous about
+    // which is which.
+    dimsLWH: "Length × Width × Height (cm)",
     categories: {
       seating: "Seating",
       sleeping: "Bedroom",
@@ -252,6 +256,7 @@ export const STRINGS = {
     threeDMode: "3D-Modus",
     twoDMode: "2D-Modus",
     roomHeight: "Wandhöhe (cm)",
+    dimsLWH: "Länge × Breite × Höhe (cm)",
     categories: {
       seating: "Sitzmöbel",
       sleeping: "Schlafzimmer",

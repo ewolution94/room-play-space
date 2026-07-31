@@ -136,6 +136,28 @@ describe("loadFloors", () => {
     assert.deepEqual(loaded, floors);
   });
 
+  // Regression: "I deleted every floor" is a real saved state and must
+  // survive a reload. isFloorArray used to require a non-empty array, so a
+  // saved [] was judged invalid, fell through to the legacy migration below,
+  // and silently resurrected a pre-floors save on EVERY load -- invisible on
+  // a cleared test profile, because clearing wipes the legacy key too.
+  test("an empty building is a real saved state, not 'nothing saved'", () => {
+    saveFloors([]);
+    assert.deepEqual(loadFloors(), []);
+  });
+
+  test("an empty building is NOT overwritten by a leftover legacy save", () => {
+    currentLocalStorage().setItem(
+      "planner-multi-rooms",
+      JSON.stringify([makeRoom({ id: "ghost" })]),
+    );
+    saveFloors([]);
+
+    assert.deepEqual(loadFloors(), [], "legacy rooms came back from the dead");
+    // And nothing was written back over the deliberate empty state.
+    assert.equal(currentLocalStorage().getItem("planner-multi-floors"), "[]");
+  });
+
   test("migrates a legacy flat RoomLayout[] into a single un-named (auto Ground Floor) floor", () => {
     const legacyRooms = [makeRoom({ id: "a" }), makeRoom({ id: "b" })];
     currentLocalStorage().setItem("planner-multi-rooms", JSON.stringify(legacyRooms));

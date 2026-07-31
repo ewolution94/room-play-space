@@ -10,6 +10,7 @@ import {
   minHeightOverFootprint,
   checkItemFitsUnderSlopes,
   inwardNormal,
+  buildCeilingSurface,
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
@@ -211,6 +212,70 @@ describe("minHeightOverFootprint", () => {
       { x: 200, y: 160 },
     ];
     assert.equal(minHeightOverFootprint(fp, ROOM, LEFT_SLOPE), 240);
+  });
+});
+
+describe("buildCeilingSurface", () => {
+  // Stand-in for THREE.ShapeGeometry: splits the 400x300 rectangle into two
+  // triangles, which is what the real triangulator produces for it.
+  const rectTriangulate = (c: Point[]): [Point, Point, Point][] => [
+    [c[0], c[1], c[2]],
+    [c[0], c[2], c[3]],
+  ];
+
+  test("a room with no slopes is a flat surface at the ceiling height", () => {
+    const verts = buildCeilingSurface(ROOM, undefined, 240, rectTriangulate);
+    assert.equal(verts.length, 2 * 3 * 3, "should stay at 2 un-subdivided triangles");
+    for (let i = 1; i < verts.length; i += 3) {
+      assert.equal(verts[i], 240);
+    }
+  });
+
+  test("a sloped room subdivides, and no vertex sits above the ceiling", () => {
+    const verts = buildCeilingSurface(ROOM, LEFT_SLOPE, 240, rectTriangulate);
+    assert.ok(verts.length > 2 * 3 * 3, "sloped rooms must subdivide to render the fold");
+    for (let i = 1; i < verts.length; i += 3) {
+      assert.ok(verts[i] <= 240 + 1e-9, `vertex above the ceiling: ${verts[i]}`);
+      assert.ok(verts[i] >= 110 - 1e-9, `vertex below the knee wall: ${verts[i]}`);
+    }
+  });
+
+  test("vertex heights agree with availableHeightAt at the same point", () => {
+    const verts = buildCeilingSurface(ROOM, LEFT_SLOPE, 240, rectTriangulate);
+    for (let i = 0; i < verts.length; i += 3) {
+      const p = { x: verts[i], y: verts[i + 2] };
+      assert.ok(Math.abs(verts[i + 1] - availableHeightAt(p, ROOM, LEFT_SLOPE, 240)) < 1e-9);
+    }
+  });
+
+  test("stays within the room's own footprint -- subdivision is midpoint-only", () => {
+    const verts = buildCeilingSurface(ROOM, LEFT_SLOPE, 240, rectTriangulate);
+    for (let i = 0; i < verts.length; i += 3) {
+      assert.ok(verts[i] >= 0 && verts[i] <= 400, `x out of bounds: ${verts[i]}`);
+      assert.ok(verts[i + 2] >= 0 && verts[i + 2] <= 300, `y out of bounds: ${verts[i + 2]}`);
+    }
+  });
+
+  test("respects a custom ceiling height", () => {
+    const verts = buildCeilingSurface(ROOM, undefined, 300, rectTriangulate);
+    for (let i = 1; i < verts.length; i += 3) assert.equal(verts[i], 300);
+  });
+
+  // Regression: THREE.ShapeGeometry is INDEXED, so reading its position
+  // attribute in threes ran off the end of a 4-corner rectangle and produced
+  // undefined -> NaN vertices. three.js surfaced that only much later, as an
+  // opaque "computeBoundingSphere(): Computed radius is NaN".
+  test("drops triangles with non-finite vertices instead of emitting NaN", () => {
+    const withNaN = (): [Point, Point, Point][] => [
+      [ROOM[0], ROOM[1], ROOM[2]],
+      [ROOM[0], { x: NaN, y: NaN }, { x: undefined as unknown as number, y: 0 }],
+    ];
+    const verts = buildCeilingSurface(ROOM, LEFT_SLOPE, 240, withNaN);
+    assert.ok(verts.length > 0, "the good triangle should still be emitted");
+    assert.ok(
+      verts.every((v) => Number.isFinite(v)),
+      "no NaN may reach the geometry",
+    );
   });
 });
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import type { Item, Opening } from "@/types/planner";
 import { wallLabel } from "@/lib/hallway-shapes";
+import { getDefaultHeight } from "@/lib/planner-presets";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface ElementsListSectionProps {
@@ -100,9 +101,12 @@ export function ElementsListSection({
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[10px] text-muted-foreground">
-                        {it.width}×{it.length}cm
-                      </span>
+                      <HoverTooltip content={t.dimsLWH}>
+                        <span className="text-[10px] text-muted-foreground">
+                          {Math.round(it.length)}×{Math.round(it.width)}×
+                          {Math.round(it.height ?? getDefaultHeight(it.icon, it.kind))}cm
+                        </span>
+                      </HoverTooltip>
                       <Button
                         variant="ghost"
                         size="icon"

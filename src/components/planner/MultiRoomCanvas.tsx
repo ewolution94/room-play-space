@@ -279,6 +279,7 @@ export function MultiRoomCanvas({
           openWalls: effectiveOpenWalls,
           flooring: room.flooring,
           ceilingHeight: room.ceilingHeight,
+          wallSlopes: room.wallSlopes,
         };
       }),
     [rooms, autoOpenWalls],

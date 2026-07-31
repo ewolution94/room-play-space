@@ -191,9 +191,21 @@ export function CanvasArea({
         openWalls,
         flooring,
         ceilingHeight,
+        wallSlopes,
       },
     ],
-    [roomW, roomL, corners, items, openings, wallColors, openWalls, flooring, ceilingHeight],
+    [
+      roomW,
+      roomL,
+      corners,
+      items,
+      openings,
+      wallColors,
+      openWalls,
+      flooring,
+      ceilingHeight,
+      wallSlopes,
+    ],
   );
 
   // Auto-expand inspector when selection changes
@@ -691,6 +703,7 @@ export function CanvasArea({
                   onItemPointerDown={isMobileViewOnly ? () => {} : onItemPointerDown}
                   onRotateHandleDown={isMobileViewOnly ? () => {} : onRotateHandleDown}
                   dragToRotateLabel={t.dragToRotate}
+                  dimsLabel={t.dimsLWH}
                   slopeIssues={slopeIssues}
                 />
 

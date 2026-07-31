@@ -206,6 +206,77 @@ export function minHeightOverFootprint(
 }
 
 /**
+ * Triangulated ceiling surface for a room, as flat [x, height, y] triples
+ * ready to hand to a BufferGeometry. Room-local cm throughout; the caller
+ * positions the mesh.
+ *
+ * `triangulate2D` supplies the polygon's exact triangulation (the renderer
+ * has THREE.ShapeGeometry for this; the geometry layer stays free of any
+ * three.js dependency by taking it as an argument). Those triangles are
+ * then subdivided until their edges are short enough that sampling the
+ * ceiling height per-vertex approximates the fold where a slope meets the
+ * flat ceiling. Subdivision is midpoint-only, so the room's outline stays
+ * exactly the polygon's -- no jagged boundary, unlike sampling a grid and
+ * discarding cells that fall outside.
+ *
+ * A room with no slopes needs none of that: the surface is flat, so the
+ * bare triangulation is already exact and subdivision is skipped entirely.
+ */
+export function buildCeilingSurface(
+  corners: Point[],
+  slopes: WallSlopeMap | undefined,
+  ceilingHeight: number,
+  triangulate2D: (corners: Point[]) => [Point, Point, Point][],
+  maxEdgeCm = 15,
+): number[] {
+  let tris = triangulate2D(corners);
+  const hasSlopes = !!slopes && Object.keys(slopes).length > 0;
+
+  if (hasSlopes) {
+    // Cap the depth rather than looping to convergence: each level
+    // quadruples the triangle count, and 5 levels already takes a
+    // room-sized triangle well under maxEdgeCm.
+    for (let level = 0; level < 5; level++) {
+      let anySplit = false;
+      const next: [Point, Point, Point][] = [];
+      for (const [a, b, c] of tris) {
+        const longest = Math.max(
+          Math.hypot(b.x - a.x, b.y - a.y),
+          Math.hypot(c.x - b.x, c.y - b.y),
+          Math.hypot(a.x - c.x, a.y - c.y),
+        );
+        if (longest <= maxEdgeCm) {
+          next.push([a, b, c]);
+          continue;
+        }
+        anySplit = true;
+        const ab = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const bc = { x: (b.x + c.x) / 2, y: (b.y + c.y) / 2 };
+        const ca = { x: (c.x + a.x) / 2, y: (c.y + a.y) / 2 };
+        next.push([a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]);
+      }
+      tris = next;
+      if (!anySplit) break;
+    }
+  }
+
+  const out: number[] = [];
+  for (const tri of tris) {
+    // Skip any triangle carrying a non-finite vertex rather than emitting
+    // it. A single NaN position silently poisons the whole mesh's bounding
+    // sphere, and three.js only reports it much later as an opaque
+    // "Computed radius is NaN" -- far from whichever triangulator produced
+    // it. (That is exactly how the indexed-vs-non-indexed ShapeGeometry bug
+    // first showed up.)
+    if (!tri.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) continue;
+    for (const p of tri) {
+      out.push(p.x, availableHeightAt(p, corners, slopes, ceilingHeight), p.y);
+    }
+  }
+  return out;
+}
+
+/**
  * Whether an item physically fits where it's been put. `requiredHeight` is
  * the item's own height plus whatever it's raised by (an item on a desk
  * needs the desk's height too -- see computeOnTopElevation in
