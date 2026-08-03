@@ -7,7 +7,9 @@ import {
   dragWallEdge,
   resizeRoomShape,
   MIN_WALL_LENGTH,
+  setWallLength,
 } from "@/lib/room-shapes";
+import { wallSegments } from "@/lib/hallway-shapes";
 import type { Point } from "@/types/planner";
 
 function shoelaceArea(corners: Point[]): number {
@@ -165,5 +167,62 @@ describe("resizeRoomShape", () => {
     assert.ok(Math.abs(notchWidth - 300) < 1e-6); // 150 * 2
     const notchDepth = scaled[2].y;
     assert.ok(Math.abs(notchDepth - 240) < 1e-6); // 120 * 2
+  });
+});
+
+describe("setWallLength", () => {
+  const RECT: Point[] = [
+    { x: 0, y: 0 },
+    { x: 400, y: 0 },
+    { x: 400, y: 300 },
+    { x: 0, y: 300 },
+  ];
+  // Cut-corner: the shape whose diagonal makes the length relationship
+  // non-linear, which is why setWallLength iterates rather than solving once.
+  const L: Point[] = [
+    { x: 0, y: 0 },
+    { x: 400, y: 0 },
+    { x: 400, y: 200 },
+    { x: 200, y: 200 },
+    { x: 200, y: 300 },
+    { x: 0, y: 300 },
+  ];
+
+  const lengthOf = (corners: Point[], i: number) => wallSegments(corners)[i].length;
+
+  test("sets a rectangle's top wall exactly", () => {
+    const out = setWallLength(RECT, 0, 250);
+    assert.ok(Math.abs(lengthOf(out, 0) - 250) < 0.05, `got ${lengthOf(out, 0)}`);
+  });
+
+  test("sets a rectangle's side wall exactly, leaving the other axis alone", () => {
+    const out = setWallLength(RECT, 1, 450);
+    assert.ok(Math.abs(lengthOf(out, 1) - 450) < 0.05, `got ${lengthOf(out, 1)}`);
+    assert.ok(Math.abs(lengthOf(out, 0) - 400) < 0.05, "width should be untouched");
+  });
+
+  test("grows as well as shrinks", () => {
+    const grown = setWallLength(RECT, 0, 900);
+    assert.ok(Math.abs(lengthOf(grown, 0) - 900) < 0.05, `got ${lengthOf(grown, 0)}`);
+  });
+
+  // The whole point of generalising past rectangles.
+  test("works on a polygon (L-shaped) room", () => {
+    const out = setWallLength(L, 0, 300);
+    assert.ok(Math.abs(lengthOf(out, 0) - 300) < 0.5, `got ${lengthOf(out, 0)}`);
+    assert.equal(out.length, L.length, "corner count must be preserved");
+  });
+
+  test("refuses a length the shape's own guards reject, rather than corrupting it", () => {
+    const out = setWallLength(RECT, 0, 1);
+    // dragWallEdge's minimum-size guard wins; the shape stays valid either
+    // way -- what must never happen is a degenerate or inverted polygon.
+    assert.equal(out.length, 4);
+    assert.ok(lengthOf(out, 0) > 0);
+  });
+
+  test("ignores nonsense input", () => {
+    assert.equal(setWallLength(RECT, 0, NaN), RECT);
+    assert.equal(setWallLength(RECT, 0, -50), RECT);
   });
 });

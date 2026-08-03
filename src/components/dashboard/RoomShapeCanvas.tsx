@@ -1,7 +1,8 @@
-import { useRef } from "react";
-import { wallSegments, resolveWallSegment } from "@/lib/hallway-shapes";
+import { useLayoutEffect, useRef, useState } from "react";
+import { wallSegments, resolveWallSegment, NAMED_WALLS } from "@/lib/hallway-shapes";
 import { dragWallEdge } from "@/lib/room-shapes";
 import type { Point, Opening } from "@/types/planner";
+import { inwardNormal } from "@/lib/wall-slopes";
 
 interface RoomShapeCanvasProps {
   corners: Point[];
@@ -20,6 +21,17 @@ interface RoomShapeCanvasProps {
   openings?: Opening[];
   onWallClick?: (wallIndex: number, positionAlongWall: number) => void;
   onRemoveOpening?: (id: string) => void;
+  /** Slide an existing opening along its own wall (drag to reposition). */
+  onMoveOpening?: (id: string, position: number) => void;
+  /** Which kind the next click will place -- drives the ghost preview. */
+  ghostKind?: "door" | "window";
+  /** Selection is lifted so the step's toolbar (width presets, delete) can
+   * act on the same opening the canvas is highlighting. */
+  selectedOpeningId?: string | null;
+  onSelectOpening?: (id: string | null) => void;
+  /** Commit a typed wall length. Only ever called for 4-corner shapes --
+   * see canEditLengths. */
+  onWallLengthChange?: (wallIndex: number, lengthCm: number) => void;
 }
 
 /**
@@ -37,6 +49,110 @@ interface RoomShapeCanvasProps {
  * them as normal HTML text with a fixed Tailwind size sidesteps that
  * entirely: position tracks the (live) wall, size never changes.
  */
+
+/** Gap between a wall and its dimension label, in screen pixels. */
+const LABEL_PX_GAP = 22;
+
+/** Default size for a newly placed opening, cm. */
+const DEFAULT_OPENING_WIDTH = 90;
+/** How close (cm) the pointer must be to a wall's midpoint before the ghost
+ * snaps to it. Centred doors/windows are overwhelmingly the common case, and
+ * hitting dead centre by hand is fiddly. */
+const CENTRE_SNAP_CM = 18;
+
+/**
+ * A door or window drawn the way a floor plan draws it.
+ *
+ * Doors get a leaf plus a quarter-circle swing arc -- which is the only way
+ * to see, at placement time, which direction it opens and how much floor it
+ * sterilises. Windows get the conventional thin double line inset into the
+ * wall. Previously both were a single fat coloured stroke, which told you
+ * nothing beyond "something is here".
+ */
+function OpeningSymbol({
+  geo,
+  kind,
+  selected,
+  dashed,
+}: {
+  geo: OpeningGeometry;
+  kind: "door" | "window";
+  selected?: boolean;
+  dashed?: boolean;
+}) {
+  const stroke = selected
+    ? "stroke-primary"
+    : kind === "door"
+      ? "stroke-amber-600"
+      : "stroke-sky-500";
+  const common = {
+    className: `${stroke} pointer-events-none`,
+    vectorEffect: "non-scaling-stroke" as const,
+    strokeDasharray: dashed ? "4 4" : undefined,
+  };
+
+  if (kind === "window") {
+    // Two thin rails inset from the wall line, the standard window glyph.
+    const off = geo.width * 0.06;
+    return (
+      <g>
+        <line
+          x1={geo.start.x + geo.nx * off}
+          y1={geo.start.y + geo.ny * off}
+          x2={geo.end.x + geo.nx * off}
+          y2={geo.end.y + geo.ny * off}
+          strokeWidth={selected ? 3 : 2}
+          {...common}
+        />
+        <line
+          x1={geo.start.x - geo.nx * off}
+          y1={geo.start.y - geo.ny * off}
+          x2={geo.end.x - geo.nx * off}
+          y2={geo.end.y - geo.ny * off}
+          strokeWidth={selected ? 3 : 2}
+          {...common}
+        />
+      </g>
+    );
+  }
+
+  // Door: hinge at `start`, leaf swung a quarter turn into the room, and the
+  // arc it sweeps between open and closed.
+  const leafEnd = { x: geo.start.x + geo.nx * geo.width, y: geo.start.y + geo.ny * geo.width };
+  return (
+    <g>
+      <line
+        x1={geo.start.x}
+        y1={geo.start.y}
+        x2={leafEnd.x}
+        y2={leafEnd.y}
+        strokeWidth={selected ? 3.5 : 2.5}
+        {...common}
+      />
+      <path
+        d={`M ${leafEnd.x} ${leafEnd.y} A ${geo.width} ${geo.width} 0 0 0 ${geo.end.x} ${geo.end.y}`}
+        fill="none"
+        strokeWidth={selected ? 2 : 1.5}
+        className={`${stroke} pointer-events-none opacity-70`}
+        vectorEffect="non-scaling-stroke"
+        strokeDasharray={dashed ? "4 4" : "3 3"}
+      />
+    </g>
+  );
+}
+
+interface OpeningGeometry {
+  start: Point;
+  end: Point;
+  /** Unit vector along the wall. */
+  ux: number;
+  uy: number;
+  /** Unit normal pointing into the room. */
+  nx: number;
+  ny: number;
+  width: number;
+}
+
 export function RoomShapeCanvas({
   corners,
   viewBox,
@@ -45,7 +161,106 @@ export function RoomShapeCanvas({
   openings = [],
   onWallClick,
   onRemoveOpening,
+  onMoveOpening,
+  ghostKind = "door",
+  selectedOpeningId = null,
+  onSelectOpening,
+  onWallLengthChange,
 }: RoomShapeCanvasProps) {
+  // Which wall's dimension label is currently being typed into, and the
+  // in-progress text. Offered on every shape: setWallLength (room-shapes.ts)
+  // resolves "make this wall 380" for polygons too, by moving the wall's
+  // neighbour through the same dragWallEdge guards a manual drag uses.
+  const [editingWall, setEditingWall] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const canEditLengths = mode === "drag" && !!onWallLengthChange;
+
+  // --- Openings-step interaction state ---
+  // A ghost preview follows the pointer along whichever wall it's over, so
+  // you can see the actual door/window symbol land before committing. The
+  // previous step gave no feedback at all until after the click.
+  const [ghost, setGhost] = useState<{ wallIndex: number; position: number } | null>(null);
+
+  const wallIndexOf = (wall: Opening["wall"]): number | null => {
+    if (typeof wall === "number") return wall;
+    const i = NAMED_WALLS.indexOf(wall as (typeof NAMED_WALLS)[number]);
+    return i >= 0 ? i : null;
+  };
+
+  /** Everything the symbol renderer needs for one opening on one wall. */
+  const openingGeometry = (
+    wallIndex: number,
+    position: number,
+    width: number,
+  ): OpeningGeometry | null => {
+    const seg = segs[wallIndex];
+    if (!seg) return null;
+    const dx = seg.b.x - seg.a.x;
+    const dy = seg.b.y - seg.a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const n = inwardNormal(corners, seg.a, seg.b);
+    return {
+      start: { x: seg.a.x + ux * position, y: seg.a.y + uy * position },
+      end: { x: seg.a.x + ux * (position + width), y: seg.a.y + uy * (position + width) },
+      ux,
+      uy,
+      nx: n.x,
+      ny: n.y,
+      width,
+    };
+  };
+
+  /** Where along `wallIndex` a pointer sits, clamped so the opening stays on
+   * the wall, and snapped to the wall's midpoint when close to it. */
+  const positionOnWall = (wallIndex: number, client: { x: number; y: number }, width: number) => {
+    const seg = segs[wallIndex];
+    if (!seg) return null;
+    const p = clientToSvgPoint(client.x, client.y);
+    const dx = seg.b.x - seg.a.x;
+    const dy = seg.b.y - seg.a.y;
+    const lenSq = dx * dx + dy * dy || 1;
+    const t = ((p.x - seg.a.x) * dx + (p.y - seg.a.y) * dy) / lenSq;
+    let pos = t * seg.length - width / 2;
+    const centre = (seg.length - width) / 2;
+    if (Math.abs(pos - centre) < CENTRE_SNAP_CM) pos = centre;
+    return Math.max(0, Math.min(pos, Math.max(0, seg.length - width)));
+  };
+
+  const onOpeningPointerDown = (e: React.PointerEvent<SVGLineElement>, o: Opening) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelectOpening?.(o.id);
+    const idx = wallIndexOf(o.wall);
+    if (idx === null || !onMoveOpening) return;
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const pos = positionOnWall(idx, { x: ev.clientX, y: ev.clientY }, o.width);
+      if (pos !== null) onMoveOpening(o.id, pos);
+    };
+    const up = (ev: PointerEvent) => {
+      try {
+        target.releasePointerCapture(ev.pointerId);
+      } catch {
+        // already released by the browser
+      }
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  const commitEdit = () => {
+    if (editingWall === null) return;
+    const next = Number(editDraft);
+    if (Number.isFinite(next) && next >= 100 && next <= 2000) {
+      onWallLengthChange?.(editingWall, next);
+    }
+    setEditingWall(null);
+  };
   const cornersRef = useRef(corners);
   cornersRef.current = corners;
   const svgRef = useRef<SVGSVGElement>(null);
@@ -55,12 +270,42 @@ export function RoomShapeCanvas({
   const stableSpan = Math.max(vbW, vbH, 1);
   const hitWidth = stableSpan * 0.06;
   const cornerRadius = stableSpan * 0.012;
-  const labelOffset = stableSpan * 0.035;
 
-  const toPercent = (p: Point) => ({
-    left: ((p.x - vbX) / vbW) * 100,
-    top: ((p.y - vbY) / vbH) * 100,
-  });
+  // Live pixel size of the SVG element. Needed because the HTML label
+  // overlay has to agree with where the SVG actually DREW the shape, and an
+  // SVG letterboxes its viewBox ("xMidYMid meet") whenever the element's
+  // aspect ratio differs from the viewBox's. Mapping labels by naive
+  // viewBox percentage ignores that letterbox, so labels sat at a growing
+  // offset from their wall -- worst on horizontal walls, because dragging
+  // those is what changes the element-vs-viewBox aspect mismatch most.
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [elSize, setElSize] = useState({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setElSize({ w: r.width, h: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** Exact SVG-user-space -> container-pixel mapping, letterbox included.
+   * Element size only changes on resize (never during a drag), so this is
+   * stable and lag-free while dragging. */
+  const toPx = (p: Point) => {
+    if (elSize.w === 0 || elSize.h === 0) return { left: 0, top: 0 };
+    const scale = Math.min(elSize.w / vbW, elSize.h / vbH);
+    const offX = (elSize.w - vbW * scale) / 2;
+    const offY = (elSize.h - vbH * scale) / 2;
+    return {
+      left: offX + (p.x - vbX) * scale,
+      top: offY + (p.y - vbY) * scale,
+    };
+  };
 
   const clientToSvgPoint = (clientX: number, clientY: number): Point => {
     const svg = svgRef.current;
@@ -86,7 +331,17 @@ export function RoomShapeCanvas({
     const move = (ev: PointerEvent) => {
       const nowSvg = clientToSvgPoint(ev.clientX, ev.clientY);
       const delta = { x: nowSvg.x - startSvg.x, y: nowSvg.y - startSvg.y };
-      onCornersChange(dragWallEdge(startCorners, wallIndex, delta));
+      const next = dragWallEdge(startCorners, wallIndex, delta);
+      // The viewBox is fixed for the whole session (see computeStableViewBox)
+      // and IS the visible canvas, so a shape that leaves it is a shape you
+      // can no longer see or grab. Rather than letting the drag escape and
+      // then trying to recover, refuse the frame outright -- the wall simply
+      // stops at the edge, which reads as a wall you can't push through.
+      const inView = next.every(
+        (c) => c.x >= vbX && c.x <= vbX + vbW && c.y >= vbY && c.y <= vbY + vbH,
+      );
+      if (!inView) return;
+      onCornersChange(next);
     };
     const up = (ev: PointerEvent) => {
       try {
@@ -104,23 +359,80 @@ export function RoomShapeCanvas({
   const onWallClickCapture = (
     e: React.MouseEvent<SVGLineElement>,
     wallIndex: number,
-    seg: { a: Point; b: Point; length: number },
+    _seg: { a: Point; b: Point; length: number },
   ) => {
     if (mode !== "openings" || !onWallClick) return;
-    const p = clientToSvgPoint(e.clientX, e.clientY);
-    const wallDx = seg.b.x - seg.a.x;
-    const wallDy = seg.b.y - seg.a.y;
-    const lenSq = wallDx * wallDx + wallDy * wallDy || 1;
-    const t = ((p.x - seg.a.x) * wallDx + (p.y - seg.a.y) * wallDy) / lenSq;
-    const clampedT = Math.max(0, Math.min(1, t));
-    onWallClick(wallIndex, clampedT * seg.length);
+    // Place exactly where the ghost is showing -- including its centre snap
+    // -- so what you saw is what you get, rather than re-deriving a
+    // slightly different position from the raw click point.
+    const pos = positionOnWall(wallIndex, { x: e.clientX, y: e.clientY }, DEFAULT_OPENING_WIDTH);
+    if (pos === null) return;
+    onSelectOpening?.(null);
+    onWallClick(wallIndex, pos + DEFAULT_OPENING_WIDTH / 2);
   };
 
   const points = corners.map((c) => `${c.x},${c.y}`).join(" ");
+
   const segs = wallSegments(corners);
 
+  /**
+   * Where each wall's dimension label sits, in container pixels.
+   *
+   * Two stages. First, push each label a fixed number of SCREEN pixels off
+   * its wall along the wall's normal -- offsetting in SVG units instead
+   * meant the gap shrank with the viewBox scale until labels sat on top of
+   * their own walls. Second, a short separation pass: on an L or cut-corner
+   * shape two short walls meet at an inner corner, and their midpoints are
+   * close enough that a fixed offset alone leaves the two labels
+   * overprinting each other. A few relaxation rounds push any overlapping
+   * pair apart along the line between them, which is enough for the handful
+   * of labels a room shape ever has.
+   */
+  const labelPositions = (() => {
+    const placed = segs.map((seg) => {
+      const midX = (seg.a.x + seg.b.x) / 2;
+      const midY = (seg.a.y + seg.b.y) / 2;
+      const dx = seg.b.x - seg.a.x;
+      const dy = seg.b.y - seg.a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = dy / len;
+      const ny = -dx / len;
+      const mid = toPx({ x: midX, y: midY });
+      return {
+        seg,
+        pos: { left: mid.left + nx * LABEL_PX_GAP, top: mid.top + ny * LABEL_PX_GAP },
+      };
+    });
+
+    const MIN_SEP_X = 52;
+    const MIN_SEP_Y = 18;
+    for (let round = 0; round < 4; round++) {
+      let moved = false;
+      for (let i = 0; i < placed.length; i++) {
+        for (let j = i + 1; j < placed.length; j++) {
+          const a = placed[i].pos;
+          const b = placed[j].pos;
+          const dx = b.left - a.left;
+          const dy = b.top - a.top;
+          if (Math.abs(dx) >= MIN_SEP_X || Math.abs(dy) >= MIN_SEP_Y) continue;
+          const dist = Math.hypot(dx, dy) || 1;
+          const push = (MIN_SEP_Y - Math.abs(dy) + 4) / 2;
+          const ux = dx / dist;
+          const uy = dy / dist;
+          a.left -= ux * push;
+          a.top -= uy * push;
+          b.left += ux * push;
+          b.top += uy * push;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    return placed;
+  })();
+
   return (
-    <div className="relative h-full w-full" style={{ maxHeight: 320 }}>
+    <div ref={hostRef} className="relative h-full w-full" style={{ maxHeight: 440 }}>
       <svg ref={svgRef} viewBox={viewBox} className="h-full w-full touch-none select-none">
         <polygon points={points} className="fill-primary/10 stroke-none" />
         {segs.map((seg) => (
@@ -136,6 +448,19 @@ export function RoomShapeCanvas({
                 mode === "drag" ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"
               }
               onPointerDown={mode === "drag" ? (e) => onWallPointerDown(e, seg.index) : undefined}
+              onPointerMove={
+                mode === "openings"
+                  ? (e) => {
+                      const pos = positionOnWall(
+                        seg.index,
+                        { x: e.clientX, y: e.clientY },
+                        DEFAULT_OPENING_WIDTH,
+                      );
+                      if (pos !== null) setGhost({ wallIndex: seg.index, position: pos });
+                    }
+                  : undefined
+              }
+              onPointerLeave={mode === "openings" ? () => setGhost(null) : undefined}
               onClick={
                 mode === "openings" ? (e) => onWallClickCapture(e, seg.index, seg) : undefined
               }
@@ -152,42 +477,71 @@ export function RoomShapeCanvas({
             />
           </g>
         ))}
-        {mode === "openings" &&
-          openings.map((o) => {
-            const seg = resolveWallSegment(corners, o.wall);
-            if (!seg) return null;
-            const dx = seg.b.x - seg.a.x;
-            const dy = seg.b.y - seg.a.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const ux = dx / len;
-            const uy = dy / len;
-            const startPt = { x: seg.a.x + ux * o.position, y: seg.a.y + uy * o.position };
-            const endPt = {
-              x: seg.a.x + ux * (o.position + o.width),
-              y: seg.a.y + uy * (o.position + o.width),
-            };
-            return (
-              <line
-                key={o.id}
-                x1={startPt.x}
-                y1={startPt.y}
-                x2={endPt.x}
-                y2={endPt.y}
-                className={
-                  o.kind === "door"
-                    ? "stroke-amber-600 hover:stroke-destructive cursor-pointer"
-                    : "stroke-sky-400 hover:stroke-destructive cursor-pointer"
-                }
-                strokeWidth={7}
-                strokeLinecap="butt"
-                vectorEffect="non-scaling-stroke"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveOpening?.(o.id);
-                }}
-              />
-            );
-          })}
+        {/* --- Openings: real floor-plan symbols, not coloured blobs ---
+            A door is drawn the way a plan draws one: the leaf plus its swing
+            arc, so you can see which way it opens and how much floor it
+            eats. A window is the conventional thin double line set into the
+            wall. Both are what the finished room will actually look like in
+            the main canvas, which is the whole point of placing them here. */}
+        {mode === "openings" && (
+          <g>
+            {ghost &&
+              (() => {
+                const g = openingGeometry(ghost.wallIndex, ghost.position, DEFAULT_OPENING_WIDTH);
+                if (!g) return null;
+                return (
+                  <g className="pointer-events-none" opacity={0.45}>
+                    <line
+                      x1={g.start.x}
+                      y1={g.start.y}
+                      x2={g.end.x}
+                      y2={g.end.y}
+                      className="stroke-background"
+                      strokeWidth={6}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    <OpeningSymbol geo={g} kind={ghostKind} dashed />
+                  </g>
+                );
+              })()}
+
+            {openings.map((o) => {
+              const idx = wallIndexOf(o.wall);
+              const g = idx === null ? null : openingGeometry(idx, o.position, o.width);
+              if (!g) return null;
+              const isSelected = o.id === selectedOpeningId;
+              return (
+                <g key={o.id}>
+                  {/* Knock the wall out underneath, so an opening reads as a
+                      hole in the wall rather than a sticker on top of it. */}
+                  <line
+                    x1={g.start.x}
+                    y1={g.start.y}
+                    x2={g.end.x}
+                    y2={g.end.y}
+                    className="stroke-background"
+                    strokeWidth={6}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <OpeningSymbol geo={g} kind={o.kind} selected={isSelected} />
+                  {/* Grab area: select on click, drag to slide along the
+                      wall. Deliberately NOT delete-on-click -- that made
+                      every mis-click destructive. */}
+                  <line
+                    x1={g.start.x}
+                    y1={g.start.y}
+                    x2={g.end.x}
+                    y2={g.end.y}
+                    stroke="transparent"
+                    strokeWidth={hitWidth}
+                    className="cursor-grab active:cursor-grabbing"
+                    onPointerDown={(e) => onOpeningPointerDown(e, o)}
+                  />
+                </g>
+              );
+            })}
+          </g>
+        )}
         {corners.map((c, i) => (
           <circle
             key={i}
@@ -198,20 +552,42 @@ export function RoomShapeCanvas({
           />
         ))}
       </svg>
-      {segs.map((seg) => {
-        const midX = (seg.a.x + seg.b.x) / 2;
-        const midY = (seg.a.y + seg.b.y) / 2;
-        const dx = seg.b.x - seg.a.x;
-        const dy = seg.b.y - seg.a.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = dy / len;
-        const ny = -dx / len;
-        const pos = toPercent({ x: midX + nx * labelOffset, y: midY + ny * labelOffset });
+      {labelPositions.map(({ seg, pos }) => {
+        if (editingWall === seg.index) {
+          return (
+            <input
+              key={seg.index}
+              autoFocus
+              type="number"
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitEdit();
+                if (e.key === "Escape") setEditingWall(null);
+              }}
+              className="absolute w-20 -translate-x-1/2 -translate-y-1/2 rounded border border-primary bg-background px-1 py-0.5 text-center text-sm font-medium"
+              style={{ left: pos.left, top: pos.top }}
+            />
+          );
+        }
         return (
           <div
             key={seg.index}
-            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-sm font-medium text-muted-foreground"
-            style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
+            onClick={
+              canEditLengths
+                ? () => {
+                    setEditingWall(seg.index);
+                    setEditDraft(String(Math.round(seg.length)));
+                  }
+                : undefined
+            }
+            className={`absolute -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-sm font-medium text-muted-foreground ${
+              canEditLengths
+                ? "cursor-text rounded px-1 hover:bg-accent hover:text-foreground"
+                : "pointer-events-none"
+            }`}
+            style={{ left: pos.left, top: pos.top }}
           >
             {Math.round(seg.length)} cm
           </div>

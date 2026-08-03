@@ -317,8 +317,46 @@ Root cause was not in the delete path at all. `isFloorArray()` in `lib/floors.ts
 - [x] **Knee walls**: a wall carrying a slope now stops at its `kneeHeight` instead of running to the ceiling. Without this the wall shot straight past the slanted ceiling, reading as clipping rather than a roof.
 - [x] **Bug found in the browser, not by tests**: `THREE.ShapeGeometry` is *indexed*, so reading its `position` attribute in threes ran off the end of a 4-corner rectangle and produced NaN vertices -- surfaced by three.js only much later as an opaque "computeBoundingSphere(): Computed radius is NaN". Fixed to walk the index buffer, plus `buildCeilingSurface` now drops non-finite triangles defensively so a bad triangulator can never poison a mesh again. 6 new tests.
 
+### Feedback round on slopes/ceilings (2026-07-31)
+
+- [x] **Ceiling rendered at ~10% opacity from every angle.** Root cause of both "the slant is barely visible" and "Show Ceiling does nothing in a flat room": the ceiling faded to `wallFadeOpacity * 0.4` (= 0.1) whenever the camera was above it *at all*, which is essentially always. It now uses the **exact same rule as the walls** -- same `fadeFactor` (solid looking straight down, fading toward horizontal), same `wallFadeOpacity` target, same hysteresis -- and the same base colour `#f1f5f9`, so it reads as part of the same shell.
+- [x] **Openings on sloped walls are refused.** `addOpening` rejects a sloped wall with a toast; adding a slope to a wall that already has doors/windows asks first (`AlertDialog`) and deletes them on confirm. Deliberately not half-supported: an opening in a knee wall needs its own height validation, and one in the slope itself is really a roof window.
+- [x] **Inspector wheel-scroll no longer zooms the canvas.** The panel lives *inside* the stage, so its wheel events bubbled to the stage's zoom handler -- which meant the panel could never be scrolled once it outgrew the viewport (a room with several sloped walls). Panels now carry `data-stage-overlay` and the stage handler ignores wheel events from inside them. The panel is also capped to the stage height and its body scrolls.
+- [x] **Wizard: dimension labels drifted off the walls.** They were positioned by naive viewBox percentage, which ignores that an SVG *letterboxes* its viewBox when the element's aspect ratio differs. Now mapped exactly (measured element size -> scale + centring offsets), so a label stays pinned to its wall regardless of shape.
+- [x] **Wizard: walls can no longer be dragged out of view.** A drag frame that would push any corner outside the (fixed) viewBox is refused, so the wall stops at the edge instead of escaping the canvas.
+- [x] **Wizard: dimension labels are directly editable.** Click a label, type a length. Offered only on 4-corner shapes, where a wall's length unambiguously *is* one side of the bounding box -- so it reuses the existing resize rather than inventing a second geometry path. On L/cut-corner shapes several shapes satisfy a given wall length, so the label stays read-only rather than guessing.
+
+### Rebrand: PLANUM (2026-07-31)
+
+Name chosen by the user from the shortlist. Applied everywhere the old brand lived:
+
+- [x] `title`/`subtitle` in both languages (`planner-translations.ts`), plus the tour's welcome step. New tagline: *"Plan the space you actually have."* / *"Plane den Raum, den du wirklich hast."* -- it names the attic/slope problem the app now actually solves rather than describing a generic planner.
+- [x] Document `<title>`, `og:`/`twitter:` meta and the description in `__root.tsx`; README.
+- [x] Three stale `alt="Büro Planner Logo"` / `"Room Planner Logo"` strings, and the Dashboard's hardcoded heading.
+- [x] **New mark**: `public/logo.svg` -- a floor plan reduced to essentials (room outline with a doorway gap, an interior partition, and a diagonal for the Dachschräge). Vector, so it doubles as the favicon and scales cleanly; replaces `logo.png`/`favicon.png` everywhere.
+- **Two SVG gotchas hit while doing it**, both worth remembering: an SVG referenced from `<img>` needs explicit `width`/`height` (a bare `viewBox` gives it no intrinsic size and it renders as *nothing*), and XML comments may not contain a double hyphen -- one in the first draft made the whole file fail to parse, which presents identically to "the file is missing".
+
+### Wizard openings step, reworked (2026-07-31)
+
+Was: flat coloured bars, click-to-delete, no feedback before committing.
+
+- [x] **Real floor-plan symbols.** Doors draw a leaf plus a swing arc (so you can see which way it opens and how much floor it eats); windows draw the conventional inset double line. Both knock a gap in the wall underneath, so an opening reads as a hole rather than a sticker.
+- [x] **Ghost preview.** A dashed symbol follows the pointer along whichever wall it's over -- you see the actual door land before clicking.
+- [x] **Snap to wall centre** within 18cm, with the placement committing exactly where the ghost showed (rather than re-deriving a slightly different position from the raw click).
+- [x] **Click selects, drag repositions.** Click-to-delete is gone -- it made every mis-click destructive. Dragging slides an opening along its wall and stops against its neighbours instead of jumping through them.
+- [x] **Contextual toolbar** for the selected opening: width presets (70/80/90/100 for doors, 60/90/120/160 for windows) and an explicit Remove. Resizing keeps the opening on its wall and clear of neighbours, so no preset can produce an invalid layout.
+- [x] **Hint line** that changes with state: "Click a wall to place one. It snaps to the wall's centre." -> "Drag to reposition, click to edit."
+
+### Wizard follow-ups (2026-07-31)
+
+- [x] **Bigger window.** Dialog `sm:max-w-2xl` -> `sm:max-w-4xl`, canvas 320px -> 440px. The shape step was the one screen where cramped space actually cost precision.
+- [x] **Wall-length editing works on every shape, not just rectangles.** The first version mapped a wall's length onto the bounding box, which only holds for a 4-corner room -- so L and cut-corner shapes got a read-only label. New `setWallLength()` (`room-shapes.ts`) generalises it: a wall's length isn't its own property, it's the distance between the two walls it runs between, so this moves the wall's NEXT neighbour through `dragWallEdge` -- meaning every existing guard (minimum size, neighbour inversion, 2-decimal rounding) still applies and a typed length can't produce a shape a drag couldn't. Iterates with a direction probe, because the relationship is only exactly linear when the moved neighbour is perpendicular (it isn't, on a cut corner). 6 new tests.
+- [x] **Labels sat on top of their walls.** Fixing the earlier drift moved the offset into correct SVG-unit space -- but an SVG-unit offset scales with the viewBox, so on a wide-but-short room it collapsed to a few pixels. Now a fixed *screen-pixel* gap, so every label clears its wall by the same readable amount at any zoom.
+- [x] **Labels at an L's inner corner overprinted each other** into unreadable mush -- two short walls meet there and their midpoints are close enough that a uniform offset isn't enough. Added a short relaxation pass that pushes overlapping pairs apart. Verified on the L-shape: all six labels legible (240 / 140 / 160 / 210 / 400 / 350).
+
 ### Still open
 
+- [ ] **Same room-creation flows inside `/rooms`.** The floor layout's "add room" sidebar should offer the dashboard's flows (from scratch / from example / guided shape wizard) instead of the current bare name+size form -- it's inconsistent otherwise. Not urgent, but the next substantial task after the items above.
 - [ ] **Walls perpendicular to a sloped wall are still full-height rectangles**, not trapezoids, so they can poke above the slanted ceiling. The knee wall itself and the ceiling surface are correct; this is the remaining piece of the 3D geometry (needs `THREE.Shape` + `ExtrudeGeometry` per segment instead of a box).
 - [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` -- a window can currently be taller than the knee wall it sits in. Roof windows (*Dachfenster*) remain out of scope.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.

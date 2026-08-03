@@ -1053,12 +1053,19 @@ export function CanvasArea({
         {!threeDActive && !isMobileViewOnly && (
           <div
             ref={inspectorRef}
-            className="absolute z-40 w-72 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
+            // data-stage-overlay marks this as UI floating over the canvas
+            // rather than part of it, so the stage's wheel-to-zoom handler
+            // leaves scrolling in here alone (see use-room-planner.ts).
+            data-stage-overlay=""
+            className="absolute z-40 flex w-72 flex-col pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
             style={{
               left: 0,
               top: 0,
               transform: `translate3d(${inspectorPos.x}px, ${inspectorPos.y}px, 0)`,
               willChange: "transform",
+              // Never taller than the stage it floats over -- the body
+              // scrolls internally past that point (see InspectorSection).
+              maxHeight: "calc(100% - 24px)",
               // The parent canvas stage sets cursor:grab/grabbing for
               // panning -- since cursor is CSS-inherited, this floating
               // panel would otherwise show the same "drag" hand everywhere
@@ -1082,6 +1089,7 @@ export function CanvasArea({
               selectedIds={selectedIds}
               setSelectedIds={setSelectedIds}
               selectedOpening={selectedOpening}
+              openings={openings}
               selectedOpeningId={selectedOpeningId}
               setSelectedOpeningId={setSelectedOpeningId}
               wallColors={wallColors}

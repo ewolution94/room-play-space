@@ -504,8 +504,8 @@ function MultiRoomOverview() {
         <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <img
-              src="/logo.png"
-              alt="Büro Planner Logo"
+              src="/logo.svg"
+              alt="PLANUM"
               className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
             />
             <div className="min-w-0">

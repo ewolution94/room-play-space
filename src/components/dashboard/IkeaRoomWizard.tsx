@@ -17,6 +17,7 @@ import { ColorSwatchPicker } from "@/components/dashboard/ColorSwatchPicker";
 import {
   ROOM_SHAPE_TEMPLATES,
   resizeRoomShape,
+  setWallLength,
   computeStableViewBox,
   type RoomShapeKind,
 } from "@/lib/room-shapes";
@@ -26,7 +27,7 @@ import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
 import { STRINGS } from "@/lib/planner-translations";
 import { SWATCHES } from "@/lib/swatches";
 import type { Lang, Opening, Point } from "@/types/planner";
-import { ArrowLeft, ArrowRight, DoorOpen, Home, RectangleHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, DoorOpen, Home, RectangleHorizontal, Trash2 } from "lucide-react";
 
 interface IkeaRoomWizardProps {
   lang: Lang;
@@ -59,6 +60,7 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
   const [color, setColor] = useState(SWATCHES[0].value);
   const [openings, setOpenings] = useState<Opening[]>([]);
   const [openingKind, setOpeningKind] = useState<"door" | "window">("door");
+  const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
   // Fresh start every time the wizard is (re)opened.
   useEffect(() => {
@@ -71,6 +73,7 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
     setColor(SWATCHES[0].value);
     setOpenings([]);
     setOpeningKind("door");
+    setSelectedOpeningId(null);
   }, [open]);
 
   const pickShape = (kind: RoomShapeKind) => {
@@ -89,6 +92,16 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
 
   const applyBoundingSize = (width: number, length: number) => {
     setCorners((prev) => resizeRoomShape(prev, width, length));
+  };
+
+  /**
+   * Typing a length straight onto a wall's dimension label. Works on every
+   * shape, not just rectangles: setWallLength moves the wall's neighbour
+   * through the same dragWallEdge guards a manual drag goes through, so a
+   * typed length can never produce a shape a drag couldn't.
+   */
+  const applyWallLength = (wallIndex: number, lengthCm: number) => {
+    setCorners((prev) => setWallLength(prev, wallIndex, lengthCm));
   };
 
   // A plain 4-corner room keeps the app's established named-wall
@@ -138,7 +151,53 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
       },
     ]);
   };
+  const selectedOpening = openings.find((o) => o.id === selectedOpeningId) ?? null;
+
   const removeOpening = (id: string) => setOpenings((prev) => prev.filter((o) => o.id !== id));
+
+  /** Slide an opening along its wall. Overlap is checked here rather than in
+   * the canvas so the drag simply stops against its neighbour instead of
+   * jumping through it. */
+  const moveOpening = (id: string, position: number) => {
+    setOpenings((prev) => {
+      const target = prev.find((o) => o.id === id);
+      if (!target) return prev;
+      const clash = prev.some(
+        (o) =>
+          o.id !== id &&
+          String(o.wall) === String(target.wall) &&
+          position < o.position + o.width &&
+          o.position < position + target.width,
+      );
+      if (clash) return prev;
+      return prev.map((o) =>
+        o.id === id ? { ...o, position: Math.round(position * 100) / 100 } : o,
+      );
+    });
+  };
+
+  /** Resize an opening in place, keeping it on its wall and clear of its
+   * neighbours -- so the presets can never produce an invalid layout. */
+  const resizeOpening = (id: string, width: number) => {
+    setOpenings((prev) => {
+      const target = prev.find((o) => o.id === id);
+      if (!target) return prev;
+      const seg = resolveWallSegment(corners, target.wall);
+      if (!seg) return prev;
+      const wallLength = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
+      if (width > wallLength) return prev;
+      const position = Math.max(0, Math.min(target.position, wallLength - width));
+      const clash = prev.some(
+        (o) =>
+          o.id !== id &&
+          String(o.wall) === String(target.wall) &&
+          position < o.position + o.width &&
+          o.position < position + width,
+      );
+      if (clash) return prev;
+      return prev.map((o) => (o.id === id ? { ...o, width, position } : o));
+    });
+  };
 
   const finish = () => {
     if (!shapeKind || corners.length === 0) return;
@@ -157,7 +216,7 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-4xl">
         {step === "shape" && (
           <>
             <DialogHeader>
@@ -199,11 +258,12 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
                   : "Drag a wall to resize -- the opposite wall stays put."}
               </DialogDescription>
             </DialogHeader>
-            <div className="flex justify-center rounded-lg border bg-muted/20 py-4">
+            <div className="flex h-[440px] justify-center rounded-lg border bg-muted/20 py-4">
               <RoomShapeCanvas
                 corners={corners}
                 viewBox={viewBox}
                 onCornersChange={setCorners}
+                onWallLengthChange={applyWallLength}
                 mode="drag"
               />
             </div>
@@ -276,16 +336,73 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
               </Button>
             </div>
 
-            <div className="flex justify-center rounded-lg border bg-muted/20 py-3">
+            <div className="relative flex h-[440px] justify-center rounded-lg border bg-muted/20 py-3">
               <RoomShapeCanvas
                 corners={corners}
                 viewBox={viewBox}
                 mode="openings"
                 openings={openings}
+                ghostKind={openingKind}
                 onWallClick={handleWallClick}
                 onRemoveOpening={removeOpening}
+                onMoveOpening={moveOpening}
+                onSelectOpening={setSelectedOpeningId}
+                selectedOpeningId={selectedOpeningId}
               />
             </div>
+
+            {/* Contextual controls for whatever is selected. Placing is a
+                click; everything you might then want to change about that
+                one opening lives here, so the canvas itself stays free of
+                buttons and the destructive action is never a stray click on
+                the shape. */}
+            {selectedOpening ? (
+              <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border bg-background px-3 py-2">
+                <span className="text-xs font-medium">
+                  {selectedOpening.kind === "door" ? t.door : t.window}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {lang === "de" ? "Breite" : "Width"}
+                </span>
+                {(selectedOpening.kind === "door" ? [70, 80, 90, 100] : [60, 90, 120, 160]).map(
+                  (w) => (
+                    <Button
+                      key={w}
+                      type="button"
+                      size="sm"
+                      variant={selectedOpening.width === w ? "default" : "outline"}
+                      onClick={() => resizeOpening(selectedOpening.id, w)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      {w}
+                    </Button>
+                  ),
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    removeOpening(selectedOpening.id);
+                    setSelectedOpeningId(null);
+                  }}
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {lang === "de" ? "Entfernen" : "Remove"}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-center text-xs text-muted-foreground">
+                {openings.length === 0
+                  ? lang === "de"
+                    ? "Klicke auf eine Wand, um zu platzieren. Mittig rastet automatisch ein."
+                    : "Click a wall to place one. It snaps to the wall's centre."
+                  : lang === "de"
+                    ? "Zum Verschieben ziehen, zum Bearbeiten anklicken."
+                    : "Drag to reposition, click to edit."}
+              </p>
+            )}
 
             <div className="space-y-1.5">
               <Label>{lang === "de" ? "Name" : "Name"}</Label>

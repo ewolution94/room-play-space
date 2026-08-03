@@ -71,18 +71,18 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <img
-              src="/logo.png"
-              alt="Room Planner Logo"
+              src="/logo.svg"
+              alt="PLANUM"
               className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
             />
             <div className="min-w-0">
               <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-sky-400">
-                {lang === "de" ? "Raumplaner" : "Room Planner"}
+                PLANUM
               </h1>
               <p className="hidden sm:block truncate text-xs text-muted-foreground">
                 {lang === "de"
-                  ? "Dein Raum, deine Regeln. Visualisiert."
-                  : "Your room, your rules. Visualized."}
+                  ? "Plane den Raum, den du wirklich hast."
+                  : "Plan the space you actually have."}
               </p>
             </div>
           </div>

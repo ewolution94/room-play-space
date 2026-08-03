@@ -488,6 +488,75 @@ furniture/collision/opening-clamping concerns, so don't assume `dragWallEdge`
 can be dropped into the real editor as-is; "reshape a room that's already
 furnished" is a materially harder problem.
 
+## Persisted state: "empty" and "never saved" are different things
+
+`loadFloors()` once treated a saved empty array as invalid — `isFloorArray()`
+required `length > 0` — and fell through to its legacy-key migration branch,
+which **re-saved a pre-floors backup on every single load.** Anyone still
+carrying the old `planner-multi-rooms` key could therefore never delete their
+last floor: it came back on the next page load, looking exactly like the delete
+had silently failed.
+
+Two general rules fall out of it:
+
+- **An empty collection is a legitimate saved state.** If your validity check
+  rejects it, every "the user deleted everything" path silently becomes "fall
+  back to whatever else you can find."
+- **Verifying storage/migration behaviour on a cleared browser profile proves
+  nothing**, because clearing wipes the legacy key too. Plant the old key
+  explicitly. This one was "fixed" twice against a cleared profile before the
+  real cause turned up.
+
+The same distinction shows up one level higher: `/rooms` used to *auto-create*
+a floor whenever the store was empty (first the showcase apartment, later a
+blank floor). Both were the same mistake — visiting a page silently wrote data
+— and both made deleting the last floor impossible to accomplish. A route
+should offer the action in an empty state, not perform it.
+
+## Wall lengths are a property of a wall's *neighbours*
+
+Letting someone type a wall's length looks like it should set a field on that
+wall. It can't: a wall's length is the distance between the two walls it runs
+between, so changing it means moving one of those.
+
+`setWallLength()` (`lib/room-shapes.ts`) therefore moves the wall's *next*
+neighbour, and does it by calling `dragWallEdge()` rather than editing corners
+directly — which means every guard a manual drag already enforces (minimum
+size, neighbour inversion, 2-decimal rounding) applies automatically, and a
+typed length can never produce a shape a drag couldn't.
+
+It iterates with a direction probe rather than solving in one step, because the
+relationship is only exactly linear when the moved neighbour is perpendicular
+to the target wall. On a cut-corner shape it isn't, and "which way is outward"
+depends on the polygon's winding at that corner — cheaper to probe once than to
+reason about.
+
+The first version sidestepped all this by mapping a wall's length onto the
+bounding box, which is only valid for a 4-corner room and left every polygon
+shape read-only.
+
+## Three.js and SVG gotchas that surface far from their cause
+
+- **`THREE.ShapeGeometry` is indexed.** Its `position` attribute holds each
+  unique corner once; `index` is what groups them into triangles. Walking
+  `position` in threes runs off the end of a 4-corner polygon and produces
+  NaN vertices — reported by three.js much later, and very unhelpfully, as
+  `computeBoundingSphere(): Computed radius is NaN`. Any geometry builder
+  taking triangles from outside should also drop non-finite vertices
+  defensively; a single NaN poisons a whole mesh's bounds.
+- **An SVG referenced from `<img>` needs explicit `width`/`height`.** With only
+  a `viewBox` it has no intrinsic size and renders as *nothing* — no error, no
+  broken-image icon, just the alt text.
+- **XML comments may not contain a double hyphen.** One in a hand-written SVG
+  makes the entire file fail to parse, which presents identically to the file
+  being missing or the path being wrong.
+- **Overlay UI positioned in percentages of an SVG's container will drift**,
+  because an SVG letterboxes its viewBox (`xMidYMid meet`) whenever the
+  element's aspect ratio differs from the viewBox's. Map through the measured
+  element size instead. And offsets meant to be *visual* (a label's gap from
+  its wall) belong in screen pixels, not SVG units — a viewBox-space offset
+  shrinks with the scale until the label sits on top of the thing it labels.
+
 ## Reusing the whole rendering/collision pipeline for a "variant" catalog item
 
 "My Own Catalog" and the built-in IKEA catalog (`lib/custom-catalog.ts`,

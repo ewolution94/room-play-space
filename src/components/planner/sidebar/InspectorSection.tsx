@@ -53,6 +53,9 @@ interface InspectorSectionProps {
   selectedIds: Set<string>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   selectedOpening: Opening | null;
+  /** All openings, so the slope editor can clear the ones on a wall that
+   * is being given a Dachschräge. */
+  openings: Opening[];
   selectedOpeningId: string | null;
   setSelectedOpeningId: React.Dispatch<React.SetStateAction<string | null>>;
   wallColors: Record<string, string>;
@@ -95,6 +98,7 @@ export function InspectorSection({
   selectedIds,
   setSelectedIds,
   selectedOpening,
+  openings,
   selectedOpeningId,
   setSelectedOpeningId,
   wallColors,
@@ -235,7 +239,7 @@ export function InspectorSection({
   return (
     <Card
       id="tour-inspector"
-      className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md shrink-0 border-t-2 overflow-hidden"
+      className="border-primary/20 shadow-md bg-card/90 backdrop-blur-md border-t-2 overflow-hidden flex min-h-0 flex-col"
       style={{ transform: "translate3d(0,0,0)", backfaceVisibility: "hidden" }}
     >
       <div
@@ -310,7 +314,7 @@ export function InspectorSection({
         </div>
       </div>
       {!isCollapsed && (
-        <CardContent className="p-3 max-h-[60vh] overflow-y-auto">
+        <CardContent className="p-3 flex-1 min-h-0 overflow-y-auto">
           {selectedOpening ? (
             /* Inspector for Selected Door/Window Opening */
             <div className="space-y-4 animate-in fade-in duration-200">
@@ -932,6 +936,8 @@ export function InspectorSection({
                 setCeilingHeight={setCeilingHeight}
                 wallSlopes={wallSlopes}
                 setWallSlopes={setWallSlopes}
+                openings={openings}
+                removeOpening={removeOpening}
                 disabled={threeDActive}
               />
 

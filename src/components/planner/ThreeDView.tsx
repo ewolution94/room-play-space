@@ -854,7 +854,12 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     // loop): a wall asks "is the camera outside my plane", a ceiling only
     // asks "is the camera above me" -- which is exactly the difference
     // between looking at a floor plan from outside and standing in the room.
-    const ceilings: { group: THREE.Group; currentOpacity: number; height: number }[] = [];
+    const ceilings: {
+      group: THREE.Group;
+      currentOpacity: number;
+      height: number;
+      isBlockingState: boolean;
+    }[] = [];
 
     // Every room/hallway instance builds its own walls independently, each
     // offset by its own x/y into the shared scene (0 for a standalone
@@ -970,7 +975,9 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         ceilGeo.setAttribute("position", new THREE.Float32BufferAttribute(ceilingVerts, 3));
         ceilGeo.computeVertexNormals();
         const ceilMat = new THREE.MeshStandardMaterial({
-          color: "#e2e8f0", // slate-200, a touch darker than the walls
+          // Same base colour as the walls, so a ceiling reads as part of
+          // the same shell rather than a separate darker slab.
+          color: "#f1f5f9",
           roughness: 0.95,
           metalness: 0.02,
           // DoubleSide so it reads as a surface from inside the room as
@@ -987,7 +994,12 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         // Registered for the camera fade below on its own list: a wall
         // fades on a horizontal dot-product test, whereas a ceiling's only
         // meaningful question is "is the camera above it?".
-        ceilings.push({ group: ceilGroup, currentOpacity: 1, height: wallHeight });
+        ceilings.push({
+          group: ceilGroup,
+          currentOpacity: 1,
+          height: wallHeight,
+          isBlockingState: false,
+        });
       }
 
       // Rectangular rooms (the overwhelming common case) keep the exact
@@ -1779,19 +1791,37 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
       }
 
       for (const c of ceilings) {
-        // Solid from inside the room, dissolved once the camera climbs
-        // above it so the look-down-into-the-room view still works. The
-        // 40cm band gives the transition somewhere to happen instead of
-        // snapping exactly at ceiling level.
-        const above = THREE.MathUtils.clamp((camera.position.y - c.height) / 40, 0, 1);
-        const target = THREE.MathUtils.lerp(1, wallFadeOpacityRef.current * 0.4, above);
-        c.currentOpacity = THREE.MathUtils.lerp(c.currentOpacity, target, 0.12);
+        // Deliberately the SAME rule the walls use below, not a bespoke one.
+        // A ceiling is just a horizontal wall: it blocks the view when the
+        // camera is on its outward (upper) side, and how much it fades is
+        // the same fadeFactor -- solid when you look straight down at the
+        // building, dissolved to wallFadeOpacity as the view swings toward
+        // horizontal and it starts hiding the room.
+        //
+        // An earlier version faded it to wallFadeOpacity * 0.4 whenever the
+        // camera was above it at all, which pinned it at ~10% opacity from
+        // essentially every angle -- so a ceiling read as "not there",
+        // whether the room was sloped or not.
+        let targetOpacity = 1;
+        const hysteresisCm = 20;
+        const isBlocking = c.isBlockingState
+          ? camera.position.y > c.height - hysteresisCm
+          : camera.position.y > c.height + hysteresisCm;
+        c.isBlockingState = isBlocking;
+
+        if (isBlocking) {
+          targetOpacity = THREE.MathUtils.lerp(1.0, wallFadeOpacityRef.current, fadeFactor);
+        }
+
+        c.currentOpacity = THREE.MathUtils.lerp(c.currentOpacity, targetOpacity, 0.12);
         c.group.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach((m) => {
               m.transparent = true;
               m.opacity = c.currentOpacity;
+              // Writing depth while translucent makes the furniture behind
+              // it vanish rather than show through.
               m.depthWrite = c.currentOpacity > 0.95;
             });
           }

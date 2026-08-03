@@ -74,22 +74,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Büro Planner" },
+      { title: "PLANUM" },
       {
         name: "description",
-        content: "Design and visualize home office furniture layouts with drag-and-drop placement.",
+        content:
+          "Plan real rooms -- including sloped attic ceilings -- and see what actually fits, in 2D and 3D.",
       },
-      { property: "og:title", content: "Büro Planner" },
+      { property: "og:title", content: "PLANUM" },
       {
         property: "og:description",
-        content: "Design and visualize home office furniture layouts with drag-and-drop placement.",
+        content:
+          "Plan real rooms -- including sloped attic ceilings -- and see what actually fits, in 2D and 3D.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "Büro Planner" },
+      { name: "twitter:title", content: "PLANUM" },
       {
         name: "twitter:description",
-        content: "Design and visualize home office furniture layouts with drag-and-drop placement.",
+        content:
+          "Plan real rooms -- including sloped attic ceilings -- and see what actually fits, in 2D and 3D.",
       },
     ],
     links: [
@@ -99,8 +102,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         rel: "icon",
-        type: "image/png",
-        href: "/favicon.png",
+        type: "image/svg+xml",
+        href: "/logo.svg",
       },
     ],
   }),

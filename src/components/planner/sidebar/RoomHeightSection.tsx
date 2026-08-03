@@ -1,5 +1,16 @@
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { NumberField } from "@/components/ui/number-field";
 import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import {
@@ -9,7 +20,7 @@ import {
   pitchFromRun,
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
-import type { Point } from "@/types/planner";
+import type { Opening, Point } from "@/types/planner";
 import { ArrowUpFromLine, Plus, TriangleRight, X } from "lucide-react";
 
 interface RoomHeightSectionProps {
@@ -24,6 +35,10 @@ interface RoomHeightSectionProps {
   setCeilingHeight: (h: number) => void;
   wallSlopes: WallSlopeMap;
   setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
+  /** Needed so adding a slope can clear the doors/windows already on that
+   * wall -- openings and slopes can't coexist yet. */
+  openings: Opening[];
+  removeOpening: (id: string) => void;
   disabled?: boolean;
 }
 
@@ -51,13 +66,36 @@ export function RoomHeightSection({
   setCeilingHeight,
   wallSlopes,
   setWallSlopes,
+  openings,
+  removeOpening,
   disabled,
 }: RoomHeightSectionProps) {
+  const [pendingSlopeWall, setPendingSlopeWall] = useState<string | null>(null);
+  const openingsOnWall = (key: string) => openings.filter((o) => String(o.wall) === key);
   const setSlope = (key: string, patch: Partial<{ kneeHeight: number; run: number }>) => {
     setWallSlopes((prev) => ({
       ...prev,
       [key]: { ...(prev[key] ?? NEW_SLOPE), ...patch },
     }));
+  };
+
+  /** Openings aren't supported on a sloped wall (see addOpening in
+   * use-room-planner.ts). Adding a slope to a wall that already has some is
+   * therefore destructive, so it asks first rather than silently deleting
+   * doors and windows the user placed. */
+  const addSlope = (key: string) => {
+    if (openingsOnWall(key).length > 0) {
+      setPendingSlopeWall(key);
+      return;
+    }
+    setSlope(key, NEW_SLOPE);
+  };
+
+  const confirmAddSlope = () => {
+    if (!pendingSlopeWall) return;
+    openingsOnWall(pendingSlopeWall).forEach((o) => removeOpening(o.id));
+    setSlope(pendingSlopeWall, NEW_SLOPE);
+    setPendingSlopeWall(null);
   };
 
   const removeSlope = (key: string) => {
@@ -104,7 +142,7 @@ export function RoomHeightSection({
                   size="sm"
                   type="button"
                   disabled={disabled}
-                  onClick={() => setSlope(key, NEW_SLOPE)}
+                  onClick={() => addSlope(key)}
                   className="h-7 w-full justify-start gap-1.5 text-[11px] font-normal text-muted-foreground"
                 >
                   <Plus className="h-3 w-3" />
@@ -174,6 +212,24 @@ export function RoomHeightSection({
           })}
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingSlopeWall !== null}
+        onOpenChange={(o) => !o && setPendingSlopeWall(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.slopeRemovesOpeningsTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{t.slopeRemovesOpeningsBody}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{lang === "de" ? "Abbrechen" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAddSlope}>
+              {lang === "de" ? "Entfernen" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

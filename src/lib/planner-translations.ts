@@ -1,7 +1,7 @@
 export const STRINGS = {
   en: {
-    title: "Room Planner",
-    subtitle: "Your room, your rules. Visualized.",
+    title: "PLANUM",
+    subtitle: "Plan the space you actually have.",
     roomLabel: "Room",
     export: "Export",
     import: "Import",
@@ -47,7 +47,7 @@ export const STRINGS = {
     tourDone: "Done",
     tour: {
       welcome: {
-        title: "Welcome to Room Planner",
+        title: "Welcome to PLANUM",
         body: "Let's take a quick 45-second tour of the features to design your dream layout!",
       },
       catalog: {
@@ -109,6 +109,10 @@ export const STRINGS = {
     // box and the Elements list -- the numbers alone are ambiguous about
     // which is which.
     dimsLWH: "Length × Width × Height (cm)",
+    openingOnSlopedWall: "Doors and windows aren't supported on a sloped wall.",
+    slopeRemovesOpeningsTitle: "Remove doors and windows on this wall?",
+    slopeRemovesOpeningsBody:
+      "Doors and windows aren't supported on a sloped wall yet. Adding a slope here will permanently delete the openings already on this wall.",
     categories: {
       seating: "Seating",
       sleeping: "Bedroom",
@@ -151,8 +155,8 @@ export const STRINGS = {
     roomColor: "Room Color",
   },
   de: {
-    title: "Raumplaner",
-    subtitle: "Dein Raum. Deine Regeln. Visualisiert.",
+    title: "PLANUM",
+    subtitle: "Plane den Raum, den du wirklich hast.",
     roomLabel: "Raum",
     export: "Exportieren",
     import: "Importieren",
@@ -198,7 +202,7 @@ export const STRINGS = {
     tourDone: "Fertig",
     tour: {
       welcome: {
-        title: "Willkommen im Raumplaner",
+        title: "Willkommen bei PLANUM",
         body: "Lass uns eine kurze 45-Sekunden-Tour durch die Funktionen machen, um deinen Traumraum zu gestalten!",
       },
       catalog: {
@@ -257,6 +261,10 @@ export const STRINGS = {
     twoDMode: "2D-Modus",
     roomHeight: "Wandhöhe (cm)",
     dimsLWH: "Länge × Breite × Höhe (cm)",
+    openingOnSlopedWall: "Türen und Fenster werden an einer Schräge nicht unterstützt.",
+    slopeRemovesOpeningsTitle: "Türen und Fenster an dieser Wand entfernen?",
+    slopeRemovesOpeningsBody:
+      "Türen und Fenster werden an einer Schräge noch nicht unterstützt. Wenn du hier eine Schräge hinzufügst, werden die vorhandenen Öffnungen dieser Wand dauerhaft gelöscht.",
     categories: {
       seating: "Sitzmöbel",
       sleeping: "Schlafzimmer",

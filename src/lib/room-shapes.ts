@@ -1,5 +1,10 @@
 import type { Point } from "@/types/planner";
-import { lineIntersection, polygonBoundingBox, wallOutwardNormal } from "@/lib/hallway-shapes";
+import {
+  lineIntersection,
+  polygonBoundingBox,
+  wallOutwardNormal,
+  wallSegments,
+} from "@/lib/hallway-shapes";
 
 // Standalone-room shape templates + the constrained wall-drag interaction
 // for the IKEA-inspired room wizard. Deliberately separate from
@@ -217,4 +222,62 @@ export function computeStableViewBox(corners: Point[]): string {
   const cy = bb.minY + bb.height / 2;
   const half = span * 1.3;
   return `${round2(cx - half)} ${round2(cy - half)} ${round2(half * 2)} ${round2(half * 2)}`;
+}
+
+/**
+ * Sets one wall's length, for any shape -- not just rectangles.
+ *
+ * A wall's length isn't its own property: it's the distance between the two
+ * walls it runs between. So this doesn't move the wall you named, it moves
+ * that wall's NEXT neighbour along the neighbour's own normal, which is what
+ * lengthens or shortens the named wall. Reusing dragWallEdge for that keeps
+ * every existing guard (minimum size, neighbour inversion, the 2-decimal
+ * rounding) in force -- typing a length can't produce a shape a drag
+ * couldn't.
+ *
+ * Iterates because the relationship is only exactly linear when the moved
+ * neighbour is perpendicular to the target wall. On a cut-corner shape the
+ * neighbour can be diagonal, where one step overshoots or undershoots; a
+ * handful of passes converges. The direction is probed on the first pass
+ * rather than derived, since which way "outward" lengthens the target
+ * depends on the polygon's winding at that corner.
+ */
+export function setWallLength(corners: Point[], wallIndex: number, targetLength: number): Point[] {
+  const n = corners.length;
+  if (n < 3 || !Number.isFinite(targetLength) || targetLength <= 0) return corners;
+  const i = ((wallIndex % n) + n) % n;
+  const neighbour = (i + 1) % n;
+
+  let out = corners;
+  let sign = 1;
+  for (let iter = 0; iter < 8; iter++) {
+    const segs = wallSegments(out);
+    const diff = targetLength - segs[i].length;
+    if (Math.abs(diff) < 0.05) break;
+
+    const nb = segs[neighbour];
+    const nrm = wallOutwardNormal(nb.a, nb.b);
+    const next = dragWallEdge(out, neighbour, {
+      x: nrm.x * diff * sign,
+      y: nrm.y * diff * sign,
+    });
+
+    // Rejected outright (would invert a neighbour or go below the minimum).
+    if (next === out) {
+      if (iter === 0 && sign === 1) {
+        sign = -1;
+        continue;
+      }
+      break;
+    }
+
+    // First pass doubles as the direction probe: if the move took the wall
+    // FURTHER from the target, "outward" was the wrong way at this corner.
+    if (iter === 0 && Math.abs(targetLength - wallSegments(next)[i].length) > Math.abs(diff)) {
+      sign = -1;
+      continue;
+    }
+    out = next;
+  }
+  return out;
 }

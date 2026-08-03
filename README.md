@@ -1,4 +1,6 @@
-# Room Planner
+# PLANUM
+
+Plan the space you actually have -- including sloped attic ceilings -- in 2D and 3D.
 
 A multi-room floor-planner web app: lay out rooms and hallways, place furniture
 from a built-in catalog or your own custom items, add doors/windows, and switch

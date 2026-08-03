@@ -592,6 +592,14 @@ export function useRoomPlanner(
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (threeDActive) return;
+      // Floating panels (the Inspector) live INSIDE the stage, so their
+      // wheel events bubble here. Without this the panel can never be
+      // scrolled -- the wheel zooms the canvas underneath it instead, which
+      // is exactly what happens once the Inspector grows past the viewport
+      // (a room with several walls, each with a slope). Let those scroll
+      // normally: no preventDefault, no zoom.
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.("[data-stage-overlay]")) return;
       e.preventDefault();
       const step = 0.05;
       const direction = e.deltaY > 0 ? -1 : 1;
@@ -848,6 +856,14 @@ export function useRoomPlanner(
     // overlap an opening already there -- previously neither was checked,
     // so a door/window could be placed hanging off the end of a short wall
     // or stacked directly on top of another door with no feedback at all.
+    // A sloped wall is a knee wall of varying headroom -- an opening in it
+    // would need its own height validation against kneeHeight and, in the
+    // slope itself, is really a roof window. Neither is supported, so the
+    // combination is refused outright rather than half-modelled.
+    if (wallSlopes[String(oWall)]) {
+      toast.error(t.openingOnSlopedWall);
+      return;
+    }
     const seg = resolveWallSegment(corners, oWall);
     const wallLength = seg ? Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y) : Infinity;
     if (oPos < 0 || oWidth <= 0 || oPos + oWidth > wallLength + 0.01) {
