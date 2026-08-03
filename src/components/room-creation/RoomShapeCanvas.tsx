@@ -53,6 +53,14 @@ interface RoomShapeCanvasProps {
 /** Gap between a wall and its dimension label, in screen pixels. */
 const LABEL_PX_GAP = 22;
 
+/** Screen-pixel thickness of the room's walls. Chunky on purpose: at the
+ * old 3px they read as a wireframe outline rather than as walls, which is
+ * the first thing you notice comparing this canvas to IKEA's. */
+const WALL_STROKE_PX = 7;
+
+/** How long a dimension line's end ticks are, in screen pixels. */
+const DIM_TICK_PX = 7;
+
 /** Default size for a newly placed opening, cm. */
 const DEFAULT_OPENING_WIDTH = 90;
 /** How close (cm) the pointer must be to a wall's midpoint before the ghost
@@ -181,6 +189,14 @@ export function RoomShapeCanvas({
   // previous step gave no feedback at all until after the click.
   const [ghost, setGhost] = useState<{ wallIndex: number; position: number } | null>(null);
 
+  // Which wall the pointer is over, and which one is mid-drag. Purely
+  // visual, but the affordance is the point: before this, a wall gave no
+  // sign it could be grabbed until you were already dragging it, which is
+  // the main thing IKEA's own room builder does better -- theirs highlights
+  // the wall under the cursor and keeps it highlighted through the drag.
+  const [hoverWall, setHoverWall] = useState<number | null>(null);
+  const [activeWall, setActiveWall] = useState<number | null>(null);
+
   const wallIndexOf = (wall: Opening["wall"]): number | null => {
     if (typeof wall === "number") return wall;
     const i = NAMED_WALLS.indexOf(wall as (typeof NAMED_WALLS)[number]);
@@ -271,6 +287,32 @@ export function RoomShapeCanvas({
   const hitWidth = stableSpan * 0.06;
   const cornerRadius = stableSpan * 0.012;
 
+  /**
+   * The grab/click target for a wall: the wall itself, pulled back from both
+   * of its own ends.
+   *
+   * A hit area is a fat stroke centred on the wall, and its width is a
+   * fraction of the whole canvas -- so at a corner, two neighbouring walls'
+   * bands overlap in a blob roughly `hitWidth` square. On a long wall that
+   * blob is a sliver you never notice. On a U-shape's 105cm notch it is most
+   * of the wall, and grabbing the notch's ceiling would silently give you one
+   * of its side walls instead (measured: a click 6px in from the end of a
+   * 133cm wall resolved to its neighbour). Insetting each band by half its
+   * own width -- never more than a quarter of the wall, so a short wall keeps
+   * at least its middle half -- gives every wall an unambiguous span of its
+   * own and leaves the corners to whichever wall you're actually nearer.
+   */
+  const hitSegment = (seg: { a: Point; b: Point; length: number }) => {
+    const inset = Math.min(hitWidth / 2, seg.length * 0.25);
+    const len = seg.length || 1;
+    const ux = (seg.b.x - seg.a.x) / len;
+    const uy = (seg.b.y - seg.a.y) / len;
+    return {
+      a: { x: seg.a.x + ux * inset, y: seg.a.y + uy * inset },
+      b: { x: seg.b.x - ux * inset, y: seg.b.y - uy * inset },
+    };
+  };
+
   // Live pixel size of the SVG element. Needed because the HTML label
   // overlay has to agree with where the SVG actually DREW the shape, and an
   // SVG letterboxes its viewBox ("xMidYMid meet") whenever the element's
@@ -327,6 +369,7 @@ export function RoomShapeCanvas({
     const startSvg = clientToSvgPoint(e.clientX, e.clientY);
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
+    setActiveWall(wallIndex);
 
     const move = (ev: PointerEvent) => {
       const nowSvg = clientToSvgPoint(ev.clientX, ev.clientY);
@@ -349,6 +392,7 @@ export function RoomShapeCanvas({
       } catch {
         // pointer capture may already be released by the browser
       }
+      setActiveWall(null);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
@@ -398,9 +442,27 @@ export function RoomShapeCanvas({
       const nx = dy / len;
       const ny = -dx / len;
       const mid = toPx({ x: midX, y: midY });
+      const off = (p: { left: number; top: number }) => ({
+        left: p.left + nx * LABEL_PX_GAP,
+        top: p.top + ny * LABEL_PX_GAP,
+      });
+      // The dimension line runs parallel to the wall at the same outward
+      // offset the label uses, so the label lands on its own measurement.
+      // `ux`/`uy` is the wall's own direction, which is what the end ticks
+      // are drawn across.
       return {
         seg,
-        pos: { left: mid.left + nx * LABEL_PX_GAP, top: mid.top + ny * LABEL_PX_GAP },
+        pos: off(mid),
+        line: {
+          a: off(toPx(seg.a)),
+          b: off(toPx(seg.b)),
+          mid: off(mid),
+          // Tick direction: perpendicular to the dimension line, which is
+          // the wall's own outward normal.
+          tickX: nx,
+          tickY: ny,
+          needsLeader: false,
+        },
       };
     });
 
@@ -428,6 +490,13 @@ export function RoomShapeCanvas({
       }
       if (!moved) break;
     }
+    // A label the pass had to move no longer sits on its own dimension line,
+    // so it gets a leader back to it -- otherwise, on a T or U, you can't
+    // tell which of two crowded numbers belongs to which short wall.
+    for (const p of placed) {
+      const drift = Math.hypot(p.pos.left - p.line.mid.left, p.pos.top - p.line.mid.top);
+      p.line.needsLeader = drift > 10;
+    }
     return placed;
   })();
 
@@ -435,48 +504,76 @@ export function RoomShapeCanvas({
     <div ref={hostRef} className="relative h-full w-full" style={{ maxHeight: 440 }}>
       <svg ref={svgRef} viewBox={viewBox} className="h-full w-full touch-none select-none">
         <polygon points={points} className="fill-primary/10 stroke-none" />
-        {segs.map((seg) => (
-          <g key={seg.index}>
-            <line
-              x1={seg.a.x}
-              y1={seg.a.y}
-              x2={seg.b.x}
-              y2={seg.b.y}
-              stroke="transparent"
-              strokeWidth={hitWidth}
-              className={
-                mode === "drag" ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"
-              }
-              onPointerDown={mode === "drag" ? (e) => onWallPointerDown(e, seg.index) : undefined}
-              onPointerMove={
-                mode === "openings"
-                  ? (e) => {
-                      const pos = positionOnWall(
-                        seg.index,
-                        { x: e.clientX, y: e.clientY },
-                        DEFAULT_OPENING_WIDTH,
-                      );
-                      if (pos !== null) setGhost({ wallIndex: seg.index, position: pos });
-                    }
-                  : undefined
-              }
-              onPointerLeave={mode === "openings" ? () => setGhost(null) : undefined}
-              onClick={
-                mode === "openings" ? (e) => onWallClickCapture(e, seg.index, seg) : undefined
-              }
-            />
-            <line
-              x1={seg.a.x}
-              y1={seg.a.y}
-              x2={seg.b.x}
-              y2={seg.b.y}
-              className="stroke-foreground pointer-events-none"
-              strokeWidth={3}
-              vectorEffect="non-scaling-stroke"
-              strokeLinecap="round"
-            />
-          </g>
-        ))}
+        {/* The walls themselves, drawn once as the closed outline rather than
+            per-segment: a single stroked polygon miters its own corners, so
+            a thick wall meets its neighbour cleanly instead of showing the
+            notch two overlapping round caps leave at every 270-degree corner
+            (of which a U-shape has two and a T-shape four). */}
+        <polygon
+          points={points}
+          className="fill-none stroke-foreground pointer-events-none"
+          strokeWidth={WALL_STROKE_PX}
+          strokeLinejoin="miter"
+          vectorEffect="non-scaling-stroke"
+        />
+        {segs.map((seg) => {
+          const emphasised =
+            mode === "drag" && (activeWall === seg.index || hoverWall === seg.index);
+          const hit = hitSegment(seg);
+          return (
+            <g key={seg.index}>
+              {/* Highlight sits between the wall and its hit area so it reads
+                  as the wall lighting up, not a separate line beside it. */}
+              {emphasised && (
+                <line
+                  x1={seg.a.x}
+                  y1={seg.a.y}
+                  x2={seg.b.x}
+                  y2={seg.b.y}
+                  className={`stroke-primary pointer-events-none ${
+                    activeWall === seg.index ? "opacity-100" : "opacity-70"
+                  }`}
+                  strokeWidth={WALL_STROKE_PX + 4}
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+              <line
+                x1={hit.a.x}
+                y1={hit.a.y}
+                x2={hit.b.x}
+                y2={hit.b.y}
+                stroke="transparent"
+                strokeWidth={hitWidth}
+                className={
+                  mode === "drag" ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"
+                }
+                onPointerDown={mode === "drag" ? (e) => onWallPointerDown(e, seg.index) : undefined}
+                onPointerEnter={mode === "drag" ? () => setHoverWall(seg.index) : undefined}
+                onPointerMove={
+                  mode === "openings"
+                    ? (e) => {
+                        const pos = positionOnWall(
+                          seg.index,
+                          { x: e.clientX, y: e.clientY },
+                          DEFAULT_OPENING_WIDTH,
+                        );
+                        if (pos !== null) setGhost({ wallIndex: seg.index, position: pos });
+                      }
+                    : undefined
+                }
+                onPointerLeave={
+                  mode === "openings"
+                    ? () => setGhost(null)
+                    : () => setHoverWall((w) => (w === seg.index ? null : w))
+                }
+                onClick={
+                  mode === "openings" ? (e) => onWallClickCapture(e, seg.index, seg) : undefined
+                }
+              />
+            </g>
+          );
+        })}
         {/* --- Openings: real floor-plan symbols, not coloured blobs ---
             A door is drawn the way a plan draws one: the leaf plus its swing
             arc, so you can see which way it opens and how much floor it
@@ -542,16 +639,79 @@ export function RoomShapeCanvas({
             })}
           </g>
         )}
-        {corners.map((c, i) => (
-          <circle
-            key={i}
-            cx={c.x}
-            cy={c.y}
-            r={cornerRadius}
-            className="fill-primary pointer-events-none"
-          />
-        ))}
+        {/* Corner handles. In drag mode they're the white-fill/dark-ring
+            markers a floor plan uses, which say "these are the points the
+            walls run between" -- in openings mode that would just compete
+            with the door/window symbols, so they stay a plain dot. */}
+        {corners.map((c, i) =>
+          mode === "drag" ? (
+            <circle
+              key={i}
+              cx={c.x}
+              cy={c.y}
+              r={cornerRadius * 1.5}
+              className="fill-background stroke-foreground pointer-events-none"
+              strokeWidth={2.5}
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : (
+            <circle
+              key={i}
+              cx={c.x}
+              cy={c.y}
+              r={cornerRadius}
+              className="fill-primary pointer-events-none"
+            />
+          ),
+        )}
       </svg>
+
+      {/* --- Dimension lines ---
+          Drawn in the container's PIXEL space, not the SVG's user space, for
+          the same reason the labels are plain HTML (see labelPositions): the
+          only way a tick can be a constant on-screen length, and the only way
+          it can be guaranteed to line up with a label the separation pass may
+          have nudged, is to compute both in the same pixel coordinates. */}
+      {elSize.w > 0 && (
+        <svg
+          className="pointer-events-none absolute inset-0"
+          width={elSize.w}
+          height={elSize.h}
+          aria-hidden="true"
+        >
+          {labelPositions.map(({ seg, pos, line }) => (
+            <g key={seg.index} className="stroke-muted-foreground/60" strokeWidth={1}>
+              <line x1={line.a.left} y1={line.a.top} x2={line.b.left} y2={line.b.top} />
+              {/* End ticks, perpendicular to the dimension line -- the thing
+                  that makes it read as a measurement rather than an outline. */}
+              <line
+                x1={line.a.left - line.tickX * DIM_TICK_PX}
+                y1={line.a.top - line.tickY * DIM_TICK_PX}
+                x2={line.a.left + line.tickX * DIM_TICK_PX}
+                y2={line.a.top + line.tickY * DIM_TICK_PX}
+              />
+              <line
+                x1={line.b.left - line.tickX * DIM_TICK_PX}
+                y1={line.b.top - line.tickY * DIM_TICK_PX}
+                x2={line.b.left + line.tickX * DIM_TICK_PX}
+                y2={line.b.top + line.tickY * DIM_TICK_PX}
+              />
+              {/* Leader, only when the separation pass actually pushed the
+                  label off its own line -- which now happens routinely, since
+                  a T or U shape has short walls meeting at inner corners. */}
+              {line.needsLeader && (
+                <line
+                  x1={line.mid.left}
+                  y1={line.mid.top}
+                  x2={pos.left}
+                  y2={pos.top}
+                  strokeDasharray="2 2"
+                />
+              )}
+            </g>
+          ))}
+        </svg>
+      )}
       {labelPositions.map(({ seg, pos }) => {
         if (editingWall === seg.index) {
           return (
@@ -582,9 +742,12 @@ export function RoomShapeCanvas({
                   }
                 : undefined
             }
-            className={`absolute -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-sm font-medium text-muted-foreground ${
+            // bg-background is load-bearing now, not decoration: the label
+            // sits ON its dimension line, so it has to knock a gap in it the
+            // way a drawing does.
+            className={`absolute -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap rounded px-1 text-sm font-medium text-muted-foreground bg-background ${
               canEditLengths
-                ? "cursor-text rounded px-1 hover:bg-accent hover:text-foreground"
+                ? "cursor-text hover:bg-accent hover:text-foreground"
                 : "pointer-events-none"
             }`}
             style={{ left: pos.left, top: pos.top }}

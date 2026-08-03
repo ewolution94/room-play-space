@@ -4,12 +4,15 @@ import {
   buildRectangleCorners,
   buildLShapeCorners,
   buildCutCornerCorners,
+  buildTShapeCorners,
+  buildUShapeCorners,
   dragWallEdge,
   resizeRoomShape,
   MIN_WALL_LENGTH,
   setWallLength,
+  ROOM_SHAPE_TEMPLATES,
 } from "@/lib/room-shapes";
-import { wallSegments } from "@/lib/hallway-shapes";
+import { wallSegments, polygonSelfIntersects } from "@/lib/hallway-shapes";
 import type { Point } from "@/types/planner";
 
 function shoelaceArea(corners: Point[]): number {
@@ -61,6 +64,86 @@ describe("buildCutCornerCorners", () => {
     const corners = buildCutCornerCorners(400, 300, 100, 90);
     const area = Math.abs(shoelaceArea(corners));
     assert.ok(Math.abs(area - (400 * 300 - (100 * 90) / 2)) < 1e-6);
+  });
+});
+
+describe("buildTShapeCorners", () => {
+  test("has 8 corners", () => {
+    assert.equal(buildTShapeCorners(600, 450, 200, 250).length, 8);
+  });
+
+  test("area equals the bar plus the stem", () => {
+    const area = Math.abs(shoelaceArea(buildTShapeCorners(600, 450, 200, 250)));
+    // 600x250 bar + a 200-wide stem hanging the remaining 200 deep.
+    assert.ok(Math.abs(area - (600 * 250 + 200 * 200)) < 1e-6);
+  });
+
+  test("winds the same clockwise direction as a plain rectangle", () => {
+    const rectSign = Math.sign(shoelaceArea(buildRectangleCorners(600, 450)));
+    assert.equal(Math.sign(shoelaceArea(buildTShapeCorners(600, 450, 200, 250))), rectSign);
+  });
+
+  test("centres the stem and spans the full width and length", () => {
+    const c = buildTShapeCorners(600, 450, 200, 250);
+    const xs = c.map((p) => p.x);
+    const ys = c.map((p) => p.y);
+    assert.equal(Math.min(...xs), 0);
+    assert.equal(Math.max(...xs), 600);
+    assert.equal(Math.min(...ys), 0);
+    assert.equal(Math.max(...ys), 450);
+    // The two shoulders are equal, which is what makes it read as a T.
+    const stemLeft = c.find((p) => p.y === 450)!.x;
+    assert.equal(Math.min(...c.filter((p) => p.y === 450).map((p) => p.x)), 200);
+    assert.equal(Math.max(...c.filter((p) => p.y === 450).map((p) => p.x)), 400);
+    assert.ok(stemLeft === 200 || stemLeft === 400);
+  });
+
+  test("every corner is axis-aligned to its neighbour", () => {
+    // The 90/270-only property is what dragWallEdge's degeneracy guard and
+    // insetRectilinearPolygon both rely on.
+    const c = buildTShapeCorners(600, 450, 200, 250);
+    for (const seg of wallSegments(c)) {
+      const dx = Math.abs(seg.b.x - seg.a.x);
+      const dy = Math.abs(seg.b.y - seg.a.y);
+      assert.ok(dx < 1e-9 || dy < 1e-9, "every T-shape wall runs along an axis");
+    }
+  });
+});
+
+describe("buildUShapeCorners", () => {
+  test("has 8 corners", () => {
+    assert.equal(buildUShapeCorners(600, 450, 200, 150).length, 8);
+  });
+
+  test("area equals the full rectangle minus the notch", () => {
+    const area = Math.abs(shoelaceArea(buildUShapeCorners(600, 450, 200, 150)));
+    assert.ok(Math.abs(area - (600 * 450 - 200 * 150)) < 1e-6);
+  });
+
+  test("winds the same clockwise direction as a plain rectangle", () => {
+    const rectSign = Math.sign(shoelaceArea(buildRectangleCorners(600, 450)));
+    assert.equal(Math.sign(shoelaceArea(buildUShapeCorners(600, 450, 200, 150))), rectSign);
+  });
+
+  test("cuts the notch out of the bottom wall, centred", () => {
+    const c = buildUShapeCorners(600, 450, 200, 150);
+    const notchTop = c.filter((p) => p.y === 300).map((p) => p.x);
+    assert.deepEqual(
+      notchTop.sort((a, b) => a - b),
+      [200, 400],
+    );
+    // Still spans the full declared footprint despite the bite.
+    assert.equal(Math.max(...c.map((p) => p.x)), 600);
+    assert.equal(Math.max(...c.map((p) => p.y)), 450);
+  });
+
+  test("every corner is axis-aligned to its neighbour", () => {
+    const c = buildUShapeCorners(600, 450, 200, 150);
+    for (const seg of wallSegments(c)) {
+      const dx = Math.abs(seg.b.x - seg.a.x);
+      const dy = Math.abs(seg.b.y - seg.a.y);
+      assert.ok(dx < 1e-9 || dy < 1e-9, "every U-shape wall runs along an axis");
+    }
   });
 });
 
@@ -147,6 +230,36 @@ describe("dragWallEdge", () => {
     const next = dragWallEdge(corners, 1, { x: 500, y: 0 });
     assert.deepEqual(next, corners);
   });
+
+  test("widening the T-shape's stem moves only that wall's two corners", () => {
+    const corners = buildTShapeCorners(600, 450, 200, 250);
+    // Wall 3 is the stem's right side, (400,250) -> (400,450); its normal
+    // points out to the right, so a +x drag widens the stem.
+    const next = dragWallEdge(corners, 3, { x: 60, y: 0 });
+    assert.deepEqual(next[3], { x: 460, y: 250 });
+    assert.deepEqual(next[4], { x: 460, y: 450 });
+    for (const idx of [0, 1, 2, 5, 6, 7]) {
+      assert.deepEqual(next[idx], corners[idx], `corner ${idx} should be untouched`);
+    }
+  });
+
+  test("deepening the U-shape's notch moves only the notch's top wall", () => {
+    const corners = buildUShapeCorners(600, 450, 200, 150);
+    // Wall 4 is the notch's ceiling, (400,300) -> (200,300). It's a reflex
+    // pair, so this is the case where winding direction matters.
+    const next = dragWallEdge(corners, 4, { x: 0, y: -40 });
+    assert.deepEqual(next[4], { x: 400, y: 260 });
+    assert.deepEqual(next[5], { x: 200, y: 260 });
+    for (const idx of [0, 1, 2, 3, 6, 7]) {
+      assert.deepEqual(next[idx], corners[idx], `corner ${idx} should be untouched`);
+    }
+  });
+
+  test("a U-shape notch deep enough to break through the far wall is rejected", () => {
+    const corners = buildUShapeCorners(600, 450, 200, 150);
+    const next = dragWallEdge(corners, 4, { x: 0, y: -1000 });
+    assert.deepEqual(next, corners);
+  });
 });
 
 describe("resizeRoomShape", () => {
@@ -224,5 +337,55 @@ describe("setWallLength", () => {
   test("ignores nonsense input", () => {
     assert.equal(setWallLength(RECT, 0, NaN), RECT);
     assert.equal(setWallLength(RECT, 0, -50), RECT);
+  });
+
+  test("sets a T-shape's stem width by typing its bottom wall's length", () => {
+    const t = buildTShapeCorners(600, 450, 200, 250);
+    const out = setWallLength(t, 4, 300); // wall 4 is the stem's bottom edge
+    assert.ok(Math.abs(lengthOf(out, 4) - 300) < 0.5, `got ${lengthOf(out, 4)}`);
+    assert.equal(out.length, 8, "corner count must be preserved");
+  });
+
+  test("sets a U-shape's notch width by typing its top wall's length", () => {
+    const u = buildUShapeCorners(600, 450, 200, 150);
+    const out = setWallLength(u, 4, 260); // wall 4 is the notch's ceiling
+    assert.ok(Math.abs(lengthOf(out, 4) - 260) < 0.5, `got ${lengthOf(out, 4)}`);
+    assert.equal(out.length, 8, "corner count must be preserved");
+  });
+});
+
+describe("ROOM_SHAPE_TEMPLATES", () => {
+  test("every template's corners are whole centimetres", () => {
+    // Only dragged corners get rounded (dragWallEdge), so a template built
+    // from e.g. width/3 would carry 266.6666666666667 into the saved room
+    // for any wall the user never touched.
+    for (const tpl of ROOM_SHAPE_TEMPLATES) {
+      for (const c of tpl.defaultCorners) {
+        assert.equal(c.x, Math.round(c.x), `${tpl.key} has a fractional x: ${c.x}`);
+        assert.equal(c.y, Math.round(c.y), `${tpl.key} has a fractional y: ${c.y}`);
+      }
+    }
+  });
+
+  test("every template is a simple, non-self-intersecting polygon", () => {
+    for (const tpl of ROOM_SHAPE_TEMPLATES) {
+      assert.equal(polygonSelfIntersects(tpl.defaultCorners), false, tpl.key);
+    }
+  });
+
+  test("every template's walls clear the minimum wall length", () => {
+    for (const tpl of ROOM_SHAPE_TEMPLATES) {
+      for (const seg of wallSegments(tpl.defaultCorners)) {
+        assert.ok(
+          seg.length >= MIN_WALL_LENGTH,
+          `${tpl.key} wall ${seg.index} is only ${seg.length}cm`,
+        );
+      }
+    }
+  });
+
+  test("keys are unique", () => {
+    const keys = ROOM_SHAPE_TEMPLATES.map((t) => t.key);
+    assert.equal(new Set(keys).size, keys.length);
   });
 });

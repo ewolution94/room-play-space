@@ -14,6 +14,8 @@ import {
   Route,
   PanelLeftClose,
   PanelLeftOpen,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import { createRoomLayout, createHallwayLayout } from "@/lib/multi-room-actions";
 import {
@@ -23,6 +25,10 @@ import {
   polygonBoundingBox,
   type HallwayShape,
 } from "@/lib/hallway-shapes";
+import { ColorSwatchPicker } from "@/components/room-creation/ColorSwatchPicker";
+import { IkeaRoomWizard } from "@/components/room-creation/IkeaRoomWizard";
+import { buildHomeOfficeRoom } from "@/lib/room-templates";
+import { ROOM_SWATCHES } from "@/lib/swatches";
 
 interface MultiRoomSidebarProps {
   t: TranslationStrings;
@@ -44,18 +50,22 @@ interface MultiRoomSidebarProps {
   onToggleCollapsed: () => void;
 }
 
-// Preset color options for premium look and feel
-const COLOR_PRESETS = [
-  "#3b82f6", // Sky Blue
-  "#10b981", // Emerald Green
-  "#f59e0b", // Warm Amber
-  "#ef4444", // Soft Red
-  "#8b5cf6", // Lavendar Purple
-  "#ec4899", // Cozy Pink
-  "#14b8a6", // Mint Teal
-  "#6b7280", // Cool Gray
-  "#b45309", // Terracotta
-];
+// The room-identity palette, shared with every other room-creation surface
+// (see ROOM_SWATCHES) -- it lived here first, as a local COLOR_PRESETS
+// array, back when this sidebar was the only place a floor's rooms could be
+// made. Values only; the picker itself renders the named entries.
+const COLOR_PRESETS = ROOM_SWATCHES.map((sw) => sw.value);
+
+/**
+ * Which of the three ways to make a room the sidebar is currently showing.
+ * These are the same three the dashboard offers for a standalone room --
+ * deliberately, since "the dashboard has three ways and the floor sidebar
+ * has a bare name+size form" was the app's most visible inconsistency.
+ * Rendered as a picker with a body rather than three fire-on-click buttons:
+ * a sidebar has room to say what each one does before it happens, and
+ * "from scratch" needs a form under it regardless.
+ */
+type RoomFlow = "scratch" | "example" | "guided";
 
 // Small normalized (0-100 viewBox) outline preview for each hallway shape
 // option, built from the exact same corner templates used to actually
@@ -94,6 +104,8 @@ export function MultiRoomSidebar({
   onToggleCollapsed,
 }: MultiRoomSidebarProps) {
   const [createMode, setCreateMode] = useState<"room" | "hallway">("room");
+  const [roomFlow, setRoomFlow] = useState<RoomFlow>("scratch");
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomW, setNewRoomW] = useState(400);
   const [newRoomL, setNewRoomL] = useState(300);
@@ -107,6 +119,28 @@ export function MultiRoomSidebar({
   const [hallwayLegX, setHallwayLegX] = useState(400);
   const [hallwayLegY, setHallwayLegY] = useState(300);
 
+  /**
+   * The one way a room reaches the active floor, whichever flow built it --
+   * every path has to record undo history before mutating and leave the new
+   * room selected, and the three of them drifting apart on that is exactly
+   * what a shared helper prevents (the dashboard's own three flows learned
+   * this the hard way; see useCreateSingleRoom).
+   *
+   * Note what it deliberately doesn't do: no navigation, and nothing written
+   * to the single-room store. A room made here belongs to a floor.
+   */
+  const addToFloor = (room: RoomLayout) => {
+    pushRoomsHistory();
+    setRooms((prev) => [...prev, room]);
+    setSelectedRoomIds(new Set());
+    setSelectedRoomId(room.id);
+  };
+
+  // Hand the next room a different color, so a floor plan doesn't come out
+  // all one shade.
+  const advanceColor = (used: string) =>
+    setNewRoomColor(COLOR_PRESETS[(COLOR_PRESETS.indexOf(used) + 1) % COLOR_PRESETS.length]);
+
   const addRoom = (e: React.FormEvent) => {
     e.preventDefault();
     const name = newRoomName.trim() || `${lang === "de" ? "Raum" : "Room"} ${rooms.length + 1}`;
@@ -114,14 +148,15 @@ export function MultiRoomSidebar({
     // Choose a random color from presets if newRoomColor is somehow empty
     const color = newRoomColor || COLOR_PRESETS[Math.floor(Math.random() * COLOR_PRESETS.length)];
 
-    const room = createRoomLayout(rooms, { name, width: newRoomW, length: newRoomL, color });
-
-    pushRoomsHistory();
-    setRooms((prev) => [...prev, room]);
-    setSelectedRoomId(room.id);
+    addToFloor(createRoomLayout(rooms, { name, width: newRoomW, length: newRoomL, color }));
     setNewRoomName("");
-    // Choose a different color for the next room
-    setNewRoomColor(COLOR_PRESETS[(COLOR_PRESETS.indexOf(color) + 1) % COLOR_PRESETS.length]);
+    advanceColor(color);
+  };
+
+  /** The app's one example room (the hand-tuned home office), added beside
+   * whatever is already on this floor rather than opened on its own. */
+  const addExampleRoom = () => {
+    addToFloor(buildHomeOfficeRoom(lang, rooms));
   };
 
   const addHallway = (e: React.FormEvent) => {
@@ -129,21 +164,25 @@ export function MultiRoomSidebar({
     const name = newRoomName.trim() || (lang === "de" ? "Flur" : "Hallway");
     const color = newRoomColor || COLOR_PRESETS[Math.floor(Math.random() * COLOR_PRESETS.length)];
 
-    const hallway = createHallwayLayout(rooms, {
-      name,
-      shape: hallwayShape,
-      armWidth: hallwayArmWidth,
-      legX: hallwayLegX,
-      legY: hallwayLegY,
-      color,
-    });
-
-    pushRoomsHistory();
-    setRooms((prev) => [...prev, hallway]);
-    setSelectedRoomId(hallway.id);
+    addToFloor(
+      createHallwayLayout(rooms, {
+        name,
+        shape: hallwayShape,
+        armWidth: hallwayArmWidth,
+        legX: hallwayLegX,
+        legY: hallwayLegY,
+        color,
+      }),
+    );
     setNewRoomName("");
-    setNewRoomColor(COLOR_PRESETS[(COLOR_PRESETS.indexOf(color) + 1) % COLOR_PRESETS.length]);
+    advanceColor(color);
   };
+
+  const ROOM_FLOWS: { key: RoomFlow; icon: typeof DoorOpen; labelEn: string; labelDe: string }[] = [
+    { key: "scratch", icon: DoorOpen, labelEn: "From scratch", labelDe: "Von Grund auf" },
+    { key: "example", icon: Sparkles, labelEn: "From example", labelDe: "Aus Beispiel" },
+    { key: "guided", icon: Wand2, labelEn: "Guided", labelDe: "Geführt" },
+  ];
 
   if (collapsed) {
     return (
@@ -216,49 +255,130 @@ export function MultiRoomSidebar({
         </div>
 
         {createMode === "room" ? (
-          <form onSubmit={addRoom} className="flex flex-col gap-3">
-            <div>
-              <Label className="text-xs">{lang === "de" ? "Name" : "Name"}</Label>
-              <Input
-                placeholder={lang === "de" ? "z. B. Wohnzimmer" : "e.g. Living Room"}
-                value={newRoomName}
-                onChange={(e) => setNewRoomName(e.target.value)}
-                className="h-8 text-xs mt-1"
-              />
+          <>
+            {/* The same three ways to make a room the dashboard offers for a
+                standalone one, so the two halves of the app don't disagree
+                about what creating a room involves. */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {ROOM_FLOWS.map((flow) => {
+                const Icon = flow.icon;
+                const active = roomFlow === flow.key;
+                return (
+                  <button
+                    key={flow.key}
+                    type="button"
+                    onClick={() => setRoomFlow(flow.key)}
+                    aria-pressed={active}
+                    className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2 text-center transition-colors ${
+                      active
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="text-[10px] font-semibold leading-tight">
+                      {lang === "de" ? flow.labelDe : flow.labelEn}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">{lang === "de" ? "Breite (cm)" : "Width (cm)"}</Label>
-                <NumberField
-                  min={50}
-                  max={1500}
-                  value={newRoomW}
-                  onCommit={setNewRoomW}
-                  className="h-8 text-xs mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">{lang === "de" ? "Länge (cm)" : "Length (cm)"}</Label>
-                <NumberField
-                  min={50}
-                  max={1500}
-                  value={newRoomL}
-                  onCommit={setNewRoomL}
-                  className="h-8 text-xs mt-1"
-                />
-              </div>
-            </div>
+            {roomFlow === "scratch" && (
+              <form onSubmit={addRoom} className="flex flex-col gap-3">
+                <div>
+                  <Label className="text-xs">{lang === "de" ? "Name" : "Name"}</Label>
+                  <Input
+                    placeholder={lang === "de" ? "z. B. Wohnzimmer" : "e.g. Living Room"}
+                    value={newRoomName}
+                    onChange={(e) => setNewRoomName(e.target.value)}
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
 
-            <Button
-              type="submit"
-              size="sm"
-              className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white mt-1 gap-1"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>{t.addRoom}</span>
-            </Button>
-          </form>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">
+                      {lang === "de" ? "Breite (cm)" : "Width (cm)"}
+                    </Label>
+                    <NumberField
+                      min={50}
+                      max={1500}
+                      value={newRoomW}
+                      onCommit={setNewRoomW}
+                      className="h-8 text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">
+                      {lang === "de" ? "Länge (cm)" : "Length (cm)"}
+                    </Label>
+                    <NumberField
+                      min={50}
+                      max={1500}
+                      value={newRoomL}
+                      onCommit={setNewRoomL}
+                      className="h-8 text-xs mt-1"
+                    />
+                  </div>
+                </div>
+
+                <ColorSwatchPicker
+                  lang={lang}
+                  value={newRoomColor}
+                  onChange={setNewRoomColor}
+                  compact
+                />
+
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white mt-1 gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{t.addRoom}</span>
+                </Button>
+              </form>
+            )}
+
+            {roomFlow === "example" && (
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {lang === "de"
+                    ? "Ein fertig eingerichtetes Home-Office, das du frei umstellen kannst. Es wird neben deinen vorhandenen Räumen platziert."
+                    : "A fully furnished home office you can rearrange however you like. It's placed beside the rooms already on this floor."}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={addExampleRoom}
+                  className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white gap-1"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>{lang === "de" ? "Beispielraum hinzufügen" : "Add the example room"}</span>
+                </Button>
+              </div>
+            )}
+
+            {roomFlow === "guided" && (
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {lang === "de"
+                    ? "Wähle eine Form, zieh die Wände auf Maß und setze Türen und Fenster -- Schritt für Schritt."
+                    : "Pick a shape, drag its walls to size, then place doors and windows -- one step at a time."}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setWizardOpen(true)}
+                  className="w-full text-xs h-8 font-semibold bg-emerald-600 hover:bg-emerald-500 text-white gap-1"
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  <span>{lang === "de" ? "Assistent öffnen" : "Open the wizard"}</span>
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <form onSubmit={addHallway} className="flex flex-col gap-3">
             <div>
@@ -409,14 +529,30 @@ export function MultiRoomSidebar({
                   )}
                   <span className="truncate">{room.name}</span>
                 </div>
+                {/* Rounded, like every other size readout (MultiRoomCanvas's
+                    labels, RoomDimensionBadge): a room whose walls were
+                    dragged in the guided wizard has a fractional footprint,
+                    and unrounded that prints ~15 digits in a 320px column. */}
                 <span className="text-[10px] text-muted-foreground font-mono shrink-0 ml-2">
-                  {room.width}x{room.length}
+                  {Math.round(room.width)}x{Math.round(room.length)}
                 </span>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* The dashboard's guided shape wizard, pointed at this floor instead
+          of the standalone-room store: `siblings` keeps the finished room
+          clear of what's already here, and onCreate is the only thing that
+          decides where it lands. */}
+      <IkeaRoomWizard
+        lang={lang}
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onCreate={addToFloor}
+        siblings={rooms}
+      />
     </aside>
   );
 }

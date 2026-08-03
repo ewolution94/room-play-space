@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/ui/number-field";
-import { RoomShapeCanvas } from "@/components/dashboard/RoomShapeCanvas";
-import { ColorSwatchPicker } from "@/components/dashboard/ColorSwatchPicker";
+import { RoomShapeCanvas } from "@/components/room-creation/RoomShapeCanvas";
+import { ColorSwatchPicker } from "@/components/room-creation/ColorSwatchPicker";
 import {
   ROOM_SHAPE_TEMPLATES,
   resizeRoomShape,
@@ -23,16 +23,31 @@ import {
 } from "@/lib/room-shapes";
 import { NAMED_WALLS, polygonBoundingBox, resolveWallSegment } from "@/lib/hallway-shapes";
 import { createRoomLayoutWithCorners } from "@/lib/multi-room-actions";
-import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
 import { STRINGS } from "@/lib/planner-translations";
-import { SWATCHES } from "@/lib/swatches";
-import type { Lang, Opening, Point } from "@/types/planner";
+import { ROOM_SWATCHES } from "@/lib/swatches";
+import type { Lang, Opening, Point, RoomLayout } from "@/types/planner";
 import { ArrowLeft, ArrowRight, DoorOpen, Home, RectangleHorizontal, Trash2 } from "lucide-react";
 
 interface IkeaRoomWizardProps {
   lang: Lang;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * What to do with the finished room. The wizard deliberately doesn't know
+   * whether it's building a standalone room or a room on a floor -- the two
+   * live in different stores and only the caller knows which (see
+   * lib/single-rooms.ts on why nothing here is allowed to infer it). The
+   * dashboard hands this straight to useCreateSingleRoom; the /rooms
+   * sidebar appends to the active floor instead.
+   */
+  onCreate: (room: RoomLayout) => void;
+  /**
+   * Rooms the new one has to avoid, so it lands in a free spot on a floor
+   * plan. Empty (the default) for a standalone room, which has no
+   * neighbours -- and whose overview coordinates get pinned to 0 by
+   * addSingleRoom regardless.
+   */
+  siblings?: RoomLayout[];
 }
 
 type WizardStep = "shape" | "dimensions" | "openings";
@@ -48,8 +63,13 @@ const DEFAULT_OPENING_WIDTH = 90;
  * existing (disabled) corner-drag code -- this wizard's own small
  * RoomShapeCanvas has none of that canvas's furniture/collision concerns.
  */
-export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps) {
-  const createSingleRoom = useCreateSingleRoom();
+export function IkeaRoomWizard({
+  lang,
+  open,
+  onOpenChange,
+  onCreate,
+  siblings = [],
+}: IkeaRoomWizardProps) {
   const t = STRINGS[lang];
 
   const [step, setStep] = useState<WizardStep>("shape");
@@ -57,7 +77,7 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
   const [corners, setCorners] = useState<Point[]>([]);
   const [viewBox, setViewBox] = useState("");
   const [roomName, setRoomName] = useState("");
-  const [color, setColor] = useState(SWATCHES[0].value);
+  const [color, setColor] = useState(ROOM_SWATCHES[0].value);
   const [openings, setOpenings] = useState<Opening[]>([]);
   const [openingKind, setOpeningKind] = useState<"door" | "window">("door");
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
@@ -70,7 +90,7 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
     setCorners([]);
     setViewBox("");
     setRoomName("");
-    setColor(SWATCHES[0].value);
+    setColor(ROOM_SWATCHES[0].value);
     setOpenings([]);
     setOpeningKind("door");
     setSelectedOpeningId(null);
@@ -202,21 +222,30 @@ export function IkeaRoomWizard({ lang, open, onOpenChange }: IkeaRoomWizardProps
   const finish = () => {
     if (!shapeKind || corners.length === 0) return;
     const trimmedName = roomName.trim() || (lang === "de" ? "Neuer Raum" : "New Room");
-    const room = createRoomLayoutWithCorners([], {
+    // No explicit x/y: createRoomLayoutWithCorners falls back to a free spot
+    // among `siblings`, which is what a floor plan needs and which an empty
+    // sibling list makes a no-op anyway.
+    const room = createRoomLayoutWithCorners(siblings, {
       name: trimmedName,
       corners,
       color,
       openings,
-      x: 0,
-      y: 0,
     });
     onOpenChange(false);
-    createSingleRoom(room);
+    onCreate(room);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl">
+      {/* Capped and scrollable, because the openings step -- 440px of canvas
+          plus a toolbar, a hint line, a name field, swatches and a footer --
+          is taller than a 720px-high window, and DialogContent is centered
+          with no max-height of its own: the "Create Room" button simply sat
+          below the fold with no way to reach it, and a click aimed at it
+          landed on the overlay and dismissed the wizard instead. Capping
+          rather than shrinking the canvas, since the canvas being big is the
+          point of this step. */}
+      <DialogContent className="sm:max-w-4xl max-h-[92dvh] overflow-y-auto">
         {step === "shape" && (
           <>
             <DialogHeader>

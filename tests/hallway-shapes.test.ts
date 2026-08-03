@@ -14,6 +14,8 @@ import {
   buildTHallwayCorners,
   polygonClipPathPercent,
   lineIntersection,
+  polygonSelfIntersects,
+  segmentsProperlyIntersect,
 } from "@/lib/hallway-shapes";
 import type { Point } from "@/types/planner";
 
@@ -369,5 +371,82 @@ describe("lineIntersection", () => {
     assert.ok(p1 && p2);
     assert.ok(Math.abs(p1!.x - p2!.x) < 1e-9);
     assert.ok(Math.abs(p1!.y - p2!.y) < 1e-9);
+  });
+});
+
+describe("segmentsProperlyIntersect", () => {
+  const P = (x: number, y: number): Point => ({ x, y });
+
+  test("detects a genuine crossing", () => {
+    assert.equal(segmentsProperlyIntersect(P(0, 0), P(10, 10), P(0, 10), P(10, 0)), true);
+  });
+
+  test("segments that only touch at a shared endpoint do not count", () => {
+    // Every pair of adjacent walls in a polygon looks like this, so counting
+    // it would make every valid shape report itself as self-intersecting.
+    assert.equal(segmentsProperlyIntersect(P(0, 0), P(10, 0), P(10, 0), P(10, 10)), false);
+  });
+
+  test("collinear overlapping segments do not count as a proper crossing", () => {
+    assert.equal(segmentsProperlyIntersect(P(0, 0), P(10, 0), P(5, 0), P(15, 0)), false);
+  });
+
+  test("segments whose infinite lines cross but whose spans do not", () => {
+    assert.equal(segmentsProperlyIntersect(P(0, 0), P(1, 0), P(50, -5), P(50, 5)), false);
+  });
+});
+
+describe("polygonSelfIntersects", () => {
+  test("a plain rectangle does not self-intersect", () => {
+    assert.equal(
+      polygonSelfIntersects([
+        { x: 0, y: 0 },
+        { x: 400, y: 0 },
+        { x: 400, y: 300 },
+        { x: 0, y: 300 },
+      ]),
+      false,
+    );
+  });
+
+  test("a valid U-shape does not self-intersect", () => {
+    assert.equal(
+      polygonSelfIntersects([
+        { x: 0, y: 0 },
+        { x: 600, y: 0 },
+        { x: 600, y: 450 },
+        { x: 400, y: 450 },
+        { x: 400, y: 300 },
+        { x: 200, y: 300 },
+        { x: 200, y: 450 },
+        { x: 0, y: 450 },
+      ]),
+      false,
+    );
+  });
+
+  test("a U-shape whose notch was pushed out through the far wall does", () => {
+    // The exact shape dragWallEdge used to accept: notch ceiling at y=-700,
+    // so the notch's two side walls cross the top wall at y=0. Every local
+    // guard passes -- the notch wall is still 200 long, both neighbours got
+    // longer rather than inverting, and the bounding box grew.
+    assert.equal(
+      polygonSelfIntersects([
+        { x: 0, y: 0 },
+        { x: 600, y: 0 },
+        { x: 600, y: 450 },
+        { x: 400, y: 450 },
+        { x: 400, y: -700 },
+        { x: 200, y: -700 },
+        { x: 200, y: 450 },
+        { x: 0, y: 450 },
+      ]),
+      true,
+    );
+  });
+
+  test("every hallway template is a valid simple polygon", () => {
+    assert.equal(polygonSelfIntersects(buildLHallwayCorners(120, 400, 350, false).corners), false);
+    assert.equal(polygonSelfIntersects(buildTHallwayCorners(120, 400, 300).corners), false);
   });
 });

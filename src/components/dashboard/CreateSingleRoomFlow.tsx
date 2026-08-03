@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/ui/number-field";
-import { ColorSwatchPicker } from "@/components/dashboard/ColorSwatchPicker";
-import { SWATCHES } from "@/lib/swatches";
+import { ColorSwatchPicker } from "@/components/room-creation/ColorSwatchPicker";
+import { ROOM_SWATCHES } from "@/lib/swatches";
 import { createRoomLayout } from "@/lib/multi-room-actions";
 import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
 import type { Lang } from "@/types/planner";
@@ -39,7 +39,7 @@ export function CreateSingleRoomFlow({ lang, open, onOpenChange }: CreateSingleR
   const [name, setName] = useState("");
   const [width, setWidth] = useState(400);
   const [length, setLength] = useState(350);
-  const [color, setColor] = useState(SWATCHES[0].value);
+  const [color, setColor] = useState(ROOM_SWATCHES[0].value);
 
   const createFromScratch = () => {
     const trimmedName = name.trim() || (lang === "de" ? "Neuer Raum" : "New Room");

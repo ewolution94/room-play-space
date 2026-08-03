@@ -359,6 +359,9 @@ export function createHallwayLayout(
  * a plain room: no roomKind, no auto-placed doors (the wizard's own
  * openings step decides what -- if anything -- gets added), and openings
  * are supplied by the caller rather than derived from the shape itself.
+ *
+ * Incoming corners are translated so the polygon starts at its own origin
+ * -- see normalizeCornersToOrigin.
  */
 export function createRoomLayoutWithCorners(
   rooms: RoomLayout[],
@@ -372,8 +375,12 @@ export function createRoomLayoutWithCorners(
   },
 ): RoomLayout {
   const bb = polygonBoundingBox(opts.corners);
-  const width = bb.width;
-  const length = bb.height;
+  // Rounded for the same reason dragWallEdge rounds its corners: the
+  // wizard's line-intersection math yields values like 584.4300000000001,
+  // and a raw float here becomes the room's stored width forever.
+  const width = Math.round(bb.width * 100) / 100;
+  const length = Math.round(bb.height * 100) / 100;
+  const corners = normalizeCornersToOrigin(opts.corners);
 
   const spot =
     opts.x !== undefined && opts.y !== undefined
@@ -391,10 +398,39 @@ export function createRoomLayoutWithCorners(
     color: opts.color,
     items: [],
     openings: opts.openings ?? [],
-    corners: opts.corners,
+    corners,
     wallColors: {},
     flooring: { ...DEFAULT_FLOORING },
   };
+}
+
+/**
+ * Slides a polygon so its bounding box starts at (0, 0), which is the
+ * invariant every other room in the app already satisfies: a room's local
+ * `corners` are expected to span exactly (0,0)-(width,length), because
+ * globalCorners() (room-adjacency.ts) places a room by adding its `x`/`y`
+ * to each corner while collision, findFreeRoomSpot and the overview grid
+ * reason about the same room as a `width` x `length` box at (x, y). Let the
+ * two disagree and a room's real shape sits offset from where every
+ * placement decision thinks it is.
+ *
+ * The wizard is what makes this reachable: dragWallEdge translates the wall
+ * you grab, so pulling a left or top wall outward leaves negative corner
+ * coordinates, and resizeRoomShape preserves that offset. Harmless for a
+ * standalone room (nothing to collide with, and it's alone in its own
+ * canvas), wrong on a floor plan.
+ *
+ * Pure translation, so it cannot change the shape: wall lengths, wall
+ * indices and every opening's `position` along its wall are all unaffected.
+ */
+export function normalizeCornersToOrigin(corners: Point[]): Point[] {
+  if (corners.length === 0) return corners;
+  const bb = polygonBoundingBox(corners);
+  if (bb.minX === 0 && bb.minY === 0) return corners;
+  return corners.map((c) => ({
+    x: Math.round((c.x - bb.minX) * 100) / 100,
+    y: Math.round((c.y - bb.minY) * 100) / 100,
+  }));
 }
 
 const RANDOM_ROOM_TEMPLATES: {

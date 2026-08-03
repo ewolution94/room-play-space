@@ -471,6 +471,33 @@ guided room-shape wizard (`RoomShapeCanvas.tsx`, `lib/room-shapes.ts`):
    plain HTML, absolutely positioned and percentage-mapped into the stable
    viewBox, not SVG `<text>`.
 
+Two more, learned when the 8-corner T and U shapes arrived (2026-08-03):
+
+3. **Local drag guards do not add up to a valid polygon.** `dragWallEdge`
+   checked three things, all local: the dragged wall is still long enough,
+   neither neighbour inverted, the bounding box didn't collapse. A U-shape's
+   notch ceiling pushed far enough satisfies all three while the polygon folds
+   through itself — its own length never changes, both its side walls merely
+   get *longer*, and the bounding box *grows*. Nothing with fewer corners
+   could reach that state, which is exactly why the cheap guards survived so
+   long. `polygonSelfIntersects` (`hallway-shapes.ts`) is now the fourth
+   guard; at 4–8 corners it's a handful of comparisons per frame.
+4. **A wall's grab band is a fat stroke, and at every corner two of them
+   overlap.** The band width is a fraction of the whole canvas, so the overlap
+   is a fixed-size blob regardless of how short the wall is: a sliver on a
+   400cm wall, most of a 105cm notch wall. Grabbing a small notch's ceiling
+   silently handed you one of its side walls. Insetting each band from its own
+   ends by half its width (capped at a quarter of the wall) gives every wall an
+   unambiguous span. The same applies to any "click the edge" interaction on a
+   polygon — the fix belongs on the hit geometry, not on hit-test priority.
+
+Related, and the reason both took a while to see: **dimension labels are
+fixed-size in screen pixels while the shape is drawn at whatever scale the
+viewBox implies.** A generous viewBox that looks merely roomy with a rectangle
+becomes unreadable once a shape has three short walls meeting near each other,
+because the labels don't shrink with it. Padding is a legibility decision, not
+just a headroom one.
+
 The drag itself (`dragWallEdge()`) is "constrained whole-wall parallel
 translation": project the drag delta onto the dragged wall's own outward normal
 (an along-wall component is a no-op), translate that wall, then re-intersect it
@@ -534,6 +561,55 @@ reason about.
 The first version sidestepped all this by mapping a wall's length onto the
 bounding box, which is only valid for a 4-corner room and left every polygon
 shape read-only.
+
+## A room's local corners must start at its own origin
+
+Two descriptions of the same room have to agree, and nothing checks that they
+do:
+
+- `globalCorners()` (`room-adjacency.ts`) places a room by adding its `x`/`y`
+  to **every local corner**, and that's the shape walls, adjacency and exact
+  room-vs-room collision use.
+- `findFreeRoomSpot`, `clampRoomResize` and the overview grid treat the same
+  room as a **`width` x `length` box at `(x, y)`**.
+
+Those only describe the same rectangle if `corners` spans exactly
+`(0,0)-(width,length)`. Every builder satisfied that by construction until
+`dragWallEdge` (the guided wizard) arrived: it *translates* the wall you grab,
+so pulling a left or top wall outward leaves negative coordinates, and
+`resizeRoomShape` scales from `bb.minX` and preserves the offset. A room built
+that way renders offset from wherever placement believes it is — invisible for
+a standalone room with nothing to collide against, wrong the moment the same
+room goes on a floor.
+
+`createRoomLayoutWithCorners` therefore normalises (`normalizeCornersToOrigin`)
+rather than trusting its caller. Pure translation, so it can't change the
+shape: wall lengths, wall indices and every opening's `position` along its wall
+are unaffected. If another corners-first builder ever appears, it owes the same
+normalisation — and note the invariant is about the *bounding box*, not any
+particular corner, since a polygon's first corner needn't be its top-left.
+
+## Two surfaces creating the same kind of thing want one component, not one store
+
+The dashboard and the `/rooms` sidebar both create rooms, into **different
+stores** (see "A room persists two different ways" above). The instinct after
+that split is to keep their UIs apart too. That's the wrong seam: it's what
+left the sidebar on a bare name+size form while the dashboard grew three
+flows.
+
+What actually has to stay separate is the *destination*, and that is one
+callback. `IkeaRoomWizard` takes `onCreate(room)` and knows nothing about
+either store; the dashboard passes `useCreateSingleRoom`, the sidebar passes
+its own `addToFloor`. Same rule as `useRoomPlanner(roomId, source)` — the
+caller always knows the answer, so nothing downstream has to infer it. A
+component in `components/dashboard/` that a route imports is a sign the seam is
+in the wrong place; that's why the shared ones live in
+`components/room-creation/` now.
+
+The corollary worth remembering: what *does* need to be shared per-destination
+is the commit step. `addToFloor` exists for the same reason
+`useCreateSingleRoom` does — three flows each doing "push history, append,
+select" inline is three chances to forget one.
 
 ## Three.js and SVG gotchas that surface far from their cause
 

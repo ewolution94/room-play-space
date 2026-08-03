@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { loadFloors } from "@/lib/floors";
 import { loadSingleRooms } from "@/lib/single-rooms";
-import { buildHomeOfficeRoom } from "@/lib/single-room-templates";
+import { buildHomeOfficeRoom } from "@/lib/room-templates";
 import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
 import { TOUR_KEY } from "@/hooks/use-room-planner";
 import type { Lang, PlannerSettings } from "@/types/planner";
@@ -13,7 +13,7 @@ import { CreateFloorFlow } from "@/components/dashboard/CreateFloorFlow";
 import { RecentlyOpened } from "@/components/dashboard/RecentlyOpened";
 import { SingleRoomsList } from "@/components/dashboard/SingleRoomsList";
 import { FloorPlansList } from "@/components/dashboard/FloorPlansList";
-import { IkeaRoomWizard } from "@/components/dashboard/IkeaRoomWizard";
+import { IkeaRoomWizard } from "@/components/room-creation/IkeaRoomWizard";
 import { SettingsDialog } from "@/components/planner/SettingsDialog";
 import type { Theme } from "@/hooks/use-theme";
 import { DoorOpen, LayoutGrid, Moon, Settings, Sparkles, Sun, Wand2 } from "lucide-react";
@@ -227,7 +227,12 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
       </main>
 
       <CreateSingleRoomFlow lang={lang} open={scratchRoomOpen} onOpenChange={setScratchRoomOpen} />
-      <IkeaRoomWizard lang={lang} open={ikeaWizardOpen} onOpenChange={setIkeaWizardOpen} />
+      <IkeaRoomWizard
+        lang={lang}
+        open={ikeaWizardOpen}
+        onOpenChange={setIkeaWizardOpen}
+        onCreate={createSingleRoom}
+      />
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

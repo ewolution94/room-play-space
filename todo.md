@@ -354,9 +354,148 @@ Was: flat coloured bars, click-to-delete, no feedback before committing.
 - [x] **Labels sat on top of their walls.** Fixing the earlier drift moved the offset into correct SVG-unit space -- but an SVG-unit offset scales with the viewBox, so on a wide-but-short room it collapsed to a few pixels. Now a fixed *screen-pixel* gap, so every label clears its wall by the same readable amount at any zoom.
 - [x] **Labels at an L's inner corner overprinted each other** into unreadable mush -- two short walls meet there and their midpoints are close enough that a uniform offset isn't enough. Added a short relaxation pass that pushes overlapping pairs apart. Verified on the L-shape: all six labels legible (240 / 140 / 160 / 210 / 400 / 350).
 
+### The same three creation flows inside `/rooms` (2026-08-03)
+
+The floor sidebar's bare name+size form is now the *first of three* options --
+From scratch / From example / Guided -- matching what the dashboard offers for
+a standalone room. The Room|Hallway mode toggle is unchanged; hallways are a
+floor-only concept and stay their own mode.
+
+- [x] **`MultiRoomSidebar` restructured.** Room mode gained a three-way picker
+      (same icons and labels as the dashboard's cards) with a body under it.
+      "From scratch" keeps the inline form -- adding rooms is the repeated
+      action here, and a dialog would make the common case slower -- now with
+      a colour picker it never had. "From example" and "Guided" each show one
+      line of what they'll do plus a button, rather than firing on a stray
+      click in a narrow column.
+- [x] **One `addToFloor(room)` helper** all three (and the hallway form) go
+      through: push undo history, append, select. Deliberately does *not*
+      navigate or touch the single-room store -- a room made here belongs to
+      a floor. Same reasoning as `useCreateSingleRoom` on the dashboard side.
+- [x] **`IkeaRoomWizard` is now destination-agnostic** -- an `onCreate(room)`
+      prop instead of calling `useCreateSingleRoom()` itself, plus optional
+      `siblings` for free-spot placement. Nothing in it infers which store the
+      room belongs to; the caller decides, which is the same rule
+      `useRoomPlanner(roomId, source)` follows.
+- [x] **Shared components moved out of `components/dashboard/`** into a new
+      `components/room-creation/` (`IkeaRoomWizard`, `RoomShapeCanvas`,
+      `ColorSwatchPicker`), and `lib/single-room-templates.ts` →
+      `lib/room-templates.ts` -- both were being imported from `/rooms`, where
+      the old names were simply wrong. `buildHomeOfficeRoom(lang, siblings?)`
+      now serves both destinations.
+- [x] **One room palette everywhere.** `ROOM_SWATCHES` in `lib/swatches.ts`,
+      promoted from the sidebar's local `COLOR_PRESETS`. Room creation used to
+      pull from the *furniture* palette on the dashboard (`SWATCHES`, muted
+      material tones) and the vivid one here, so the same action gave
+      different colours in the two halves of the app. Note this changes the
+      dashboard's default new-room colour from Charcoal to Sky Blue. The
+      sidebar's colour-cycling (each new room a different shade) is preserved.
+- [x] **Bug found and fixed: wizard corners weren't anchored to the room
+      origin.** `dragWallEdge` translates the wall you grab, so pulling a left
+      or top wall outward leaves negative corner coordinates (measured: a
+      cut-corner room came out spanning x −184.43…400). Every other room in
+      the app satisfies "local `corners` span exactly (0,0)-(width,length)",
+      which is what makes `globalCorners()` (add x/y) agree with collision and
+      `findFreeRoomSpot` (a width x length box at x,y). Invisible for a
+      standalone room; on a floor it puts a room's real shape somewhere other
+      than where placement thinks it is. `createRoomLayoutWithCorners` now
+      normalises, and rounds `width`/`length` to 2dp for the same reason
+      `dragWallEdge` rounds corners. 8 new tests.
+- [x] **Bug found in the browser: the wizard's last step was unreachable at
+      720px.** `DialogContent` is centred with no max-height and no scrolling,
+      and the openings step (440px canvas + toolbar + hint + name + swatches +
+      footer) is ~820px tall -- so "Create Room" sat below the fold and a
+      click aimed at it hit the overlay and *dismissed the wizard instead*.
+      Capped to `92dvh` with `overflow-y-auto` on the wizard's own dialog, not
+      the shared component. This was live on the dashboard too.
+- [x] Rooms-list rows round their footprint (`Math.round`), like every other
+      size readout -- a dragged room printed `584.430000000001x350` in a 320px
+      column.
+- [x] Verified live in the browser against `localStorage`, not the UI: all
+      three flows on a floor land in `planner-multi-floors` and leave
+      `planner-single-rooms` untouched, at non-overlapping free spots
+      (400x300 at 50,50 → furnished Home Office at 551,50 → 5-corner
+      cut-corner at 1220,50), with local corners starting at (0,0) in every
+      case and the door on numeric wall 3 for the polygon. Both dashboard
+      flows re-checked afterwards: still `/room/$id`, still the single-room
+      store, floors untouched. 560 tests, tsc clean, lint 18/19 (baseline).
+
+### T and U shapes, and a canvas pass against IKEA's (2026-08-03)
+
+User asked for IKEA's T-Form and U-Form, and for the drag canvas to take more
+inspiration from theirs. Their room builder was opened and worked through
+first, rather than guessing: their shape set is Rechteckig / L-Form /
+Angeschnitten / T-Form / U-Form / Trapezförmig, and their step 2 is a proper
+CAD drawing -- thick walls, ringed corner handles, and every wall segment
+carrying its own dimension line with extension ticks (a U's bottom reads
+"200 | 200 | 200", not one number).
+
+- [x] **`buildTShapeCorners` / `buildUShapeCorners`** (`room-shapes.ts`),
+      8-corner rectilinear, wound clockwise like every other polygon here. T
+      is a full-width bar with a centred stem (equivalently a rectangle with
+      a notch out of *each* bottom corner); U is a rectangle with a centred
+      bite out of its bottom wall -- the orientation IKEA's own plan view
+      shows, which is 180 degrees from the letter. The U is the first
+      template with *two* reflex corners.
+- [x] Templates use literal whole-centimetre parameters (134, not
+      `DEFAULT_W / 3`). Only *dragged* corners get rounded, so a template
+      built from 400/3 puts `266.6666666666667` straight into the saved room
+      for any wall the user never touched. Locked down by a test asserting
+      every template's corners are integers.
+- [x] **Real bug the new shapes exposed: `dragWallEdge`'s guards were all
+      local.** Its three checks -- dragged wall still long enough, neither
+      neighbour inverted, bounding box not collapsed -- are every one of them
+      satisfiable by a polygon that has folded through itself. Pushing a U's
+      notch ceiling far enough sends it clean out through the opposite wall:
+      the notch wall's own length is unchanged, both its side walls merely
+      get *longer*, and the bounding box *grows*. Nothing before the T/U
+      templates could reach that state. New `polygonSelfIntersects` /
+      `segmentsProperlyIntersect` in `hallway-shapes.ts` (proper crossings
+      only, so shared endpoints and collinear walls don't self-report), run
+      as a fourth guard. Reproduced live in the browser before and after.
+- [x] **Walls are drawn as walls**, 7px instead of 3, and as one stroked
+      polygon rather than per-segment lines so miter joins close the corners
+      -- at 7px, per-segment round caps leave a visible notch at each of a
+      T's four 270-degree corners.
+- [x] **Hover and drag highlight.** A wall lights up under the pointer and
+      stays lit through the drag. Previously a wall gave no sign it was
+      draggable until you were already dragging it, which is the clearest
+      thing IKEA's does better.
+- [x] **CAD dimension lines**: extension line plus perpendicular end ticks
+      per wall, drawn in the container's *pixel* space rather than SVG user
+      space -- the only way ticks stay a constant on-screen length and stay
+      aligned with labels the separation pass may have nudged. A label that
+      did get nudged now draws a dashed leader back to its own line, which
+      an 8-corner shape needs routinely. Labels gained a `bg-background`
+      chip so they knock a gap in their line, as a drawing does.
+- [x] **Corner handles** are white-fill/dark-ring markers in drag mode (they
+      stay plain dots in the openings step, where they'd compete with the
+      door and window symbols).
+- [x] **`computeStableViewBox` padding 1.3x -> 1.0x.** The old value drew
+      every shape at under 40% of the canvas. That was invisible until three
+      dimension labels had to fit around a U's small notch -- label size is
+      fixed in screen pixels while the shape was being drawn tiny. The room
+      can still grow to twice its starting span before the drag guard stops
+      it at the edge.
+- [x] **Fixed: short walls were unhittable.** A wall's grab band is a fat
+      stroke whose width is a fraction of the whole canvas, so at every
+      corner two neighbours' bands overlap in a blob. On a long wall that's a
+      sliver; on a U's 105cm notch wall it's most of the wall, and grabbing
+      the notch ceiling silently gave you a side wall instead (measured: a
+      click 6px in from the end of a 133cm wall resolved to its neighbour).
+      Each band is now inset from its own ends by half its width, capped at a
+      quarter of the wall, so every wall owns at least its middle half.
+- [x] Verified live: all five shapes render in the gallery; the U's notch
+      drags and every other wall stays put; pushing it through the far wall
+      is refused; a U room created from `/rooms` lands on the floor with 8
+      corners, local bbox (0,0)-(400,350) and its door on numeric wall 0. 587
+      tests, tsc clean, lint 18/19 (baseline).
+- [ ] Not done: IKEA also offers a **Trapezoid** (Trapezförmig) shape, and a
+      **feet/centimetres** unit toggle. Neither was asked for; both are small
+      if wanted.
+
 ### Still open
 
-- [ ] **Same room-creation flows inside `/rooms`.** The floor layout's "add room" sidebar should offer the dashboard's flows (from scratch / from example / guided shape wizard) instead of the current bare name+size form -- it's inconsistent otherwise. Not urgent, but the next substantial task after the items above.
 - [ ] **Walls perpendicular to a sloped wall are still full-height rectangles**, not trapezoids, so they can poke above the slanted ceiling. The knee wall itself and the ceiling surface are correct; this is the remaining piece of the 3D geometry (needs `THREE.Shape` + `ExtrudeGeometry` per segment instead of a box).
 - [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` -- a window can currently be taller than the knee wall it sits in. Roof windows (*Dachfenster*) remain out of scope.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.

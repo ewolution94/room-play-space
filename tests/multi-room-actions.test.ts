@@ -6,13 +6,16 @@ import {
   rotateRoomLayout,
   duplicateRoomLayout,
   createRoomLayout,
+  createRoomLayoutWithCorners,
   createHallwayLayout,
+  normalizeCornersToOrigin,
   removeRoomLayout,
   clampRoomResize,
   generateRandomRoomLayout,
 } from "@/lib/multi-room-actions";
-import { obbOverlap } from "@/lib/planner-math";
-import { wallSegments, buildLHallwayCorners } from "@/lib/hallway-shapes";
+import { obbOverlap, rectilinearPolygonsOverlap } from "@/lib/planner-math";
+import { globalCorners } from "@/lib/room-adjacency";
+import { wallSegments, buildLHallwayCorners, polygonBoundingBox } from "@/lib/hallway-shapes";
 import type { RoomLayout } from "@/types/planner";
 
 function makeRoom(overrides: Partial<RoomLayout> = {}): RoomLayout {
@@ -426,6 +429,128 @@ describe("createRoomLayout", () => {
     const a = createRoomLayout([], { name: "A", width: 100, length: 100, color: "#000" });
     const b = createRoomLayout([a], { name: "B", width: 100, length: 100, color: "#000" });
     assert.notEqual(a.id, b.id);
+  });
+});
+
+describe("normalizeCornersToOrigin", () => {
+  test("leaves an already-origin-anchored polygon untouched", () => {
+    const corners = [
+      { x: 0, y: 0 },
+      { x: 400, y: 0 },
+      { x: 400, y: 300 },
+      { x: 0, y: 300 },
+    ];
+    assert.equal(normalizeCornersToOrigin(corners), corners);
+  });
+
+  test("slides a polygon with negative coordinates back to the origin", () => {
+    // What dragging a rectangle's left and top walls outward produces.
+    const corners = normalizeCornersToOrigin([
+      { x: -80, y: -50 },
+      { x: 400, y: -50 },
+      { x: 400, y: 300 },
+      { x: -80, y: 300 },
+    ]);
+    assert.deepEqual(corners, [
+      { x: 0, y: 0 },
+      { x: 480, y: 0 },
+      { x: 480, y: 350 },
+      { x: 0, y: 350 },
+    ]);
+  });
+
+  test("is a pure translation -- every wall keeps its length", () => {
+    const before = buildLHallwayCorners(120, 400, 350, false).corners.map((c) => ({
+      x: c.x - 137.5,
+      y: c.y + 62.25,
+    }));
+    const after = normalizeCornersToOrigin(before);
+    const lengthsBefore = wallSegments(before).map((s) => Math.round(s.length * 100) / 100);
+    const lengthsAfter = wallSegments(after).map((s) => Math.round(s.length * 100) / 100);
+    assert.deepEqual(lengthsAfter, lengthsBefore);
+  });
+
+  test("handles an empty polygon", () => {
+    assert.deepEqual(normalizeCornersToOrigin([]), []);
+  });
+});
+
+describe("createRoomLayoutWithCorners", () => {
+  test("stores corners spanning exactly (0,0)-(width,length)", () => {
+    // globalCorners() places a room by adding x/y to each local corner,
+    // while collision and free-spot placement treat it as a width x length
+    // box at (x, y) -- so an offset polygon would render somewhere other
+    // than where every placement decision thinks it is.
+    const room = createRoomLayoutWithCorners([], {
+      name: "Attic",
+      corners: [
+        { x: -80, y: -50 },
+        { x: 400, y: -50 },
+        { x: 400, y: 300 },
+        { x: -80, y: 300 },
+      ],
+      color: "#3b82f6",
+    });
+    const bb = polygonBoundingBox(room.corners!);
+    assert.equal(bb.minX, 0);
+    assert.equal(bb.minY, 0);
+    assert.equal(bb.width, room.width);
+    assert.equal(bb.height, room.length);
+  });
+
+  test("rounds a wall-drag's floating-point footprint to 2 decimals", () => {
+    // 400 - (-184.43) is 584.4300000000001 in binary floating point, which
+    // unrounded becomes the room's stored width forever.
+    const room = createRoomLayoutWithCorners([], {
+      name: "Attic",
+      corners: [
+        { x: -184.43, y: 0 },
+        { x: 280, y: 0 },
+        { x: 400, y: 105 },
+        { x: 400, y: 350 },
+        { x: -184.43, y: 350 },
+      ],
+      color: "#3b82f6",
+    });
+    assert.equal(room.width, 584.43);
+    assert.equal(room.length, 350);
+    assert.deepEqual(room.corners![0], { x: 0, y: 0 });
+    assert.equal(polygonBoundingBox(room.corners!).width, 584.43);
+  });
+
+  test("auto-placed room does not overlap an existing one", () => {
+    const existing = createRoomLayout([], { name: "A", width: 500, length: 500, color: "#000" });
+    const next = createRoomLayoutWithCorners([existing], {
+      name: "B",
+      corners: [
+        { x: 0, y: 0 },
+        { x: 200, y: 0 },
+        { x: 200, y: 200 },
+        { x: 0, y: 200 },
+      ],
+      color: "#111",
+    });
+    assert.equal(
+      rectilinearPolygonsOverlap(globalCorners(existing), globalCorners(next)),
+      false,
+      "a wizard-built room added to a floor has to land clear of its siblings",
+    );
+  });
+
+  test("keeps the caller's openings and adds none of its own", () => {
+    const room = createRoomLayoutWithCorners([], {
+      name: "B",
+      corners: [
+        { x: 0, y: 0 },
+        { x: 300, y: 0 },
+        { x: 300, y: 200 },
+        { x: 0, y: 200 },
+      ],
+      color: "#111",
+      openings: [{ id: "w-1", wall: "top", position: 50, width: 90, kind: "window" }],
+    });
+    assert.equal(room.openings.length, 1);
+    assert.equal(room.openings[0].kind, "window");
   });
 });
 

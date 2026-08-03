@@ -2,6 +2,7 @@ import type { Point } from "@/types/planner";
 import {
   lineIntersection,
   polygonBoundingBox,
+  polygonSelfIntersects,
   wallOutwardNormal,
   wallSegments,
 } from "@/lib/hallway-shapes";
@@ -15,7 +16,7 @@ import {
 // (wallSegments, wallOutwardNormal, lineIntersection, polygonBoundingBox),
 // imported from hallway-shapes.ts rather than duplicated.
 
-export type RoomShapeKind = "rectangle" | "l" | "cut-corner";
+export type RoomShapeKind = "rectangle" | "l" | "cut-corner" | "t" | "u";
 
 // Line-intersection and scaling math produces long floating-point results
 // (e.g. 501.60711669921875) -- rounding to 2 decimal places whenever a
@@ -80,6 +81,75 @@ export function buildCutCornerCorners(
   ];
 }
 
+/**
+ * A full-width bar across the top with a narrower stem hanging from the
+ * centre of it -- IKEA's own "T-Form". Equivalently: a rectangle with a
+ * rectangular notch removed from *each* bottom corner, which is why it
+ * needs no new machinery: every corner is still 90 or 270 degrees, exactly
+ * like the L-shape's single notch.
+ *
+ * `stemWidth` is the stem's full width, centred; `barDepth` is how far down
+ * the full-width part reaches before the two shoulders cut in. Each shoulder
+ * is `(width - stemWidth) / 2` long, so keep `stemWidth` comfortably under
+ * `width` or those two walls degenerate.
+ */
+export function buildTShapeCorners(
+  width: number,
+  length: number,
+  stemWidth: number,
+  barDepth: number,
+): Point[] {
+  const left = (width - stemWidth) / 2;
+  const right = (width + stemWidth) / 2;
+  return [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: barDepth },
+    { x: right, y: barDepth },
+    { x: right, y: length },
+    { x: left, y: length },
+    { x: left, y: barDepth },
+    { x: 0, y: barDepth },
+  ];
+}
+
+/**
+ * A rectangle with a rectangular bite taken out of the middle of its bottom
+ * wall -- IKEA's "U-Form", and in a real home usually a chimney breast or a
+ * boxed-in stack intruding into the room.
+ *
+ * The notch is centred and cut from the BOTTOM wall to match how the room
+ * reads in plan view (the same orientation IKEA's own canvas shows it in).
+ * Note the shape is a U rotated 180 degrees from the letter, which is what
+ * their gallery thumbnail shows -- the plan is the authority here, not the
+ * letter.
+ *
+ * Unlike the T above, the notch's two side walls are *reflex* corners going
+ * back into the shape, so this is the first template where two of the eight
+ * corners turn the other way. `insetRectilinearPolygon` and `dragWallEdge`
+ * both already handle 270-degree corners (the L-shape has one), so nothing
+ * downstream needed changing.
+ */
+export function buildUShapeCorners(
+  width: number,
+  length: number,
+  notchWidth: number,
+  notchDepth: number,
+): Point[] {
+  const left = (width - notchWidth) / 2;
+  const right = (width + notchWidth) / 2;
+  return [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: length },
+    { x: right, y: length },
+    { x: right, y: length - notchDepth },
+    { x: left, y: length - notchDepth },
+    { x: left, y: length },
+    { x: 0, y: length },
+  ];
+}
+
 export interface RoomShapeTemplate {
   key: RoomShapeKind;
   nameEn: string;
@@ -109,6 +179,28 @@ export const ROOM_SHAPE_TEMPLATES: RoomShapeTemplate[] = [
     nameEn: "Cut Corner",
     nameDe: "Abgeschrägte Ecke",
     defaultCorners: buildCutCornerCorners(DEFAULT_W, DEFAULT_L, DEFAULT_W * 0.3, DEFAULT_L * 0.3),
+  },
+  // Proportions follow IKEA's own defaults: their T and U both put the stem
+  // /notch at about a third of the room's width, which leaves the two
+  // flanking segments equal to it and reads as a deliberate shape rather
+  // than a lopsided rectangle.
+  //
+  // 134 rather than a literal DEFAULT_W / 3 so every resulting corner is a
+  // whole centimetre: the flanking segments come out at exactly (400-134)/2
+  // = 133. Only *dragged* corners get rounded (see dragWallEdge), so a
+  // template built from 400/3 would carry 266.6666666666667 straight into
+  // the saved room for any wall the user never touched.
+  {
+    key: "t",
+    nameEn: "T-Shape",
+    nameDe: "T-Form",
+    defaultCorners: buildTShapeCorners(DEFAULT_W, DEFAULT_L, 134, 192),
+  },
+  {
+    key: "u",
+    nameEn: "U-Shape",
+    nameDe: "U-Form",
+    defaultCorners: buildUShapeCorners(DEFAULT_W, DEFAULT_L, 134, 105),
   },
 ];
 
@@ -184,6 +276,13 @@ export function dragWallEdge(corners: Point[], wallIndex: number, dragDelta: Poi
   const bb = polygonBoundingBox(result);
   if (bb.width < MIN_WALL_LENGTH || bb.height < MIN_WALL_LENGTH) return corners;
 
+  // ...and even together those three are still all *local*. A U-shape's
+  // notch can be pushed clean out through the opposite wall while its own
+  // length is unchanged, both its neighbours merely get longer (never
+  // invert), and the bounding box *grows* -- so every check above passes on
+  // a polygon that has folded through itself. Catch that directly.
+  if (polygonSelfIntersects(result)) return corners;
+
   return result;
 }
 
@@ -212,15 +311,24 @@ export function resizeRoomShape(corners: Point[], newWidth: number, newLength: n
  * the first version of this wizard: the on-screen canvas size is fixed, so
  * a viewBox that tracks the shrinking/growing bounding box makes everything
  * inside visibly rescale in lockstep with the drag. Centered on the shape
- * with 1.3x padding on each side (so the room can roughly triple in size
- * before approaching the edge) rather than a snug fit.
+ * rather than a snug fit, so there's room to drag outward.
+ *
+ * The padding is a real trade-off and was originally set very loose (1.3x
+ * the span each side, i.e. the room drawn at under 40% of the canvas). That
+ * left enough headroom to roughly triple the room, but it also drew every
+ * shape small -- and once the 8-corner T and U shapes arrived, three
+ * dimension labels crowding around a small notch became unreadable, because
+ * label size is fixed in screen pixels while the shape was being drawn tiny.
+ * At 1.0x the room is drawn ~30% larger and can still grow to twice its
+ * starting span before the drag guard stops it at the edge, which is well
+ * past what anyone does after picking a template.
  */
 export function computeStableViewBox(corners: Point[]): string {
   const bb = polygonBoundingBox(corners);
   const span = Math.max(bb.width, bb.height, 1);
   const cx = bb.minX + bb.width / 2;
   const cy = bb.minY + bb.height / 2;
-  const half = span * 1.3;
+  const half = span;
   return `${round2(cx - half)} ${round2(cy - half)} ${round2(half * 2)} ${round2(half * 2)}`;
 }
 

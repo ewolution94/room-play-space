@@ -106,6 +106,62 @@ export function lineIntersection(p1: Point, d1: Point, p2: Point, d2: Point): Po
   return { x: p1.x + t * d1.x, y: p1.y + t * d1.y };
 }
 
+/**
+ * Do two segments *properly* cross -- i.e. each one strictly straddles the
+ * other's line? Deliberately strict: segments that merely touch at a shared
+ * endpoint (every pair of adjacent walls in a polygon) or that are collinear
+ * do not count, so this can be run over a whole polygon without every corner
+ * reporting itself.
+ */
+export function segmentsProperlyIntersect(p1: Point, p2: Point, p3: Point, p4: Point): boolean {
+  const cross = (a: Point, b: Point, c: Point) =>
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const d1 = cross(p3, p4, p1);
+  const d2 = cross(p3, p4, p2);
+  const d3 = cross(p1, p2, p3);
+  const d4 = cross(p1, p2, p4);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+/**
+ * Does a polygon cross itself? Checks every pair of non-adjacent walls; at
+ * 4-8 corners that's a handful of comparisons, cheap enough to run on every
+ * frame of a wall drag.
+ *
+ * This exists because the *local* guards a wall drag can do -- "is the wall
+ * still long enough", "did either neighbour invert", "did the bounding box
+ * collapse" -- are all satisfiable by a shape that has nonetheless folded
+ * through itself. The U-shape is the case that proved it: pushing the
+ * notch's ceiling far enough sends it straight out through the opposite
+ * wall, lengthening (never inverting) the notch's two side walls and
+ * *growing* the bounding box, so every local check passes while the polygon
+ * is plainly broken. Nothing before the T/U templates could reach that
+ * state, which is why the cheaper guards were enough until now.
+ */
+export function polygonSelfIntersects(corners: Point[]): boolean {
+  const n = corners.length;
+  if (n < 4) return false;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      // Adjacent walls share a corner by construction, and wall n-1 is
+      // adjacent to wall 0 around the wrap.
+      if (j === i + 1) continue;
+      if (i === 0 && j === n - 1) continue;
+      if (
+        segmentsProperlyIntersect(
+          corners[i],
+          corners[(i + 1) % n],
+          corners[j],
+          corners[(j + 1) % n],
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export const NAMED_WALLS = ["top", "right", "bottom", "left"] as const;
 
 /**
