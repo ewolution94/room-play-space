@@ -13,17 +13,17 @@ import { isRoomLayoutArray } from "@/lib/floors";
  * pointing into the multi-room UI, and every single room ever created added
  * another floor to that list. This key holds `RoomLayout[]` directly, with
  * no Floor wrapper and no active-floor pointer, and is read/written
- * exclusively by the `/room/$roomId` (singular) route. `/rooms` and
- * `/rooms/$roomId` never touch it, and nothing here ever touches
- * `planner-multi-floors` -- the two systems share the RoomLayout *type* and
- * nothing else.
+ * exclusively by the `/room/$roomId` (singular) route. The Home routes
+ * (`/home/$homeId` and `/home/$homeId/room/$roomId`) never touch it, and
+ * nothing here ever touches the homes store -- the two systems share the
+ * RoomLayout *type* and nothing else.
  *
  * A RoomLayout's `x`/`y`/`rotation` (its position in the multi-room overview
  * grid) are meaningless for a standalone room -- addSingleRoom() below pins
  * them to 0 on the way in rather than trusting each call site to remember.
  *
  * No migration: rooms created as one-room floors before this split stay
- * ordinary floors under /rooms. They're harmless there, and detecting
+ * ordinary floors inside a home. They're harmless there, and detecting
  * "which of these floors was secretly meant to be a single room" is
  * guesswork -- a floor of one is a legitimate thing to have built on
  * purpose.

@@ -390,8 +390,9 @@ right screen, not just that it compiled).
 
 A `RoomLayout` lives in one of two entirely separate stores:
 
-- **Inside a `Floor`** — `lib/floors.ts`, key `planner-multi-floors`, edited at
-  `/rooms/$roomId`, aware of its sibling rooms for wall-adjacency purposes.
+- **On a floor of a `Home`** — `lib/homes.ts`, key `planner-homes-v1`, edited at
+  `/home/$homeId/room/$roomId`, aware of its sibling rooms *on that same floor*
+  for wall-adjacency purposes.
 - **Standalone** — `lib/single-rooms.ts`, key `planner-single-rooms`, a bare
   `RoomLayout[]` with no `Floor` wrapper, edited at `/room/$roomId` (singular).
 
@@ -404,12 +405,20 @@ concepts were the same data and the same route, and users felt it.
 
 The load-bearing decision is that **nothing infers which store a room is in.**
 An explicit `RoomSource` ("floor" | "single") is threaded through
-`useRoomPlanner(roomId, source)`, `RoomEditor`'s prop, and `LastActiveTarget`'s
-`"room"` vs `"single-room"` variants. The tempting alternative — look the id up
-in one store and fall back to the other — silently picks the wrong backend the
-moment the two disagree, and the route always knows the answer for certain
-anyway. Don't add a "search both stores" helper; that's the conflation coming
-back.
+`useRoomPlanner(roomId, source, homeId)`, `RoomEditor`'s props, and
+`LastActiveTarget`'s `"room"` vs `"single-room"` variants. The tempting
+alternative — look the id up in one store and fall back to the other —
+silently picks the wrong backend the moment the two disagree, and the route
+always knows the answer for certain anyway. Don't add a "search both stores"
+helper; that's the conflation coming back.
+
+**The same rule applies one level down, to *which home*.** A floor room's id
+alone can't say which Home owns it, so the home id is in the URL and is passed
+explicitly; `RoomEditor`'s props are a discriminated union precisely so a floor
+room can't be opened without one. There are exactly two places that search the
+homes for a room id, and both are legitimate because the input genuinely
+predates homes existing: the `/rooms/$roomId` redirect, and the one-time
+upgrade of an old `lastActive` in `lib/settings.ts`. Anywhere else, pass it.
 
 Two consequences worth knowing before touching this:
 
@@ -426,12 +435,14 @@ Two consequences worth knowing before touching this:
   exactly the class of bug a shared hook prevents.
 
 A related placement rule: **the apartment example is a *ground floor*, not "a
-floor."** `CreateFloorFlow`'s example path writes into floor index 0 (confirming
-first if that floor already has rooms); only "from scratch" appends. When it
-appended, the example arrived as "1st Floor"/"2nd Floor" and two clicks left
-duplicate apartments stacked on different storeys. Relatedly, don't treat
-`lib/default-apartment.ts`'s long decimal coordinates as arbitrary noise to
-tidy up — they're the user's own hand-dragged positions, re-imported verbatim.
+floor."** It's now the ground floor of a **new** Home, which is what finally
+made this simple — while floors had no owner, "from example" had to write into
+floor index 0 of the one implicit building and confirm before overwriting an
+occupied one, because two clicks would otherwise stack duplicate apartments on
+different storeys. Giving floors an owner deleted that whole dance, the
+confirm dialog included. Relatedly, don't treat `lib/default-apartment.ts`'s
+long decimal coordinates as arbitrary noise to tidy up — they're the user's own
+hand-dragged positions, re-imported verbatim.
 
 ## One-shot state seeded from localStorage needs a hydration gate
 
@@ -517,12 +528,19 @@ furnished" is a materially harder problem.
 
 ## Persisted state: "empty" and "never saved" are different things
 
-`loadFloors()` once treated a saved empty array as invalid — `isFloorArray()`
-required `length > 0` — and fell through to its legacy-key migration branch,
-which **re-saved a pre-floors backup on every single load.** Anyone still
-carrying the old `planner-multi-rooms` key could therefore never delete their
-last floor: it came back on the next page load, looking exactly like the delete
-had silently failed.
+The floors store once treated a saved empty array as invalid — its
+`isFloorArray()` required `length > 0` — and fell through to its legacy-key
+migration branch, which **re-saved a pre-floors backup on every single load.**
+Anyone still carrying the old `planner-multi-rooms` key could therefore never
+delete their last floor: it came back on the next page load, looking exactly
+like the delete had silently failed.
+
+`lib/homes.ts` now reads **three** generations (`planner-homes-v1` ←
+`planner-multi-floors` ← `planner-multi-rooms`) and inherits the same trap
+three times over, so its `isHomeArray()` deliberately accepts `[]` and it only
+falls through to an older key when the newer one is *absent or unparseable* —
+never when it is merely empty. It also never deletes an old key: migration
+writes the new one and leaves the rest alone, so a rollback can't lose data.
 
 Two general rules fall out of it:
 
@@ -534,11 +552,13 @@ Two general rules fall out of it:
   explicitly. This one was "fixed" twice against a cleared profile before the
   real cause turned up.
 
-The same distinction shows up one level higher: `/rooms` used to *auto-create*
-a floor whenever the store was empty (first the showcase apartment, later a
-blank floor). Both were the same mistake — visiting a page silently wrote data
-— and both made deleting the last floor impossible to accomplish. A route
-should offer the action in an empty state, not perform it.
+The same distinction shows up one level higher: the floor-plan route used to
+*auto-create* a floor whenever the store was empty (first the showcase
+apartment, later a blank floor). Both were the same mistake — visiting a page
+silently wrote data — and both made deleting the last floor impossible to
+accomplish. A route should offer the action in an empty state, not perform it.
+The rule extends to ids that don't resolve: `/home/<unknown>` bounces to the
+dashboard rather than creating that home, exactly as `/room/<unknown>` does.
 
 ## Wall lengths are a property of a wall's *neighbours*
 
@@ -591,8 +611,9 @@ particular corner, since a polygon's first corner needn't be its top-left.
 
 ## Two surfaces creating the same kind of thing want one component, not one store
 
-The dashboard and the `/rooms` sidebar both create rooms, into **different
-stores** (see "A room persists two different ways" above). The instinct after
+The dashboard and the home floor plan's sidebar both create rooms, into
+**different stores** (see "A room persists two different ways" above). The
+instinct after
 that split is to keep their UIs apart too. That's the wrong seam: it's what
 left the sidebar on a bare name+size form while the dashboard grew three
 flows.
@@ -600,8 +621,8 @@ flows.
 What actually has to stay separate is the *destination*, and that is one
 callback. `IkeaRoomWizard` takes `onCreate(room)` and knows nothing about
 either store; the dashboard passes `useCreateSingleRoom`, the sidebar passes
-its own `addToFloor`. Same rule as `useRoomPlanner(roomId, source)` — the
-caller always knows the answer, so nothing downstream has to infer it. A
+its own `addToFloor`. Same rule as `useRoomPlanner(roomId, source, homeId)` —
+the caller always knows the answer, so nothing downstream has to infer it. A
 component in `components/dashboard/` that a route imports is a sign the seam is
 in the wrong place; that's why the shared ones live in
 `components/room-creation/` now.

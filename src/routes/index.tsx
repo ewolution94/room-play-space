@@ -25,9 +25,11 @@ function IndexRoute() {
 
     if (settings.quickEntry && settings.lastActive) {
       // Each target resolves to its own system's route -- a standalone
-      // single room is NOT reachable at /rooms/$roomId (different store,
-      // see lib/single-rooms.ts), so the two roomId-carrying variants can't
-      // share a branch here.
+      // single room is NOT reachable at /home/$homeId/room/$roomId
+      // (different store, see lib/single-rooms.ts), so the two
+      // roomId-carrying variants can't share a branch here. A pre-Home
+      // lastActive has already been upgraded by the time it gets here (see
+      // lib/settings.ts), so there's no legacy shape to handle.
       if (settings.lastActive.type === "single-room") {
         navigate({
           to: "/room/$roomId",
@@ -36,12 +38,16 @@ function IndexRoute() {
         });
       } else if (settings.lastActive.type === "room") {
         navigate({
-          to: "/rooms/$roomId",
-          params: { roomId: settings.lastActive.roomId },
+          to: "/home/$homeId/room/$roomId",
+          params: { homeId: settings.lastActive.homeId, roomId: settings.lastActive.roomId },
           replace: true,
         });
       } else {
-        navigate({ to: "/rooms", replace: true });
+        navigate({
+          to: "/home/$homeId",
+          params: { homeId: settings.lastActive.homeId },
+          replace: true,
+        });
       }
       return;
     }

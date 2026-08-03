@@ -24,6 +24,11 @@ import type { WallOpenInterval } from "@/lib/room-adjacency";
 interface MultiRoomInspectorProps {
   t: TranslationStrings;
   lang: "en" | "de";
+  /** Which Home's floor plan this inspector belongs to -- needed to open a
+   * room, since a room's editor URL is scoped to its home. Passed down
+   * rather than looked up from the room id (see RoomSource's doc comment in
+   * types/planner.ts). */
+  homeId: string;
   selectedRoom: RoomLayout | null;
   selectedRoomIds: Set<string>;
   // Auto-detected touching span(s) per wall (wallColorKey() format), for
@@ -52,6 +57,7 @@ interface MultiRoomInspectorProps {
 export function MultiRoomInspector({
   t,
   lang,
+  homeId,
   selectedRoom,
   selectedRoomIds,
   autoOpenWalls,
@@ -330,7 +336,10 @@ export function MultiRoomInspector({
                   asChild
                   className="w-full text-xs font-semibold h-8 bg-sky-600 hover:bg-sky-500 text-white gap-1.5"
                 >
-                  <Link to="/rooms/$roomId" params={{ roomId: selectedRoom.id }}>
+                  <Link
+                    to="/home/$homeId/room/$roomId"
+                    params={{ homeId, roomId: selectedRoom.id }}
+                  >
                     <span>{t.enterRoom}</span>
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Link>

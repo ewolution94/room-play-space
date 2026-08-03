@@ -2,28 +2,24 @@ import type { Floor, Lang, RoomLayout } from "@/types/planner";
 import { floorsArrayImportSchema, roomLayoutArrayImportSchema } from "@/lib/planner-schema";
 
 /**
- * Floor persistence + migration.
+ * Floor helpers -- naming, construction, and file import.
  *
- * Before the multi-floor feature, /rooms stored a single flat
- * `RoomLayout[]` under `planner-multi-rooms`. That's now nested one level
- * deeper as `Floor[]` (each floor owning its own `rooms` array) under
- * `planner-multi-floors`, with the currently-active floor tracked
- * separately under `planner-active-floor-id` -- kept as its own key rather
- * than folded into the floors blob so switching floors doesn't require
- * re-serializing the (potentially large) rooms data on every tab click.
+ * A floor has no store of its own any more: floors belong to a Home, and
+ * `lib/homes.ts` is the store (see that module's doc comment for the three
+ * storage generations and why the migration is non-destructive). This file
+ * kept everything that is genuinely *about a floor* rather than about
+ * persisting one -- the position-based naming scheme, createFloor, and the
+ * import parser -- so a Home's floors are still built and named exactly as
+ * they always were.
  *
- * Every read goes through loadFloors() below, which transparently migrates
- * a legacy flat array (wrapping it in a single "Ground Floor") the first
- * time it's encountered and immediately persists the migrated shape, so
- * every other code path (use-room-planner.ts's roomId-scoped read/write
- * included) only ever has to deal with the current Floor[] shape.
+ * The two keys below are what floors used to be saved under. They are now
+ * read-only history: homes.ts consults MULTI_FLOORS_KEY as a migration
+ * source, and both are still swept by "Reset everything" (lib/app-reset.ts)
+ * so a returning user's profile can't keep a stale copy alive.
  */
 
 export const MULTI_FLOORS_KEY = "planner-multi-floors";
 export const ACTIVE_FLOOR_ID_KEY = "planner-active-floor-id";
-// Legacy pre-floors key -- read-only here, only ever consulted as a
-// migration source when MULTI_FLOORS_KEY has nothing saved yet.
-const LEGACY_ROOMS_KEY = "planner-multi-rooms";
 
 /**
  * Shallow "is this our own previously-saved room data" guard, shared with
@@ -39,33 +35,6 @@ export function isRoomLayoutArray(v: unknown): v is RoomLayout[] {
     Array.isArray(v) &&
     v.every((r: Record<string, unknown>) => {
       return r && typeof r === "object" && typeof r.id === "string" && "width" in r && "x" in r;
-    })
-  );
-}
-
-/**
- * Note there is deliberately NO `length > 0` check. An empty array is a
- * legitimate saved building now -- "I deleted every floor" -- and is
- * different from "nothing has ever been saved".
- *
- * It used to require a non-empty array, which meant a saved `[]` was judged
- * invalid, fell through to the legacy-key migration below, and silently
- * resurrected a pre-floors save on every single load. That made deleting
- * your last floor impossible to make stick for anyone who still had the old
- * key sitting in localStorage -- and invisible to anyone testing on a
- * cleared profile, since clearing wipes the legacy key too.
- */
-function isFloorArray(v: unknown): v is Floor[] {
-  return (
-    Array.isArray(v) &&
-    v.every((f: Record<string, unknown>) => {
-      return (
-        f &&
-        typeof f === "object" &&
-        typeof f.id === "string" &&
-        (f.name === null || typeof f.name === "string") &&
-        Array.isArray(f.rooms)
-      );
     })
   );
 }
@@ -117,87 +86,24 @@ export function createFloor(rooms: RoomLayout[] = []): Floor {
 }
 
 /**
- * Reads the saved building from localStorage, migrating the legacy flat
- * layout in place if that's all that's there. Returns null when there is
- * genuinely nothing saved yet (first-ever visit) -- callers decide what to
- * do with a blank slate (e.g. rooms.index.tsx generates the showcase
- * apartment on true first load this session).
- */
-export function loadFloors(): Floor[] | null {
-  if (typeof window === "undefined") return null;
-
-  const saved = window.localStorage.getItem(MULTI_FLOORS_KEY);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (isFloorArray(parsed)) return parsed;
-    } catch (e) {
-      console.error("Failed to parse saved floors", e);
-    }
-  }
-
-  // Nothing saved under the new key AT ALL -- fall back to the legacy flat
-  // array and migrate it in place so this only ever happens once. Reaching
-  // here means the key is absent or unparseable, never that it holds a
-  // deliberately-empty building (see isFloorArray above): migrating on an
-  // empty-but-present store is what used to resurrect deleted floors.
-  const legacy = window.localStorage.getItem(LEGACY_ROOMS_KEY);
-  if (legacy) {
-    try {
-      const parsed = JSON.parse(legacy);
-      if (isRoomLayoutArray(parsed)) {
-        const migrated = [createFloor(parsed)];
-        saveFloors(migrated);
-        return migrated;
-      }
-    } catch (e) {
-      console.error("Failed to migrate legacy rooms layout", e);
-    }
-  }
-
-  return null;
-}
-
-export function saveFloors(floors: Floor[]): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(MULTI_FLOORS_KEY, JSON.stringify(floors));
-}
-
-/** Falls back to the first floor if nothing saved, or the saved id no
- * longer exists (e.g. that floor was deleted in another tab). */
-export function loadActiveFloorId(floors: Floor[]): string {
-  if (floors.length === 0) return "";
-  if (typeof window !== "undefined") {
-    const saved = window.localStorage.getItem(ACTIVE_FLOOR_ID_KEY);
-    if (saved && floors.some((f) => f.id === saved)) return saved;
-  }
-  return floors[0].id;
-}
-
-export function saveActiveFloorId(id: string): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(ACTIVE_FLOOR_ID_KEY, id);
-}
-
-/**
  * Best-effort parse of an imported JSON file into a Floor[] -- accepts
  * either the current multi-floor export shape or a legacy flat
- * RoomLayout[] export (wrapped into a single, auto-named floor),
- * mirroring loadFloors()'s own migration so an old exported file still
- * imports cleanly.
+ * RoomLayout[] export (wrapped into a single, auto-named floor), so an old
+ * exported file still imports cleanly. The caller decides which Home the
+ * result lands in (see routes/home.$homeId.index.tsx).
  *
- * Unlike loadFloors() above (which only ever reads back this app's own
- * previously-saved localStorage data, so a shallow shape check is enough),
- * this is the entry point for a user-supplied file -- it needs the same
- * bounds/count-cap/color-format rigor the single-room import already has
- * via planner-schema.ts's importSchema, or a corrupted/hostile file could
- * carry e.g. tens of thousands of items on one room and freeze the tab.
- * See roomLayoutSchema's doc comment in planner-schema.ts for the full
+ * Unlike the localStorage reads in lib/homes.ts (which only ever read back
+ * this app's own previously-saved data, so a shallow shape check is
+ * enough), this is the entry point for a user-supplied file -- it needs the
+ * same bounds/count-cap/color-format rigor the single-room import already
+ * has via planner-schema.ts's importSchema, or a corrupted/hostile file
+ * could carry e.g. tens of thousands of items on one room and freeze the
+ * tab. See roomLayoutSchema's doc comment in planner-schema.ts for the full
  * reasoning.
  *
  * Also accepts a THIRD shape: `{ floors: Floor[] | RoomLayout[], customCatalog?:
- * unknown }` -- the "Include My Catalog items" checkbox on the floor/
- * building ExportImportDialog (see routes/rooms.index.tsx) bundles the
+ * unknown }` -- the "Include My Catalog items" checkbox on the floor
+ * ExportImportDialog (see routes/home.$homeId.index.tsx) bundles the
  * current My Catalog list alongside the floors as a sibling key, which
  * turns the top-level export from a bare array into a wrapped object. That
  * wrapping is handled here (unwrap `.floors` and recurse into this same

@@ -1,4 +1,5 @@
 import type { LastActiveTarget, Lang, PlannerSettings, PlannerView } from "@/types/planner";
+import { findHomeIdForRoom, loadActiveHomeId, loadHomes } from "@/lib/homes";
 
 const SETTINGS_KEY = "planner-settings-v1";
 const LEGACY_LANG_KEY = "planner-lang";
@@ -20,17 +21,48 @@ function isPlannerView(v: unknown): v is PlannerView {
   return v === "2d" || v === "3d";
 }
 
-function isLastActive(v: unknown): v is LastActiveTarget | null {
-  if (v === null) return true;
-  if (typeof v !== "object") return false;
+/**
+ * Reads a stored lastActive, upgrading the two pre-Home shapes on the way
+ * through so nothing downstream ever has to know they existed:
+ *
+ * - `{ type: "floor" }` (no id -- there was only ever one building to go
+ *   back to) becomes the active Home, i.e. the one the old floors migrated
+ *   into. Without this a returning user's resume card and quick-entry gate
+ *   would both point at a route that no longer exists.
+ * - `{ type: "room", roomId }` without a homeId is resolved by searching
+ *   the homes for that room. This is the one place searching is right: the
+ *   stored value genuinely predates homes, so there is no route to ask.
+ *
+ * Returns null when a target can't be resolved (every home deleted, or the
+ * room is gone) -- the same answer as "nothing saved", which the resume
+ * card and the entry gate already handle.
+ */
+function readLastActive(v: unknown): LastActiveTarget | null {
+  if (v === null || typeof v !== "object") return null;
   const obj = v as Record<string, unknown>;
-  if (obj.type === "floor") return true;
-  // A "room" written by a build that predates the single-room split still
-  // means what it said then -- a room inside a floor -- so it keeps
-  // resolving against /rooms/$roomId. Nothing needs migrating: rooms
-  // created as one-room floors back then really are floor rooms.
-  if (obj.type === "room" || obj.type === "single-room") return typeof obj.roomId === "string";
-  return false;
+
+  if (obj.type === "single-room") {
+    return typeof obj.roomId === "string" ? { type: "single-room", roomId: obj.roomId } : null;
+  }
+
+  if (obj.type === "home") {
+    return typeof obj.homeId === "string" ? { type: "home", homeId: obj.homeId } : null;
+  }
+
+  if (obj.type === "floor") {
+    const homes = loadHomes() ?? [];
+    if (homes.length === 0) return null;
+    return { type: "home", homeId: loadActiveHomeId(homes) };
+  }
+
+  if (obj.type === "room" && typeof obj.roomId === "string") {
+    if (typeof obj.homeId === "string")
+      return { type: "room", roomId: obj.roomId, homeId: obj.homeId };
+    const homeId = findHomeIdForRoom(loadHomes() ?? [], obj.roomId);
+    return homeId ? { type: "room", roomId: obj.roomId, homeId } : null;
+  }
+
+  return null;
 }
 
 // Merges field-by-field onto DEFAULT_SETTINGS rather than trusting the whole
@@ -52,7 +84,7 @@ function normalize(raw: unknown): PlannerSettings {
       typeof obj.collisionDefault === "boolean"
         ? obj.collisionDefault
         : DEFAULT_SETTINGS.collisionDefault,
-    lastActive: isLastActive(obj.lastActive) ? obj.lastActive : DEFAULT_SETTINGS.lastActive,
+    lastActive: readLastActive(obj.lastActive),
   };
 }
 
@@ -61,9 +93,9 @@ export function loadSettings(): PlannerSettings {
   const raw = window.localStorage.getItem(SETTINGS_KEY);
   if (!raw) {
     // Pre-dashboard builds stored language alone under "planner-lang" (in
-    // two independent places -- see use-room-planner.ts/rooms.index.tsx) --
-    // carry that one value forward so a returning user's language doesn't
-    // silently reset to English just because the storage format changed.
+    // two independent places -- the room planner and the floor plan route)
+    // -- carry that one value forward so a returning user's language
+    // doesn't silently reset to English just because the format changed.
     const legacyLang = window.localStorage.getItem(LEGACY_LANG_KEY);
     return { ...DEFAULT_SETTINGS, lang: isLang(legacyLang) ? legacyLang : DEFAULT_SETTINGS.lang };
   }

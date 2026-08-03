@@ -14,6 +14,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoomsIndexRouteImport } from './routes/rooms.index'
 import { Route as RoomsRoomIdRouteImport } from './routes/rooms.$roomId'
 import { Route as RoomRoomIdRouteImport } from './routes/room.$roomId'
+import { Route as HomeHomeIdIndexRouteImport } from './routes/home.$homeId.index'
+import { Route as HomeHomeIdRoomRoomIdRouteImport } from './routes/home.$homeId.room.$roomId'
 
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
@@ -40,6 +42,16 @@ const RoomRoomIdRoute = RoomRoomIdRouteImport.update({
   path: '/room/$roomId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HomeHomeIdIndexRoute = HomeHomeIdIndexRouteImport.update({
+  id: '/home/$homeId/',
+  path: '/home/$homeId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeHomeIdRoomRoomIdRoute = HomeHomeIdRoomRoomIdRouteImport.update({
+  id: '/home/$homeId/room/$roomId',
+  path: '/home/$homeId/room/$roomId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +59,8 @@ export interface FileRoutesByFullPath {
   '/room/$roomId': typeof RoomRoomIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/rooms/': typeof RoomsIndexRoute
+  '/home/$homeId/': typeof HomeHomeIdIndexRoute
+  '/home/$homeId/room/$roomId': typeof HomeHomeIdRoomRoomIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +68,8 @@ export interface FileRoutesByTo {
   '/room/$roomId': typeof RoomRoomIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/rooms': typeof RoomsIndexRoute
+  '/home/$homeId': typeof HomeHomeIdIndexRoute
+  '/home/$homeId/room/$roomId': typeof HomeHomeIdRoomRoomIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,12 +78,28 @@ export interface FileRoutesById {
   '/room/$roomId': typeof RoomRoomIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/rooms/': typeof RoomsIndexRoute
+  '/home/$homeId/': typeof HomeHomeIdIndexRoute
+  '/home/$homeId/room/$roomId': typeof HomeHomeIdRoomRoomIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/room/$roomId' | '/rooms/$roomId' | '/rooms/'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/room/$roomId'
+    | '/rooms/$roomId'
+    | '/rooms/'
+    | '/home/$homeId/'
+    | '/home/$homeId/room/$roomId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/room/$roomId' | '/rooms/$roomId' | '/rooms'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/room/$roomId'
+    | '/rooms/$roomId'
+    | '/rooms'
+    | '/home/$homeId'
+    | '/home/$homeId/room/$roomId'
   id:
     | '__root__'
     | '/'
@@ -75,6 +107,8 @@ export interface FileRouteTypes {
     | '/room/$roomId'
     | '/rooms/$roomId'
     | '/rooms/'
+    | '/home/$homeId/'
+    | '/home/$homeId/room/$roomId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -83,6 +117,8 @@ export interface RootRouteChildren {
   RoomRoomIdRoute: typeof RoomRoomIdRoute
   RoomsRoomIdRoute: typeof RoomsRoomIdRoute
   RoomsIndexRoute: typeof RoomsIndexRoute
+  HomeHomeIdIndexRoute: typeof HomeHomeIdIndexRoute
+  HomeHomeIdRoomRoomIdRoute: typeof HomeHomeIdRoomRoomIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -122,6 +158,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoomRoomIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/home/$homeId/': {
+      id: '/home/$homeId/'
+      path: '/home/$homeId'
+      fullPath: '/home/$homeId/'
+      preLoaderRoute: typeof HomeHomeIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home/$homeId/room/$roomId': {
+      id: '/home/$homeId/room/$roomId'
+      path: '/home/$homeId/room/$roomId'
+      fullPath: '/home/$homeId/room/$roomId'
+      preLoaderRoute: typeof HomeHomeIdRoomRoomIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -131,6 +181,8 @@ const rootRouteChildren: RootRouteChildren = {
   RoomRoomIdRoute: RoomRoomIdRoute,
   RoomsRoomIdRoute: RoomsRoomIdRoute,
   RoomsIndexRoute: RoomsIndexRoute,
+  HomeHomeIdIndexRoute: HomeHomeIdIndexRoute,
+  HomeHomeIdRoomRoomIdRoute: HomeHomeIdRoomRoomIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

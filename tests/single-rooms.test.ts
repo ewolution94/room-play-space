@@ -9,7 +9,8 @@ import {
   updateSingleRoom,
   removeSingleRoom,
 } from "@/lib/single-rooms";
-import { MULTI_FLOORS_KEY, loadFloors, saveFloors, createFloor } from "@/lib/floors";
+import { createFloor } from "@/lib/floors";
+import { HOMES_KEY, createHome, loadHomes, saveHomes } from "@/lib/homes";
 import type { RoomLayout } from "@/types/planner";
 
 // Same in-memory localStorage shim as floors.test.ts -- these tests run
@@ -139,18 +140,18 @@ describe("removeSingleRoom", () => {
 });
 
 // The whole point of this module: a standalone room is not a one-room
-// floor. Neither store may ever see the other's content -- that conflation
-// is exactly what made "create a single room" litter the multi-room floor
+// floor of a home. Neither store may ever see the other's content -- that
+// conflation is exactly what made "create a single room" litter the floor
 // switcher with a new floor every time.
-describe("isolation from the multi-floor store", () => {
-  test("saving single rooms leaves the floors store untouched", () => {
-    saveFloors([createFloor([makeRoom({ id: "floor-room" })])]);
+describe("isolation from the homes store", () => {
+  test("saving single rooms leaves the homes store untouched", () => {
+    saveHomes([createHome([createFloor([makeRoom({ id: "floor-room" })])])]);
     addSingleRoom(makeRoom({ id: "standalone" }));
 
-    const floors = loadFloors();
-    assert.equal(floors?.length, 1);
+    const homes = loadHomes();
+    assert.equal(homes?.length, 1);
     assert.deepEqual(
-      floors?.[0].rooms.map((r) => r.id),
+      homes?.[0].floors[0].rooms.map((r) => r.id),
       ["floor-room"],
     );
     assert.deepEqual(
@@ -159,15 +160,15 @@ describe("isolation from the multi-floor store", () => {
     );
   });
 
-  test("floors and single rooms use different storage keys", () => {
-    assert.notEqual(SINGLE_ROOMS_KEY, MULTI_FLOORS_KEY);
+  test("homes and single rooms use different storage keys", () => {
+    assert.notEqual(SINGLE_ROOMS_KEY, HOMES_KEY);
     addSingleRoom(makeRoom({ id: "standalone" }));
-    assert.equal(currentLocalStorage().getItem(MULTI_FLOORS_KEY), null);
+    assert.equal(currentLocalStorage().getItem(HOMES_KEY), null);
     assert.ok(currentLocalStorage().getItem(SINGLE_ROOMS_KEY));
   });
 
-  test("a room in the floors store is invisible to the single-room store", () => {
-    saveFloors([createFloor([makeRoom({ id: "floor-room" })])]);
+  test("a room inside a home is invisible to the single-room store", () => {
+    saveHomes([createHome([createFloor([makeRoom({ id: "floor-room" })])])]);
     assert.deepEqual(loadSingleRooms(), []);
     assert.equal(findSingleRoom("floor-room"), null);
   });

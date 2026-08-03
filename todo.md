@@ -650,9 +650,150 @@ all of it at once.
       knowing that editing a large JSX file in several passes will do this
       to a running dev server.
 
+### Homes: floors need an owner -- proposal + Phase 0 (2026-08-03)
+
+**Plan written, store built, not yet wired.** See
+**`docs/HOMES-PROPOSAL.md`** -- read that first. (Phase 1 shipped the next
+day; its own entry is at the bottom of this file.)
+
+User-reported: creating a second "floor plan" from the dashboard adds a
+*storey to the first one* instead of making an independent plan. Root cause
+is that `planner-multi-floors` is a flat `Floor[]` that **is** the one
+implicit building, and the dashboard lists its floors as if each were a
+separate document. The tell is `LastActiveTarget`'s `{ type: "floor" }`
+carrying no id, because there's only ever one thing it could point at.
+
+Wanted: these behave like single rooms -- N independent documents, one
+dashboard row each, and 1..N floors *inside* one. The proposal covers the
+model, a three-generation storage migration (`planner-homes-v1` <-
+`planner-multi-floors` <- `planner-multi-rooms`), routing (`/home/$homeId`),
+all 13 seams, phasing, and what's still open.
+
+**Decided with the user**: the concept is called a **"Home"** (covers a flat
+*and* a house with storeys, where "apartment" would be wrong for the
+latter); a new Home starts with **one empty Ground Floor**; `/rooms` URLs
+**redirect** rather than being removed.
+
+Two things flagged in it that matter more than the rest:
+
+- The migration is the same class of change that caused the
+  deleted-floor-resurrection bug **twice**. `isHomeArray` must accept `[]`,
+  and it has to be tested with the old keys *planted*, not on a cleared
+  profile. The single most important test: an empty `planner-homes-v1`
+  alongside a populated `planner-multi-floors` must stay empty.
+- Phase 1 (wiring the store) is atomic -- dashboard, routes and editor have
+  to move together. Phase 0 (the store + migration + tests, unwired) is
+  worth landing on its own, since that's where the risk lives, and it's the
+  natural stopping point for one session.
+
+### Reset everything, from Settings (2026-08-03)
+
+- [x] **New `lib/app-reset.ts`** + a destructive entry at the bottom of the
+      Settings dialog, behind its own confirm. Wipes every saved room, Home,
+      floor, custom-catalog item and setting, then does a **full page load**
+      -- not a client-side navigation, because theme/language/settings/
+      catalog/inspector state are each seeded from localStorage exactly once
+      (the hydration-gate note in LEARNINGS), so a soft navigation would
+      leave half the app still holding the deleted profile's values.
+- [x] **A prefix sweep, not a hand-maintained key list.** All 14 keys this
+      app writes are `planner-`-prefixed, so the reset collects and removes
+      by prefix -- a list would silently go stale the first time someone
+      added a key and forgot to register it, and nobody notices a "clean
+      slate" that wasn't clean. A test asserts every known key matches the
+      prefix, so adding a non-prefixed one fails loudly with the reason.
+- [x] **Never `localStorage.clear()`**, which would also destroy every other
+      app on the same origin -- on a dev machine that's everything else on
+      localhost. Verified live: a planted `some-other-app:token` survived.
+- [x] **Never called automatically.** Nothing in this codebase deletes a
+      user's saved rooms on their behalf -- not on upgrade, not on
+      migration, not on a parse failure. Only this explicit confirm does.
+- [x] Verified end-to-end in the browser: 8 planner keys + 1 foreign key ->
+      confirm -> 0 planner keys, foreign key intact, landed on a virgin
+      `/dashboard` with both empty states. (`planner-theme` reappears
+      immediately afterwards because `useTheme` re-persists a default on
+      mount -- a fresh default, not a survivor.) 19 new tests.
+- Used this to give the user their requested clean slate, rather than
+  hand-clearing storage -- same outcome, and now it's a feature.
+
+### Homes: Phase 1 -- the store is wired in (2026-08-04)
+
+The bug is fixed: creating a second plan from the dashboard now makes a
+second **Home**, not another storey of the first. Phase 1 is atomic by
+nature (dashboard, routes and editor have to move together), so it landed in
+one piece. Design + phasing in `docs/HOMES-PROPOSAL.md`.
+
+- [x] **New routes**: `/home/$homeId` (a home's floor plan -- the old
+      `/rooms`, keyed by an id from the URL instead of reading the one
+      global array) and `/home/$homeId/room/$roomId`. The home id is in the
+      room URL deliberately: searching every home for a room id is the
+      "look it up and guess" pattern LEARNINGS warns against, and the back
+      pill needs the id anyway to know where to return to.
+- [x] **`/rooms` and `/rooms/$roomId` redirect** rather than 404 --
+      bookmarks and any `lastActive` written before the change still land
+      somewhere real. `/rooms/$roomId` is the one place a room id *is*
+      resolved by searching, because the incoming URL genuinely predates
+      homes existing. Both create nothing; with no homes they go to the
+      dashboard. Pulled forward from Phase 3: leaving `/rooms` alive on the
+      old store would have been a broken half-state, not a smaller change.
+- [x] **`lib/floors.ts` stopped being a store.** `loadFloors`/`saveFloors`/
+      `loadActiveFloorId`/`saveActiveFloorId` are gone; what stayed is what
+      is genuinely *about a floor* -- `defaultFloorName`/`floorDisplayName`,
+      `createFloor`, `parseImportedFloors`. The two old keys stay exported
+      as read-only history (a migration source for homes.ts, and still
+      swept by "Reset everything").
+- [x] **`useRoomPlanner(roomId, source, homeId)`** -- both the initial read
+      and the save-back effect go through `findHome`/`updateHome`, so a room
+      edit rewrites one home's floors and never even reads another's.
+      `updateHome` no-ops on an unknown id, so a home deleted in another tab
+      can't be resurrected by the next keystroke. `RoomEditor`'s props are a
+      discriminated union: a floor room cannot be opened without a homeId.
+- [x] **Dashboard**: `FloorPlansList` → `HomesList` (one row per *home*,
+      `N floors · N rooms · N items`, delete takes the whole home),
+      `CreateFloorFlow` → `CreateHomeFlow` (both paths create a new,
+      independent home). Card copy is now "Create a Home" / "Your Homes".
+- [x] **The "Replace the ground floor?" dialog is deleted, not ported.** It
+      existed only because there was one shared building to collide with.
+      "From example" now lands in a brand-new home's ground floor -- nothing
+      to overwrite, nothing to confirm. Same for the whole
+      write-to-floor-index-0 dance around it.
+- [x] **`lastActive` carries every id its route needs**:
+      `{type:"home",homeId}` and `{type:"room",roomId,homeId}` replace the
+      id-less `{type:"floor"}`. `settings.ts` upgrades both pre-Home shapes
+      on read (a `"floor"` resolves to the active home; a `"room"` without a
+      homeId is resolved by finding it once), so nothing downstream has a
+      legacy branch. 15 new tests.
+- [x] **The active floor is per-home** (`planner-active-floor-by-home-v1`, a
+      `{homeId: floorId}` map) instead of one global pointer -- switching
+      floors in one home can't move another's.
+- [x] `FloorSwitcher` is **unchanged**: it was already prop-driven, so
+      scoping it to one home's floors needed no code, which is the clearest
+      sign the seam was in the right place.
+- [x] Verified in the browser **with the old keys planted, not on a cleared
+      profile** (the lesson from the two resurrection bugs), reading
+      `localStorage` at each step rather than trusting the UI:
+      a 2-floor `planner-multi-floors` → exactly **one** home with both
+      floors and one dashboard row; a `planner-multi-rooms`-only profile →
+      one home, one floor, both rooms with their items; **an empty
+      `planner-homes-v1` alongside both legacy keys stayed empty** across
+      reloads, with the ghosts never rendering and the legacy keys left
+      intact. Then the actual bug: two clicks → two homes (one empty, one
+      with the 7-room example), adding a floor to one left the other at
+      1 floor/0 rooms, editing a room (420 → 555) wrote only to its own
+      home's ground floor, `/rooms/room-14` redirected into the right home,
+      a stale `/home/<bogus>` bounced to the dashboard without creating
+      anything or recording the dead id, quick entry resolved a legacy
+      `{type:"floor"}` and rewrote it to `{type:"home"}`, and deleting the
+      last home stuck across a reload with both legacy keys still present.
+- [x] 677 tests (15 new), tsc clean, lint 18/19 (baseline).
+- Not done, deliberately: **Phase 2** (home-level export/import -- the
+  existing floor export/import still works, now scoped to the home you're
+  standing in) and **Phase 3** (copy pass). Renaming a Home has no UI at
+  all yet, which is now the most obvious gap.
+
 ### Still open
 - [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` -- a window can currently be taller than the knee wall it sits in. Roof windows (*Dachfenster*) remain out of scope.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.
-- [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it (e.g. `/rooms` → open a room from the auto-seeded apartment). Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.
-- [ ] The canvas's floating Room Inspector can overlap the bottom-left back pill at shorter viewport heights (~720px). Pre-existing and identical on `/rooms/$roomId` -- not introduced by this change, but now more visible since the back pill is a single room's main way out.
-- [ ] Pre-existing duplicate apartment floors from before the placement fix aren't cleaned up retroactively -- they're just ordinary floors now, deletable from the floor switcher (or now from the dashboard).
+- [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it. Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.
+- [ ] The canvas's floating Room Inspector can overlap the bottom-left back pill at shorter viewport heights (~720px). Pre-existing on both room routes -- not introduced by any recent change, but now more visible since the back pill is a single room's main way out.
+- [ ] Pre-existing duplicate apartment floors from before the placement fix aren't cleaned up retroactively -- they're just ordinary floors inside the migrated home now, deletable from the floor switcher.
+- [ ] **A Home can't be renamed.** Floors rename in the switcher; Homes have no equivalent surface, so a second one is stuck reading "Home 2". Additive, and the natural next follow-up to Phase 1.

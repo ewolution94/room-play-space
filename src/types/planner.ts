@@ -316,22 +316,29 @@ export interface UseCustomCatalogReturn {
 
 export type PlannerView = "2d" | "3d";
 
-// "floor" carries no id: /rooms already tracks + persists its own
-// activeFloorId (see rooms.index.tsx / FloorSwitcher.tsx) independently of
-// this settings store, so "last active thing was a floor" only needs to
-// mean "send them to /rooms" -- that route resolves which floor itself.
 /**
  * What "continue where you left off" should reopen. "room" and
  * "single-room" both carry a roomId but resolve against different stores
  * and different routes (see RoomSource below) -- collapsing them into one
  * variant is exactly how a standalone room ends up being reopened inside
- * the multi-room UI. "floor" needs no id: the multi-room overview restores
- * its own active floor (see loadActiveFloorId in lib/floors.ts).
+ * the multi-room UI.
+ *
+ * Every variant carries every id its route needs. "room" carries a homeId
+ * as well as its roomId because /home/$homeId/room/$roomId needs both, and
+ * because searching every home for a room id is exactly the "look it up and
+ * guess" pattern the two-stores split exists to avoid (docs/LEARNINGS.md).
+ * Which *floor* inside the home isn't recorded: the home route restores its
+ * own active floor (see loadActiveFloorId in lib/homes.ts).
+ *
+ * There used to be a fourth, id-less `{ type: "floor" }` variant, from when
+ * there was exactly one implicit building to send someone back to. A stored
+ * one is upgraded to `{ type: "home" }` on read -- see normalize() in
+ * lib/settings.ts.
  */
 export type LastActiveTarget =
-  | { type: "room"; roomId: string }
+  | { type: "room"; roomId: string; homeId: string }
   | { type: "single-room"; roomId: string }
-  | { type: "floor" };
+  | { type: "home"; homeId: string };
 
 export interface PlannerSettings {
   lang: Lang;
@@ -459,6 +466,29 @@ export interface Floor {
   // popover -- from that point on it's a fixed custom name, untranslated.
   name: string | null;
   rooms: RoomLayout[];
+}
+
+/**
+ * A place someone is planning: a flat, or a house with storeys. Owns 1..N
+ * floors, index 0 being ground level.
+ *
+ * This exists because floors previously had no owner. `planner-multi-floors`
+ * was a flat `Floor[]` that *was* the one implicit building, so the dashboard
+ * listed its storeys as though each were a separate document and "create a
+ * floor plan" quietly appended a storey to the only building there was.
+ * A Home is to floors what the single-room store is to rooms: an independent
+ * document with its own dashboard row and its own route.
+ *
+ * Called "Home" rather than "Apartment" because a two-storey house is not an
+ * apartment, and rather than "Building" because that reads industrial for a
+ * home planner. See docs/HOMES-PROPOSAL.md.
+ */
+export interface Home {
+  id: string;
+  /** null means "display the position-based default" -- same convention and
+   * the same reasoning as Floor.name above. */
+  name: string | null;
+  floors: Floor[];
 }
 
 export interface Point {
@@ -672,9 +702,10 @@ export interface CanvasAreaProps {
   // siblings in the multi-room overview. See room-adjacency.ts.
   openWalls: Map<string, WallOpenInterval[]>;
   // When set, renders a labeled "back" pill at the bottom-left of the
-  // canvas that navigates here -- "/rooms" for a room opened from the
-  // multi-room overview (rooms.$roomId.tsx), "/dashboard" for a standalone
-  // single room (room.$roomId.tsx), which has no overview to return to.
+  // canvas that navigates here -- "/home/$homeId" for a room opened from a
+  // home's floor plan (home.$homeId.room.$roomId.tsx), "/dashboard" for a
+  // standalone single room (room.$roomId.tsx), which has no overview to
+  // return to.
   // Previously this lived as a small icon-only button in the header
   // instead; see Header.tsx's doc comment on why it moved.
   backUrl?: string;
@@ -704,9 +735,10 @@ export interface TourOverlayProps {
  * Which store a room being edited actually lives in -- the two are
  * genuinely separate systems, not two views of one dataset:
  *
- * - "floor": a room inside a multi-room floor plan (lib/floors.ts's
- *   `planner-multi-floors`), edited at /rooms/$roomId, aware of its sibling
- *   rooms for wall-adjacency purposes.
+ * - "floor": a room on one floor of a Home (lib/homes.ts's
+ *   `planner-homes-v1`), edited at /home/$homeId/room/$roomId, aware of its
+ *   sibling rooms on that same floor for wall-adjacency purposes. Which
+ *   home is never inferred from the room id -- the route passes it.
  * - "single": a standalone room (lib/single-rooms.ts's
  *   `planner-single-rooms`), edited at /room/$roomId. Has no siblings and
  *   no floor to go "back" to.

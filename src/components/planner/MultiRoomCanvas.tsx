@@ -74,6 +74,11 @@ import {
 
 interface MultiRoomCanvasProps {
   t: TranslationStrings;
+  /** Which Home's floor plan is on screen. Only used for navigation --
+   * opening a room goes to /home/$homeId/room/$roomId, which needs both
+   * ids; the canvas itself still works on a plain RoomLayout[] and knows
+   * nothing about homes or floors otherwise. */
+  homeId: string;
   rooms: RoomLayout[];
   setRooms: React.Dispatch<React.SetStateAction<RoomLayout[]>>;
   // Undo/redo for `rooms` -- see the doc comment on rooms.index.tsx's own
@@ -128,6 +133,7 @@ const ThreeDView = lazy(() => import("./ThreeDView").then((m) => ({ default: m.T
 
 export function MultiRoomCanvas({
   t,
+  homeId,
   rooms,
   setRooms,
   pushRoomsHistory,
@@ -606,7 +612,7 @@ export function MultiRoomCanvas({
     // mode (see useMobileViewOnly) -- room dragging/selecting is an editing
     // tool, not a view option, so it's disabled there. Double-click
     // navigation into a room (below) is now ALSO disabled in mobile
-    // view-only mode (see that handler's own comment) -- /rooms/$roomId
+    // view-only mode (see that handler's own comment) -- the room editor
     // doesn't know about mobile view-only at all, so entering a room from
     // here used to strand the user in a broken desktop layout with no
     // visible canvas.
@@ -1577,7 +1583,7 @@ export function MultiRoomCanvas({
                     }}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
-                      // Disabled in mobile view-only mode: /rooms/$roomId
+                      // Disabled in mobile view-only mode: the room editor
                       // doesn't apply useMobileViewOnly at all, so entering
                       // a room there drops a phone-width viewport into the
                       // full desktop two-column layout (Sidebar stacked
@@ -1589,7 +1595,10 @@ export function MultiRoomCanvas({
                       // (with its own working mobile view options) rather
                       // than navigating into a route that isn't mobile-aware.
                       if (isMobileViewOnly) return;
-                      navigate({ to: "/rooms/$roomId", params: { roomId: room.id } });
+                      navigate({
+                        to: "/home/$homeId/room/$roomId",
+                        params: { homeId, roomId: room.id },
+                      });
                     }}
                   >
                     {/* Miniature Inside preview (scaled SVG Blueprint style) */}
@@ -2112,6 +2121,7 @@ export function MultiRoomCanvas({
             <MultiRoomInspector
               t={t}
               lang={lang}
+              homeId={homeId}
               selectedRoom={rooms.find((r) => r.id === selectedRoomId) || null}
               selectedRoomIds={selectedRoomIds}
               autoOpenWalls={

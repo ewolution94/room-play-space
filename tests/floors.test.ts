@@ -1,22 +1,18 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import {
-  loadFloors,
-  saveFloors,
-  loadActiveFloorId,
-  saveActiveFloorId,
-  createFloor,
-  defaultFloorName,
-  floorDisplayName,
-  parseImportedFloors,
-} from "@/lib/floors";
+import { createFloor, defaultFloorName, floorDisplayName, parseImportedFloors } from "@/lib/floors";
 import type { RoomLayout } from "@/types/planner";
 
+// Floors have no store of their own any more -- they belong to a Home, and
+// loading/saving/migrating them is tests/homes.test.ts's subject (including
+// every regression around an empty collection being a real saved state).
+// What's left here is what floors.ts still owns: naming, construction, and
+// parsing an imported file.
+//
 // Minimal in-memory localStorage + window shim -- this test suite runs
-// under plain Node (no jsdom, see tests/support/register.mjs), and
-// floors.ts deliberately guards every read/write behind
-// `typeof window === "undefined"` for SSR-safety, so it needs a real
-// (if fake) `window.localStorage` to exercise at all.
+// under plain Node (no jsdom, see tests/support/register.mjs), and modules
+// under test guard every read/write behind `typeof window === "undefined"`
+// for SSR-safety, so they need a real (if fake) `window.localStorage`.
 function makeLocalStorage() {
   const store = new Map<string, string>();
   return {
@@ -29,12 +25,6 @@ function makeLocalStorage() {
     },
     clear: () => store.clear(),
   };
-}
-
-function currentLocalStorage() {
-  return (
-    globalThis as unknown as { window: { localStorage: ReturnType<typeof makeLocalStorage> } }
-  ).window.localStorage;
 }
 
 beforeEach(() => {
@@ -121,98 +111,6 @@ describe("createFloor", () => {
     const a = createFloor();
     const b = createFloor();
     assert.notEqual(a.id, b.id);
-  });
-});
-
-describe("loadFloors", () => {
-  test("returns null when nothing has ever been saved", () => {
-    assert.equal(loadFloors(), null);
-  });
-
-  test("round-trips through saveFloors", () => {
-    const floors = [createFloor([makeRoom()])];
-    saveFloors(floors);
-    const loaded = loadFloors();
-    assert.deepEqual(loaded, floors);
-  });
-
-  // Regression: "I deleted every floor" is a real saved state and must
-  // survive a reload. isFloorArray used to require a non-empty array, so a
-  // saved [] was judged invalid, fell through to the legacy migration below,
-  // and silently resurrected a pre-floors save on EVERY load -- invisible on
-  // a cleared test profile, because clearing wipes the legacy key too.
-  test("an empty building is a real saved state, not 'nothing saved'", () => {
-    saveFloors([]);
-    assert.deepEqual(loadFloors(), []);
-  });
-
-  test("an empty building is NOT overwritten by a leftover legacy save", () => {
-    currentLocalStorage().setItem(
-      "planner-multi-rooms",
-      JSON.stringify([makeRoom({ id: "ghost" })]),
-    );
-    saveFloors([]);
-
-    assert.deepEqual(loadFloors(), [], "legacy rooms came back from the dead");
-    // And nothing was written back over the deliberate empty state.
-    assert.equal(currentLocalStorage().getItem("planner-multi-floors"), "[]");
-  });
-
-  test("migrates a legacy flat RoomLayout[] into a single un-named (auto Ground Floor) floor", () => {
-    const legacyRooms = [makeRoom({ id: "a" }), makeRoom({ id: "b" })];
-    currentLocalStorage().setItem("planner-multi-rooms", JSON.stringify(legacyRooms));
-
-    const migrated = loadFloors();
-    assert.ok(migrated);
-    assert.equal(migrated!.length, 1);
-    assert.equal(migrated![0].name, null);
-    assert.equal(floorDisplayName(migrated![0], 0, "en"), "Ground Floor");
-    assert.deepEqual(migrated![0].rooms, legacyRooms);
-  });
-
-  test("migration persists under the new key so a second load doesn't need the legacy key again", () => {
-    const legacyRooms = [makeRoom({ id: "a" })];
-    currentLocalStorage().setItem("planner-multi-rooms", JSON.stringify(legacyRooms));
-
-    const first = loadFloors();
-    currentLocalStorage().removeItem("planner-multi-rooms");
-    const second = loadFloors();
-    assert.deepEqual(second, first);
-  });
-
-  test("prefers the new-format key over a stale legacy key if both exist", () => {
-    const current = [createFloor([makeRoom({ id: "current" })])];
-    saveFloors(current);
-    currentLocalStorage().setItem(
-      "planner-multi-rooms",
-      JSON.stringify([makeRoom({ id: "stale-legacy" })]),
-    );
-
-    const loaded = loadFloors();
-    assert.deepEqual(loaded, current);
-  });
-});
-
-describe("loadActiveFloorId / saveActiveFloorId", () => {
-  test("falls back to the first floor when nothing saved", () => {
-    const floors = [createFloor(), createFloor()];
-    assert.equal(loadActiveFloorId(floors), floors[0].id);
-  });
-
-  test("falls back to the first floor when the saved id no longer exists", () => {
-    const floors = [createFloor(), createFloor()];
-    saveActiveFloorId("some-deleted-floor-id");
-    assert.equal(loadActiveFloorId(floors), floors[0].id);
-  });
-
-  test("round-trips a valid saved id", () => {
-    const floors = [createFloor(), createFloor()];
-    saveActiveFloorId(floors[1].id);
-    assert.equal(loadActiveFloorId(floors), floors[1].id);
-  });
-
-  test("returns empty string for an empty floor list", () => {
-    assert.equal(loadActiveFloorId([]), "");
   });
 });
 

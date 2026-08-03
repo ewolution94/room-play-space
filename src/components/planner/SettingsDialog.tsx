@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,18 @@ import { NumberField } from "@/components/ui/number-field";
 import { Separator } from "@/components/ui/separator";
 import type { PlannerSettings, PlannerView } from "@/types/planner";
 import type { Theme } from "@/hooks/use-theme";
-import { HelpCircle, Moon, Sun } from "lucide-react";
+import { RotateCcw, HelpCircle, Moon, Sun } from "lucide-react";
+import { resetApp } from "@/lib/app-reset";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -90,6 +101,7 @@ export function SettingsDialog({
   onTakeTour,
 }: SettingsDialogProps) {
   const lang = settings.lang;
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,8 +217,52 @@ export function SettingsDialog({
               </div>
             </>
           )}
+
+          {/* Destructive, so it sits last, behind its own confirm, and is
+              the only thing in the app that ever deletes saved rooms. */}
+          <Separator className="my-1" />
+          <div className="py-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetConfirmOpen(true)}
+              className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <RotateCcw className="h-4 w-4" />
+              {lang === "de" ? "Alles zurücksetzen" : "Reset everything"}
+            </Button>
+            <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+              {lang === "de"
+                ? "Löscht alle Räume, Zuhauses, eigenen Katalog-Objekte und Einstellungen."
+                : "Deletes every room, home, custom catalog item and setting."}
+            </p>
+          </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {lang === "de" ? "Wirklich alles zurücksetzen?" : "Reset everything?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {lang === "de"
+                ? "Alle einzelnen Räume, alle Zuhauses mit ihren Etagen, dein eigener Katalog und sämtliche Einstellungen werden gelöscht. Die App startet danach wie beim allerersten Besuch. Das lässt sich nicht rückgängig machen."
+                : "Every single room, every home and its floors, your own catalog and all settings will be deleted. The app restarts as if you'd never used it. This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{lang === "de" ? "Abbrechen" : "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => resetApp()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {lang === "de" ? "Alles löschen" : "Delete everything"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

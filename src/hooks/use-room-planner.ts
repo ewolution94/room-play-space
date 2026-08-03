@@ -27,7 +27,7 @@ import {
 } from "@/lib/planner-math";
 import { importSchema, formatZodError } from "@/lib/planner-schema";
 import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/lib/planner-presets";
-import { loadFloors, saveFloors } from "@/lib/floors";
+import { findHome, updateHome } from "@/lib/homes";
 import { findSingleRoom, updateSingleRoom } from "@/lib/single-rooms";
 import {
   DEFAULT_CEILING_HEIGHT,
@@ -206,6 +206,11 @@ const itemHeight = (it: Item) => it.height ?? getDefaultHeight(it.icon, it.kind)
 export function useRoomPlanner(
   roomId?: string,
   source: RoomSource = "floor",
+  /** Which Home owns this room. Required when source is "floor" -- passed
+   * by the route, never inferred by searching every home for the room id
+   * (see RoomSource's doc comment). Ignored for a standalone room, which
+   * belongs to no home at all. */
+  homeId?: string,
 ): UseRoomPlannerReturn {
   const { settings, hydrated: settingsHydrated, update: updateSettings } = useSettings();
   const lang = settings.lang;
@@ -217,19 +222,20 @@ export function useRoomPlanner(
   // onto its own floor's sibling rooms (read once, at mount) purely so
   // `openWalls` below can auto-detect which of *this* room's walls touch a
   // neighbor's -- siblings are never referenced again after this, and are
-  // not kept reactive: the room editor and the multi-room overview are
+  // not kept reactive: the room editor and the home's floor plan are
   // different routes, so there's no way to be looking at a sibling's live
   // position while editing this room. Deliberately scoped to the room's OWN
   // floor only (see Floor in types/planner.ts) -- two floors never share a
-  // physical wall, so a room on another floor should never be treated as a
-  // touching neighbor here. A "single" room has no siblings at all, by
-  // definition: it isn't part of any floor plan, so nothing can touch it.
+  // physical wall, so a room on another floor (let alone in another home)
+  // should never be treated as a touching neighbor here. A "single" room
+  // has no siblings at all, by definition: it isn't part of any floor plan,
+  // so nothing can touch it.
   const getInitialRoomData = (): { room: any; siblings: RoomLayout[] } => {
     if (typeof window === "undefined" || !roomId) return { room: null, siblings: [] };
     if (source === "single") return { room: findSingleRoom(roomId), siblings: [] };
-    const floors = loadFloors();
-    if (!floors) return { room: null, siblings: [] };
-    const owningFloor = floors.find((f) => f.rooms.some((r) => r.id === roomId));
+    const home = homeId ? findHome(homeId) : null;
+    if (!home) return { room: null, siblings: [] };
+    const owningFloor = home.floors.find((f) => f.rooms.some((r) => r.id === roomId));
     if (!owningFloor) return { room: null, siblings: [] };
     return {
       room: owningFloor.rooms.find((r) => r.id === roomId) || null,
@@ -305,8 +311,9 @@ export function useRoomPlanner(
 
   // Sync changes back to whichever store this room came from. For a
   // standalone room that's a one-line patch of its own entry; for a floor
-  // room, every other floor's rooms pass through untouched (see loadFloors/
-  // saveFloors in lib/floors.ts).
+  // room, every other floor of this home passes through untouched, and
+  // every OTHER home is never even read (see updateHome in lib/homes.ts,
+  // which also no-ops if this home was deleted in another tab).
   useEffect(() => {
     if (typeof window === "undefined" || !roomId) return;
     if (source === "single") {
@@ -323,9 +330,10 @@ export function useRoomPlanner(
       });
       return;
     }
-    const floors = loadFloors();
-    if (!floors) return;
-    const updatedFloors = floors.map((floor) => {
+    if (!homeId) return;
+    const home = findHome(homeId);
+    if (!home) return;
+    const updatedFloors = home.floors.map((floor) => {
       if (!floor.rooms.some((r) => r.id === roomId)) return floor;
       return {
         ...floor,
@@ -347,9 +355,10 @@ export function useRoomPlanner(
         ),
       };
     });
-    saveFloors(updatedFloors);
+    updateHome(homeId, { floors: updatedFloors });
   }, [
     source,
+    homeId,
     roomId,
     roomW,
     roomL,

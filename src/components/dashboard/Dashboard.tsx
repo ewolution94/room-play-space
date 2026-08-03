@@ -2,21 +2,21 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { loadFloors } from "@/lib/floors";
+import { findHomeIdForRoom, loadHomes } from "@/lib/homes";
 import { loadSingleRooms } from "@/lib/single-rooms";
 import { buildHomeOfficeRoom } from "@/lib/room-templates";
 import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
 import { TOUR_KEY } from "@/hooks/use-room-planner";
 import type { Lang, PlannerSettings } from "@/types/planner";
 import { CreateSingleRoomFlow } from "@/components/dashboard/CreateSingleRoomFlow";
-import { CreateFloorFlow } from "@/components/dashboard/CreateFloorFlow";
+import { CreateHomeFlow } from "@/components/dashboard/CreateHomeFlow";
 import { RecentlyOpened } from "@/components/dashboard/RecentlyOpened";
 import { SingleRoomsList } from "@/components/dashboard/SingleRoomsList";
-import { FloorPlansList } from "@/components/dashboard/FloorPlansList";
+import { HomesList } from "@/components/dashboard/HomesList";
 import { IkeaRoomWizard } from "@/components/room-creation/IkeaRoomWizard";
 import { SettingsDialog } from "@/components/planner/SettingsDialog";
 import type { Theme } from "@/hooks/use-theme";
-import { DoorOpen, LayoutGrid, Moon, Settings, Sparkles, Sun, Wand2 } from "lucide-react";
+import { DoorOpen, Home as HomeIcon, Moon, Settings, Sparkles, Sun, Wand2 } from "lucide-react";
 
 interface DashboardProps {
   settings: PlannerSettings;
@@ -49,10 +49,13 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
       navigate({ to: "/room/$roomId", params: { roomId: single.id } });
       return;
     }
-    const floorRoom = (loadFloors() ?? []).flatMap((f) => f.rooms)[0];
-    if (!floorRoom) return;
+    const homes = loadHomes() ?? [];
+    const homeRoom = homes.flatMap((h) => h.floors).flatMap((f) => f.rooms)[0];
+    if (!homeRoom) return;
+    const homeId = findHomeIdForRoom(homes, homeRoom.id);
+    if (!homeId) return;
     window.localStorage.removeItem(TOUR_KEY);
-    navigate({ to: "/rooms/$roomId", params: { roomId: floorRoom.id } });
+    navigate({ to: "/home/$homeId/room/$roomId", params: { homeId, roomId: homeRoom.id } });
   };
 
   // Only offered when there's actually somewhere to run it. Read after
@@ -61,7 +64,8 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
   const [hasAnyRoom, setHasAnyRoom] = useState(false);
   useEffect(() => {
     setHasAnyRoom(
-      loadSingleRooms().length > 0 || (loadFloors() ?? []).some((f) => f.rooms.length > 0),
+      loadSingleRooms().length > 0 ||
+        (loadHomes() ?? []).some((h) => h.floors.some((f) => f.rooms.length > 0)),
     );
   }, []);
 
@@ -169,26 +173,26 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <LayoutGrid className="h-5 w-5 text-primary" />
-                {lang === "de" ? "Etage erstellen" : "Create a Floor"}
+                <HomeIcon className="h-5 w-5 text-primary" />
+                {lang === "de" ? "Erstelle ein Zuhause" : "Create a Home"}
               </CardTitle>
               <CardDescription>
                 {lang === "de"
-                  ? "Mehrere Räume, ein zusammenhängender Grundriss."
-                  : "Multiple rooms, one connected floor plan."}
+                  ? "Eine Wohnung oder ein Haus, mit einer oder mehreren Etagen."
+                  : "A flat or a house, with one floor or several."}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CreateFloorFlow lang={lang} />
+              <CreateHomeFlow lang={lang} />
             </CardContent>
           </Card>
         </div>
 
         {/* Saved content, split the same way the creation cards above are:
-            standalone rooms and floor plans are two separate systems with
-            separate storage and separate routes (see lib/single-rooms.ts),
-            so listing them together would put back exactly the confusion
-            that split was meant to remove. */}
+            standalone rooms and homes are two separate systems with
+            separate storage and separate routes (see lib/single-rooms.ts
+            and lib/homes.ts), so listing them together would put back
+            exactly the confusion that split was meant to remove. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -210,17 +214,17 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <LayoutGrid className="h-5 w-5 text-primary" />
-                {lang === "de" ? "Deine Grundrisse" : "Your Floor Plans"}
+                <HomeIcon className="h-5 w-5 text-primary" />
+                {lang === "de" ? "Deine geplanten Zuhauses" : "Your Homes"}
               </CardTitle>
               <CardDescription>
                 {lang === "de"
-                  ? "Mehrere Räume pro Etage, als zusammenhängendes Gebäude."
-                  : "Multiple rooms per floor, as one connected building."}
+                  ? "Jedes Zuhause mit seinen eigenen Etagen und Räumen."
+                  : "Each home with its own floors and rooms."}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <FloorPlansList lang={lang} />
+              <HomesList lang={lang} />
             </CardContent>
           </Card>
         </div>

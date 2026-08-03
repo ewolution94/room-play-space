@@ -26,26 +26,32 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface RoomEditorProps {
-  roomId: string;
-  source: RoomSource;
-}
+/**
+ * A discriminated union rather than an optional `homeId`, so a floor room
+ * cannot be opened without saying which Home it belongs to -- that fact is
+ * the route's to supply, and inferring it by searching every home is the
+ * pattern this split exists to remove (see RoomSource in types/planner.ts).
+ */
+type RoomEditorProps =
+  | { source: Extract<RoomSource, "single">; roomId: string; homeId?: undefined }
+  | { source: Extract<RoomSource, "floor">; roomId: string; homeId: string };
 
 /**
  * The room editor itself -- header, sidebar, canvas, and the dialogs that
  * hang off them -- shared verbatim by both routes that can open a room:
- * /rooms/$roomId (a room inside a multi-room floor plan) and /room/$roomId
- * (a standalone single room). The two systems are deliberately separate in
- * storage and routing (see lib/single-rooms.ts), but the editing experience
- * is identical, so `source` is the only thing that differs -- everything
- * that varies with it is derived below rather than passed in, so a route
- * can't accidentally pair one system's storage with the other's navigation.
+ * /home/$homeId/room/$roomId (a room on one floor of a Home) and
+ * /room/$roomId (a standalone single room). The two systems are
+ * deliberately separate in storage and routing (see lib/single-rooms.ts),
+ * but the editing experience is identical, so `source` is the only thing
+ * that differs -- everything that varies with it is derived below rather
+ * than passed in, so a route can't accidentally pair one system's storage
+ * with the other's navigation.
  */
-export function RoomEditor({ roomId, source }: RoomEditorProps) {
+export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
   const isSingle = source === "single";
   const navigate = useNavigate();
   const { theme, toggleTheme, isDark } = useTheme();
-  const planner = useRoomPlanner(roomId, source);
+  const planner = useRoomPlanner(roomId, source, homeId);
   const { t, resetMode, setResetMode, confirmReset } = planner;
   const { collapsed: sidebarCollapsed, toggle: toggleSidebarCollapsed } = useSidebarCollapsed();
   const { settings, update: updateSettings, recordLastActive } = useSettings();
@@ -56,23 +62,26 @@ export function RoomEditor({ roomId, source }: RoomEditorProps) {
   // that isn't in the store. Bounce to the dashboard instead, and don't
   // record the dead id as "where you left off" on the way out. Only the
   // single-room store is checked: a floor room's id is resolved against
-  // the floors store by useRoomPlanner itself, and /rooms/$roomId's
-  // behavior here is deliberately left exactly as it was.
+  // its home by useRoomPlanner itself, and the home route's behavior here
+  // is deliberately left exactly as it was.
   useEffect(() => {
     if (isSingle && !findSingleRoom(roomId)) {
       navigate({ to: "/dashboard", replace: true });
       return;
     }
-    recordLastActive(isSingle ? { type: "single-room", roomId } : { type: "room", roomId });
-  }, [isSingle, roomId, recordLastActive, navigate]);
+    recordLastActive(
+      isSingle ? { type: "single-room", roomId } : { type: "room", roomId, homeId: homeId! },
+    );
+  }, [isSingle, roomId, homeId, recordLastActive, navigate]);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Where the canvas's bottom-left back pill goes. A floor room returns to
-  // the overview it was opened from; a standalone room has no overview at
-  // all, so it returns to the dashboard -- under a label that says so,
-  // rather than the "Back to Overview" wording that made single rooms feel
-  // like part of the multi-room system.
-  const backUrl = isSingle ? "/dashboard" : "/rooms";
+  // its own home's floor plan -- the id is why the route has to pass it,
+  // rather than the pill guessing which home to land in. A standalone room
+  // has no overview at all, so it returns to the dashboard, under a label
+  // that says so rather than the "Back to Overview" wording that made
+  // single rooms feel like part of the multi-room system.
+  const backUrl = isSingle ? "/dashboard" : `/home/${homeId}`;
   const backLabel = isSingle
     ? planner.lang === "de"
       ? "Zurück zum Dashboard"
