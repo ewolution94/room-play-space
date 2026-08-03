@@ -611,6 +611,106 @@ is the commit step. `addToFloor` exists for the same reason
 `useCreateSingleRoom` does — three flows each doing "push history, append,
 select" inline is three chances to forget one.
 
+## The reversed-winding quirk has now bitten three times
+
+`resolveWallSegment` walks `"bottom"` and `"left"` in reverse of forward
+winding, on purpose, so already-saved rectangular rooms keep rendering
+identically. Every time something derives a *direction* from `a`→`b` without
+accounting for that, it comes out backwards on exactly those two walls:
+
+1. The 2D slope band drew outside the room (fixed with `inwardNormal()`).
+2. 3D opening positions were measured from the wrong end (fixed with
+   `isReversedNamedWall`, which remaps into a forward-wound frame).
+3. Door swing: `CanvasOpenings` rotates each opening to `atan2(ptB - ptA)`
+   and draws "swing in" toward the local −y side, which is only inward when
+   the segment runs forward — so a `swing: "in"` door drew *outside* the
+   room on `top` and `right`. Fixed in `lib/opening-geometry.ts`.
+
+Note the third one is the mirror image of the first two: because reversing
+the segment is what makes the local frame come out right, it's the two
+*reversed* walls that were correct and the forward ones that were wrong —
+along with every numeric polygon wall, which is always forward-wound. Any
+test written on "the reversed walls are the broken ones" instinct will fail.
+
+The general rule: **anything that needs a genuine direction (not just a
+distance) must ask the polygon, via `inwardNormal()`, never the winding.**
+Distances are safe — `availableHeightAt` measures to an infinite line and is
+signless by construction.
+
+There's a second, softer lesson in how this one presented. Three renderers
+each had their own convention, two of them right, and the symptom was a door
+that appeared to flip as the user moved between screens. Nothing was wrong
+with the stored data — every creation site already wrote `swing: "in"`. When
+a value "changes" as you navigate, suspect the renderers before the model.
+
+## Assert what the user sees, not what the function returns
+
+The door-swing fix's first test asserted `effectiveSwing(...) === "in"` per
+wall. That is an implementation detail, and the assertion was wrong on its
+face — it encoded a guess about which walls are mirrored. The tests that
+survived compute the direction the canvas will *therefore* draw the leaf and
+dot it against `inwardNormal()`: "an inward door draws into the room" holds
+for every wall of every shape, needs no knowledge of the winding convention,
+and would still pass if the correction were reimplemented differently.
+
+## Tailwind v4 stopped making buttons look clickable
+
+v3's preflight included `button, [role="button"] { cursor: pointer }`; v4
+dropped it to match the browser default of `cursor: default`. Nothing errors
+and nothing looks broken in isolation — but every bare `<button>` silently
+stops showing the hand cursor, while components that happen to carry an
+explicit `cursor-pointer` (the shared `Button`, checkbox, switch, tabs,
+select, toggle primitives) keep it. The result reads as an app that is
+inconsistent rather than one that changed uniformly: measured here, 192 of
+218 interactive elements in the room editor.
+
+The fix belongs in `@layer base` in `styles.css`, not on individual
+elements — both so it can't be forgotten on the next component, and because
+base-layer rules lose to Tailwind utilities, which is exactly what you want:
+`cursor-grab` on a drag handle, `cursor-crosshair` on a placement target and
+`cursor-text` on an inline-editable label all still win.
+
+## Sampling beats solving, for anything driven by `availableHeightAt`
+
+Both the sloped ceiling surface (`buildCeilingSurface`) and the profile that
+cuts slope-adjacent walls (`ceilingProfileAlongWall`) work by *sampling*
+`availableHeightAt` on a ~15cm grid rather than deriving exact geometry.
+
+That's deliberate. The true surface is piecewise linear — each slope
+contributes a plane, and the height is the minimum over them — so the exact
+shape has a fold wherever one slope overtakes another or a run ends. Finding
+those folds analytically means intersecting every pair of slope planes and
+clipping the results to the room polygon, which is real work and easy to get
+subtly wrong for the reflex corners a T or U shape has. Sampling puts every
+fold within one step of where it belongs, which is invisible at furniture
+scale.
+
+The one rule that makes it safe: **always include the exact endpoints.** A
+wall profile that sampled only on the grid would meet its neighbours at
+whatever height the nearest sample happened to give, and adjacent walls would
+disagree at the corner by a visible amount. Everything in between can be
+approximate; the joins cannot.
+
+The corollary is that everything downstream of `availableHeightAt` stays
+consistent for free — walls, ceiling and the 2D contour lines all read the
+same function, so they cannot drift apart. Adding a new consumer means
+sampling that function too, not re-deriving the roof.
+
+## Verify 3D geometry against the scene graph, not a screenshot
+
+A screenshot cannot settle whether a wall is flush with a ceiling or 2cm
+proud of it, and this environment returns stale frames often enough that a
+"looks fine" is weak evidence either way. Walking the scene graph is both
+faster and conclusive: group by group, check each mesh's `geometry.type` and
+its `boundingBox`, and for a profiled mesh read the actual top edge out of
+the `position` attribute (max y per distinct x).
+
+That's what confirmed the slope-adjacent wall fix — the top edge reads
+112.6 → 240 over ~147cm and then flat, which is the 150cm run plus the
+wall's miter offset, and no screenshot would have told you that. There's no
+permanent debug hook for this; add `window.__scene = scene` next to
+`sceneRef.current = scene` while you work and take it out afterwards.
+
 ## Three.js and SVG gotchas that surface far from their cause
 
 - **`THREE.ShapeGeometry` is indexed.** Its `position` attribute holds each

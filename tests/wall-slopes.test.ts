@@ -11,6 +11,8 @@ import {
   checkItemFitsUnderSlopes,
   inwardNormal,
   buildCeilingSurface,
+  ceilingProfileAlongWall,
+  profileIsFlatAtCeiling,
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
@@ -316,5 +318,152 @@ describe("checkItemFitsUnderSlopes", () => {
     const r = checkItemFitsUnderSlopes(wardrobe, 200, ROOM, undefined);
     assert.equal(r.fits, true);
     assert.equal(r.availableHeight, DEFAULT_CEILING_HEIGHT);
+  });
+});
+
+describe("ceilingProfileAlongWall", () => {
+  // 400x300 room. A slope on "top": knee 110cm, rising to 240 over 150cm
+  // measured perpendicular into the room (i.e. as y grows).
+  const CORNERS: Point[] = [
+    { x: 0, y: 0 },
+    { x: 400, y: 0 },
+    { x: 400, y: 300 },
+    { x: 0, y: 300 },
+  ];
+  const SLOPES = { top: { kneeHeight: 110, run: 150 } };
+  const CEIL = 240;
+
+  test("a wall running into the slope rises from the knee height to the ceiling", () => {
+    // "left" runs from (0,0) to (0,300) -- straight away from the sloped
+    // top wall, so it is exactly the wall that used to poke through.
+    const prof = ceilingProfileAlongWall(
+      { x: 0, y: 0 },
+      { x: 0, y: 300 },
+      0,
+      300,
+      CORNERS,
+      SLOPES,
+      CEIL,
+    );
+    assert.ok(prof.length > 2);
+    assert.equal(prof[0].along, 0);
+    assert.equal(prof[prof.length - 1].along, 300);
+    // At the sloped wall itself: the knee height.
+    assert.ok(Math.abs(prof[0].height - 110) < 1e-6, `got ${prof[0].height}`);
+    // Past the run: full ceiling.
+    assert.ok(Math.abs(prof[prof.length - 1].height - CEIL) < 1e-6);
+    // Monotonically rising, and never above the ceiling.
+    for (let i = 1; i < prof.length; i++) {
+      assert.ok(prof[i].height >= prof[i - 1].height - 1e-9, "profile must not dip");
+      assert.ok(prof[i].height <= CEIL + 1e-9, "profile must not exceed the ceiling");
+    }
+  });
+
+  test("half way up the run is half way up the rise", () => {
+    const prof = ceilingProfileAlongWall(
+      { x: 0, y: 0 },
+      { x: 0, y: 300 },
+      75, // 75cm into a 150cm run
+      75,
+      CORNERS,
+      SLOPES,
+      CEIL,
+    );
+    assert.ok(Math.abs(prof[0].height - (110 + (240 - 110) / 2)) < 1e-6, `got ${prof[0].height}`);
+  });
+
+  test("a gable (two opposing slopes) dips at both ends and peaks in the middle", () => {
+    const gable = { top: { kneeHeight: 110, run: 150 }, bottom: { kneeHeight: 110, run: 150 } };
+    const prof = ceilingProfileAlongWall(
+      { x: 0, y: 0 },
+      { x: 0, y: 300 },
+      0,
+      300,
+      CORNERS,
+      gable,
+      CEIL,
+    );
+    const mid = prof[Math.floor(prof.length / 2)];
+    assert.ok(Math.abs(prof[0].height - 110) < 1e-6, "low at one eave");
+    assert.ok(Math.abs(prof[prof.length - 1].height - 110) < 1e-6, "low at the other eave");
+    assert.ok(mid.height > prof[0].height + 50, `ridge should be high, got ${mid.height}`);
+  });
+
+  test("a sub-span profiles just that stretch, endpoints exact", () => {
+    // The strip above a door: 90cm wide starting 40cm along the wall.
+    const prof = ceilingProfileAlongWall(
+      { x: 0, y: 0 },
+      { x: 0, y: 300 },
+      40,
+      130,
+      CORNERS,
+      SLOPES,
+      CEIL,
+    );
+    assert.equal(prof[0].along, 40);
+    assert.equal(prof[prof.length - 1].along, 130);
+  });
+
+  test("a wall clear of every run is flat at the ceiling", () => {
+    // "bottom" is 300cm from the sloped top wall, well past its 150cm run.
+    const prof = ceilingProfileAlongWall(
+      { x: 400, y: 300 },
+      { x: 0, y: 300 },
+      0,
+      400,
+      CORNERS,
+      SLOPES,
+      CEIL,
+    );
+    assert.ok(profileIsFlatAtCeiling(prof, CEIL));
+  });
+
+  test("no slopes at all is flat at the ceiling", () => {
+    const prof = ceilingProfileAlongWall(
+      { x: 0, y: 0 },
+      { x: 0, y: 300 },
+      0,
+      300,
+      CORNERS,
+      undefined,
+      CEIL,
+    );
+    assert.ok(profileIsFlatAtCeiling(prof, CEIL));
+  });
+
+  test("a wall that dips is NOT reported flat", () => {
+    const prof = ceilingProfileAlongWall(
+      { x: 0, y: 0 },
+      { x: 0, y: 300 },
+      0,
+      300,
+      CORNERS,
+      SLOPES,
+      CEIL,
+    );
+    assert.equal(profileIsFlatAtCeiling(prof, CEIL), false);
+  });
+
+  test("a degenerate zero-length wall yields no samples", () => {
+    const p = { x: 5, y: 5 };
+    assert.deepEqual(ceilingProfileAlongWall(p, p, 0, 0, CORNERS, SLOPES, CEIL), []);
+  });
+
+  test("every sample matches availableHeightAt at the same floor point", () => {
+    // The profile must be nothing more than availableHeightAt sampled along
+    // the wall -- if it ever drifts from that, the walls and the ceiling
+    // surface (which samples the same function) would stop meeting.
+    const a = { x: 0, y: 0 };
+    const b = { x: 400, y: 300 }; // deliberately diagonal
+    const prof = ceilingProfileAlongWall(a, b, 0, 500, CORNERS, SLOPES, CEIL, 25);
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    for (const s of prof) {
+      const t = s.along / len;
+      const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      assert.ok(
+        Math.abs(s.height - availableHeightAt(point, CORNERS, SLOPES, CEIL)) < 1e-9,
+        `sample at ${s.along} disagrees with availableHeightAt`,
+      );
+    }
   });
 });

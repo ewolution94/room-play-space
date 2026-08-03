@@ -141,4 +141,38 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+
+  /**
+   * Anything clickable gets the hand cursor.
+   *
+   * Tailwind v3's preflight set `button, [role="button"] { cursor: pointer }`;
+   * v4 deliberately dropped that to match the browser default of
+   * `cursor: default`. This app was written against the old behaviour, so
+   * the upgrade silently left most of the UI showing an arrow -- measured
+   * on the room editor: 192 of 218 interactive elements. Only the handful
+   * that happened to carry an explicit `cursor-pointer` (the shared
+   * `Button`, checkbox, switch, tabs, select, toggle primitives) still
+   * looked clickable, which is exactly why it read as inconsistent rather
+   * than as one uniform change.
+   *
+   * Restoring it centrally rather than adding a class to ~190 elements: it
+   * can't be forgotten on the next new button, and it applies to bare
+   * `<button>`s (catalog tiles, shape gallery, colour swatches, floor tiles)
+   * without touching them.
+   *
+   * Two things this deliberately does NOT do:
+   *
+   * - It sits in `@layer base`, so any Tailwind utility wins. Elements that
+   *   want a different cursor -- `cursor-grab` on a drag handle,
+   *   `cursor-crosshair` for wall placement, `cursor-text` on an editable
+   *   dimension label, `cursor-move` on an opening -- keep theirs, and
+   *   drag/marquee affordances are unaffected.
+   * - It excludes disabled controls, which keep `not-allowed`.
+   */
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(> input[type="checkbox"]:not(:disabled)),
+  label:has(> input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
+  }
 }

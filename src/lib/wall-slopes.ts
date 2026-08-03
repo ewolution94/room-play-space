@@ -301,3 +301,83 @@ export function checkItemFitsUnderSlopes(
     shortfallCm: Math.max(0, Math.round(shortfall * 100) / 100),
   };
 }
+
+/** One sample of the ceiling height above a wall, `along` cm from its ptA. */
+export interface WallProfilePoint {
+  along: number;
+  height: number;
+}
+
+/**
+ * How high the ceiling is at each point along a stretch of wall.
+ *
+ * This is what lets a wall running *into* a Dachschräge be built as a
+ * trapezoid instead of a full-height rectangle. The sloped wall itself is
+ * already handled -- it's a knee wall and simply stops at `kneeHeight` --
+ * but its perpendicular neighbours kept their full height and poked up
+ * through the slanted ceiling, which reads as clipping rather than as a
+ * roof.
+ *
+ * Sampled rather than solved. The exact profile is piecewise linear (the
+ * distance to a slope's wall line varies linearly along a straight wall,
+ * and `availableHeightAt` takes a minimum over the slopes), so the true
+ * shape has a kink wherever one slope overtakes another or a run ends.
+ * Walking those breakpoints analytically means intersecting every pair of
+ * slope planes; sampling every ~15cm -- the same step
+ * `buildCeilingSurface` subdivides the ceiling to -- puts any kink within
+ * 15cm of where it belongs, which is invisible at furniture scale and far
+ * less code to get wrong. Endpoints are always included exactly, so a wall
+ * always meets its neighbours at the right height.
+ *
+ * `startAlong`/`endAlong` are distances from `a`, so a caller can profile
+ * one chunk of a wall between openings, or the strip above a door, without
+ * re-deriving the geometry.
+ */
+export function ceilingProfileAlongWall(
+  a: Point,
+  b: Point,
+  startAlong: number,
+  endAlong: number,
+  corners: Point[],
+  slopes: WallSlopeMap | undefined,
+  ceilingHeight: number = DEFAULT_CEILING_HEIGHT,
+  stepCm = 15,
+): WallProfilePoint[] {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const wallLen = Math.hypot(dx, dy);
+  if (wallLen === 0) return [];
+
+  const span = endAlong - startAlong;
+  const steps = Math.max(1, Math.ceil(Math.abs(span) / Math.max(1, stepCm)));
+  const ux = dx / wallLen;
+  const uy = dy / wallLen;
+
+  const out: WallProfilePoint[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const along = startAlong + (span * i) / steps;
+    const point = { x: a.x + ux * along, y: a.y + uy * along };
+    out.push({
+      along,
+      height: availableHeightAt(point, corners, slopes, ceilingHeight),
+    });
+  }
+  return out;
+}
+
+/**
+ * True when a profile is (near enough) a flat run at the full ceiling
+ * height -- i.e. this wall is clear of every slope and can stay on the
+ * plain box path it has always used.
+ *
+ * Worth checking rather than always extruding: an unsloped room, and every
+ * wall of a sloped room that sits beyond the slope's run, then produce
+ * byte-identical geometry to before this feature existed.
+ */
+export function profileIsFlatAtCeiling(
+  profile: WallProfilePoint[],
+  ceilingHeight: number,
+  epsCm = 0.5,
+): boolean {
+  return profile.every((p) => Math.abs(p.height - ceilingHeight) <= epsCm);
+}

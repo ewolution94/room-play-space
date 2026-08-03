@@ -204,9 +204,40 @@ export const ROOM_SHAPE_TEMPLATES: RoomShapeTemplate[] = [
   },
 ];
 
-// Any single wall, after a drag, must stay at least this long -- prevents
-// collapsing a wall (or the notch/chamfer next to it) down to nothing.
+// The wall you are DRAGGING must stay at least this long, as must the
+// room's overall bounding box.
 export const MIN_WALL_LENGTH = 60;
+
+/**
+ * ...and no wall anywhere in the resulting shape may fall below this, even
+ * one you weren't touching.
+ *
+ * These are two different guards because they answer two different
+ * questions. `MIN_WALL_LENGTH` is about the wall under your cursor: 60cm is
+ * roughly "still big enough to grab and to mean something as a wall". This
+ * one is a structural floor on the whole polygon, and it exists because
+ * dragging one wall changes the length of others.
+ *
+ * On a rectangle it never binds -- the only walls a drag resizes are the
+ * dragged wall's two neighbours, and they're the ones the existing
+ * inversion check already watches. On a T or U it binds constantly: pushing
+ * the stem's side wall outward shortens the shoulder beside it, and nothing
+ * was checking the shoulder. The inversion guard only stops it at *zero*, so
+ * you could leave a 0.4cm wall behind -- geometrically valid, visually a
+ * corner with a hair sticking out of it, and impossible to grab again
+ * afterwards.
+ *
+ * 15cm rather than 60 because a short connecting wall is legitimate (a
+ * shallow alcove, a boxed-in pipe) and clamping those to 60 would refuse
+ * shapes people actually have. It's a floor against degeneracy, not a
+ * design opinion.
+ */
+export const MIN_ANY_WALL_LENGTH = 15;
+
+/** Is every wall in this polygon at least `MIN_ANY_WALL_LENGTH` long? */
+export function allWallsAboveMinimum(corners: Point[]): boolean {
+  return wallSegments(corners).every((seg) => seg.length >= MIN_ANY_WALL_LENGTH);
+}
 
 /**
  * The wizard's core interaction: drag wall `wallIndex` and have both its
@@ -282,6 +313,12 @@ export function dragWallEdge(corners: Point[], wallIndex: number, dragDelta: Poi
   // invert), and the bounding box *grows* -- so every check above passes on
   // a polygon that has folded through itself. Catch that directly.
   if (polygonSelfIntersects(result)) return corners;
+
+  // Finally, the walls you AREN'T dragging. Moving one wall changes the
+  // length of others -- a T-shape's shoulder, a U's flanking segment -- and
+  // the inversion check above only stops those at zero, so a drag could
+  // leave a 0.4cm sliver of wall behind. See MIN_ANY_WALL_LENGTH.
+  if (!allWallsAboveMinimum(result)) return corners;
 
   return result;
 }

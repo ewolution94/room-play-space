@@ -25,6 +25,7 @@ import { CanvasLoadingOverlay } from "./CanvasLoadingOverlay";
 import { InspectorSection } from "../sidebar/InspectorSection";
 import { FloorPatternDef } from "@/lib/floor-pattern-svg";
 import { resolveFlooring } from "@/lib/floor-materials";
+import { clampInspectorPos, inspectorMaxHeight } from "@/lib/canvas-layout";
 import { ArrowLeft, HelpCircle, SlidersHorizontal } from "lucide-react";
 import {
   Drawer,
@@ -260,10 +261,14 @@ export function CanvasArea({
           currentY = startPosY + dy;
         } else {
           const bounds = container.getBoundingClientRect();
-          const panelW = panel.offsetWidth;
-          const panelH = panel.offsetHeight;
-          currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
-          currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
+          const clamped = clampInspectorPos(
+            startPosX + dx,
+            startPosY + dy,
+            { width: bounds.width, height: bounds.height },
+            { width: panel.offsetWidth, height: panel.offsetHeight },
+          );
+          currentX = clamped.x;
+          currentY = clamped.y;
         }
 
         if (rafId === null) {
@@ -1065,7 +1070,12 @@ export function CanvasArea({
               willChange: "transform",
               // Never taller than the stage it floats over -- the body
               // scrolls internally past that point (see InspectorSection).
-              maxHeight: "calc(100% - 24px)",
+              // Derived from the panel's own y so its bottom edge always
+              // stops short of the back pill / bottom toolbar strip, however
+              // many sections are expanded -- see canvas-layout.ts. This is
+              // the half that actually fixes the overlap: the panel was never
+              // dragged over the back button, it grew over it.
+              maxHeight: inspectorMaxHeight(inspectorPos.y),
               // The parent canvas stage sets cursor:grab/grabbing for
               // panning -- since cursor is CSS-inherited, this floating
               // panel would otherwise show the same "drag" hand everywhere

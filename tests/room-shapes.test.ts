@@ -9,6 +9,8 @@ import {
   dragWallEdge,
   resizeRoomShape,
   MIN_WALL_LENGTH,
+  MIN_ANY_WALL_LENGTH,
+  allWallsAboveMinimum,
   setWallLength,
   ROOM_SHAPE_TEMPLATES,
 } from "@/lib/room-shapes";
@@ -387,5 +389,65 @@ describe("ROOM_SHAPE_TEMPLATES", () => {
   test("keys are unique", () => {
     const keys = ROOM_SHAPE_TEMPLATES.map((t) => t.key);
     assert.equal(new Set(keys).size, keys.length);
+  });
+});
+
+describe("MIN_ANY_WALL_LENGTH -- walls you aren't dragging", () => {
+  test("a drag that would leave a sliver of a NON-dragged wall is rejected", () => {
+    // T-shape: wall 3 is the stem's right side. Pushing it outward (+x)
+    // eats into wall 2, the right shoulder, which runs from the bar's
+    // bottom-right corner in to the stem. The shoulder is 133cm here, so a
+    // 132cm push leaves 1cm of it -- long accepted, because nothing checked
+    // any wall but the one under the cursor.
+    const t = buildTShapeCorners(600, 450, 200, 250); // shoulders are 200cm
+    const next = dragWallEdge(t, 3, { x: 199, y: 0 });
+    assert.deepEqual(next, t, "a 1cm shoulder must be refused");
+  });
+
+  test("the same drag is accepted while the shoulder stays above the minimum", () => {
+    const t = buildTShapeCorners(600, 450, 200, 250);
+    const next = dragWallEdge(t, 3, { x: 150, y: 0 });
+    assert.notDeepEqual(next, t, "a 50cm shoulder is fine");
+    assert.ok(allWallsAboveMinimum(next));
+  });
+
+  test("holds for the U-shape's flanking segments too", () => {
+    const u = buildUShapeCorners(600, 450, 200, 150); // flanks are 200cm
+    // Wall 5 is the notch's left side; pushing it left eats the left flank.
+    const next = dragWallEdge(u, 5, { x: -199, y: 0 });
+    assert.deepEqual(next, u);
+  });
+
+  test("every accepted drag leaves a shape whose walls all clear the minimum", () => {
+    // Sweep a range of drags over every wall of every template and assert
+    // the invariant holds for whatever comes back -- the guard is only
+    // worth anything if nothing can slip past it.
+    for (const tpl of ROOM_SHAPE_TEMPLATES) {
+      for (let w = 0; w < tpl.defaultCorners.length; w++) {
+        for (const d of [-300, -120, -40, -5, 5, 40, 120, 300]) {
+          for (const axis of ["x", "y"] as const) {
+            const out = dragWallEdge(tpl.defaultCorners, w, {
+              x: axis === "x" ? d : 0,
+              y: axis === "y" ? d : 0,
+            });
+            assert.ok(
+              allWallsAboveMinimum(out),
+              `${tpl.key} wall ${w} drag ${axis}${d} produced a sub-minimum wall`,
+            );
+            assert.ok(
+              !polygonSelfIntersects(out),
+              `${tpl.key} wall ${w} drag ${axis}${d} produced a self-intersecting shape`,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  test("setWallLength inherits the guard, since it drags", () => {
+    const t = buildTShapeCorners(600, 450, 200, 250);
+    // Ask for a stem so wide it would obliterate the shoulders.
+    const out = setWallLength(t, 4, 590);
+    assert.ok(allWallsAboveMinimum(out), "typing a length can't bypass what a drag refuses");
   });
 });

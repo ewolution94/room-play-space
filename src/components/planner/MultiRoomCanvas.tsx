@@ -53,6 +53,7 @@ import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 import { FloorPatternDef } from "@/lib/floor-pattern-svg";
 import { resolveFlooring } from "@/lib/floor-materials";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
+import { clampInspectorPos, inspectorMaxHeight } from "@/lib/canvas-layout";
 import {
   Drawer,
   DrawerContent,
@@ -459,8 +460,14 @@ export function MultiRoomCanvas({
         const bounds = container.getBoundingClientRect();
         const panelW = panel.offsetWidth;
         const panelH = panel.offsetHeight;
-        currentX = Math.max(0, Math.min(bounds.width - panelW, startPosX + dx));
-        currentY = Math.max(0, Math.min(bounds.height - panelH, startPosY + dy));
+        const clamped = clampInspectorPos(
+          startPosX + dx,
+          startPosY + dy,
+          { width: bounds.width, height: bounds.height },
+          { width: panelW, height: panelH },
+        );
+        currentX = clamped.x;
+        currentY = clamped.y;
       }
 
       if (rafId === null) {
@@ -2077,12 +2084,16 @@ export function MultiRoomCanvas({
         {!threeDActive && (selectedRoomId || selectedRoomIds.size > 0) && (
           <div
             ref={inspectorRef}
-            className="absolute z-40 w-72 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
+            className="absolute z-40 flex w-72 flex-col pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
             style={{
               left: 0,
               top: 0,
               transform: `translate3d(${inspectorPos.x}px, ${inspectorPos.y}px, 0)`,
               willChange: "transform",
+              // Keep the panel's bottom edge clear of the stage's bottom
+              // overlay strip (toolbar / scale bar), the same rule the
+              // single-room canvas uses -- see canvas-layout.ts.
+              maxHeight: inspectorMaxHeight(inspectorPos.y),
               // The parent canvas stage sets cursor:grab/grabbing for
               // panning -- since cursor is CSS-inherited, this floating
               // panel would otherwise show the same "drag" hand everywhere

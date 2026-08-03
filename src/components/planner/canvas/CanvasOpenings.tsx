@@ -1,6 +1,7 @@
 import React from "react";
 import type { Opening, Point } from "@/types/planner";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
+import { effectiveSwing } from "@/lib/opening-geometry";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
@@ -117,7 +118,15 @@ export function CanvasOpenings({
         let dArc = "";
         const W = cm(o.width);
         const hinge = o.hinge || "start";
-        const swing = o.swing || "in";
+
+        // "in" must mean into the room on every wall. The paths below are
+        // written in the opening's own rotated frame, whose -y side is only
+        // actually inward when ptA->ptB runs forward -- and
+        // resolveWallSegment deliberately walks "bottom" and "left"
+        // backwards. See effectiveSwing for the full story; measured before
+        // the fix, a `swing: "in"` door drew OUTSIDE the room on top and
+        // right, inside on bottom and left.
+        const swing = effectiveSwing(o.swing, corners, ptA, ptB);
 
         if (o.kind === "door") {
           if (hinge === "start") {

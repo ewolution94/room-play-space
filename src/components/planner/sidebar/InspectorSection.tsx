@@ -22,10 +22,13 @@ import {
   PaintBucket,
   Wand2,
   BookmarkPlus,
+  ArrowUpDown,
 } from "lucide-react";
 import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
+import { InspectorGroup } from "@/components/planner/sidebar/InspectorGroup";
+import { useInspectorGroups } from "@/hooks/use-inspector-groups";
 import type { WallSlopeMap } from "@/lib/wall-slopes";
 import { RoomHeightSection } from "@/components/planner/sidebar/RoomHeightSection";
 import { FLOOR_MATERIALS } from "@/lib/floor-materials";
@@ -128,6 +131,8 @@ export function InspectorSection({
   onHeaderPointerDown,
   openSaveDialog,
 }: InspectorSectionProps) {
+  const { isOpen: isGroupOpen, toggle: toggleGroup } = useInspectorGroups();
+
   // Local draft states for selected item
   const [itemDraftW, setItemDraftW] = React.useState("");
   const [itemDraftL, setItemDraftL] = React.useState("");
@@ -223,6 +228,13 @@ export function InspectorSection({
 
     updateOpening(selectedOpening.id, patch);
   };
+
+  // Collapsed-header readouts, so the panel still tells you the room's whole
+  // setup without expanding anything (see InspectorGroup's `summary`).
+  const wallKeys = corners.map((_, i) => wallColorKey(i, corners.length));
+  const slopeCount = Object.values(wallSlopes ?? {}).filter(
+    (s) => s.run > 0 && s.kneeHeight < ceilingHeight,
+  ).length;
 
   const handleKeyDown = (e: React.KeyboardEvent, type: "item" | "opening") => {
     if (e.key === "Enter") {
@@ -565,242 +577,280 @@ export function InspectorSection({
                     ? preset.color
                     : null;
                 return (
-                  <div className={kitTintOriginal ? "space-y-2.5" : "space-y-1.5"}>
-                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      {lang === "de" ? "Farbe & Finish" : "Color & Finish"}
-                    </Label>
-                    {kitTintOriginal && (
-                      <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-2">
-                        <span className="flex items-center gap-2 text-[11px] font-medium text-primary leading-tight">
-                          <Wand2 className="h-3.5 w-3.5 shrink-0" />
-                          {lang === "de"
-                            ? "3D-Modellfarbe wurde überschrieben"
-                            : "3D model color overridden"}
-                        </span>
-                        <HoverTooltip content={`Original: ${kitTintOriginal}`}>
-                          <button
-                            type="button"
-                            disabled={threeDActive}
-                            onClick={() => updateItem(selectedItem.id, { color: kitTintOriginal })}
-                            className="shrink-0 cursor-pointer rounded-md bg-primary px-2 py-1 text-[10.5px] font-semibold text-primary-foreground hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
-                          >
-                            {lang === "de" ? "Zurücksetzen" : "Reset"}
-                          </button>
-                        </HoverTooltip>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {SWATCHES.map((sw) => {
-                        const isSelected =
-                          selectedItem.color.toLowerCase() === sw.value.toLowerCase();
-                        return (
-                          <HoverTooltip
-                            key={sw.value}
-                            content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
-                          >
+                  <InspectorGroup
+                    title={lang === "de" ? "Farbe & Finish" : "Color & Finish"}
+                    icon={<Palette className="h-3 w-3" />}
+                    open={isGroupOpen("itemColor")}
+                    onToggle={() => toggleGroup("itemColor")}
+                    summary={
+                      <span className="flex items-center gap-1">
+                        {kitTintOriginal && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary" title="tinted" />
+                        )}
+                        <span
+                          className="h-3 w-3 rounded-full border border-border/50"
+                          style={{ backgroundColor: selectedItem.color }}
+                        />
+                      </span>
+                    }
+                  >
+                    <div className={kitTintOriginal ? "space-y-2.5" : "space-y-1.5"}>
+                      {kitTintOriginal && (
+                        <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-2">
+                          <span className="flex items-center gap-2 text-[11px] font-medium text-primary leading-tight">
+                            <Wand2 className="h-3.5 w-3.5 shrink-0" />
+                            {lang === "de"
+                              ? "3D-Modellfarbe wurde überschrieben"
+                              : "3D model color overridden"}
+                          </span>
+                          <HoverTooltip content={`Original: ${kitTintOriginal}`}>
                             <button
                               type="button"
                               disabled={threeDActive}
-                              onClick={() => updateItem(selectedItem.id, { color: sw.value })}
-                              className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
-                                isSelected
-                                  ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
-                                  : "border-border/60"
-                              }`}
-                              style={{ backgroundColor: sw.value }}
-                            />
+                              onClick={() =>
+                                updateItem(selectedItem.id, { color: kitTintOriginal })
+                              }
+                              className="shrink-0 cursor-pointer rounded-md bg-primary px-2 py-1 text-[10.5px] font-semibold text-primary-foreground hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
+                            >
+                              {lang === "de" ? "Zurücksetzen" : "Reset"}
+                            </button>
                           </HoverTooltip>
-                        );
-                      })}
-                      {/* Custom picker */}
-                      <HoverTooltip content={t.color}>
-                        <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
-                          <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                          <input
-                            type="color"
-                            value={selectedItem.color}
-                            onChange={(e) => updateItem(selectedItem.id, { color: e.target.value })}
-                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                            disabled={threeDActive}
-                          />
                         </div>
-                      </HoverTooltip>
+                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {SWATCHES.map((sw) => {
+                          const isSelected =
+                            selectedItem.color.toLowerCase() === sw.value.toLowerCase();
+                          return (
+                            <HoverTooltip
+                              key={sw.value}
+                              content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                            >
+                              <button
+                                type="button"
+                                disabled={threeDActive}
+                                onClick={() => updateItem(selectedItem.id, { color: sw.value })}
+                                className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 will-change-transform ${
+                                  isSelected
+                                    ? "ring-2 ring-primary ring-offset-1 border-transparent scale-110"
+                                    : "border-border/60"
+                                }`}
+                                style={{ backgroundColor: sw.value }}
+                              />
+                            </HoverTooltip>
+                          );
+                        })}
+                        {/* Custom picker */}
+                        <HoverTooltip content={t.color}>
+                          <div className="relative h-6 w-6 shrink-0 rounded-full border border-border/60 hover:scale-110 transition-all duration-200 overflow-hidden flex items-center justify-center bg-muted/40 cursor-pointer will-change-transform">
+                            <Palette className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                            <input
+                              type="color"
+                              value={selectedItem.color}
+                              onChange={(e) =>
+                                updateItem(selectedItem.id, { color: e.target.value })
+                              }
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              disabled={threeDActive}
+                            />
+                          </div>
+                        </HoverTooltip>
+                      </div>
                     </div>
-                  </div>
+                  </InspectorGroup>
                 );
               })()}
 
               {/* Dimensions Grid */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  {lang === "de" ? "Maße & Position" : "Dimensions & Position"}
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">{t.width}</span>
-                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
-                      <span className="pl-2 text-muted-foreground/75">
-                        <Ruler className="h-3.5 w-3.5" />
-                      </span>
-                      <Input
-                        value={itemDraftW}
-                        onChange={(e) => setItemDraftW(e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, "item")}
-                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
-                        disabled={threeDActive}
-                      />
-                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
-                        cm
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">{t.length}</span>
-                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
-                      <span className="pl-2 text-muted-foreground/75">
-                        <Ruler className="h-3.5 w-3.5" />
-                      </span>
-                      <Input
-                        value={itemDraftL}
-                        onChange={(e) => setItemDraftL(e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, "item")}
-                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
-                        disabled={threeDActive}
-                      />
-                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
-                        cm
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">{t.height}</span>
-                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
-                      <span className="pl-2 text-muted-foreground/75">
-                        <Ruler className="h-3.5 w-3.5" />
-                      </span>
-                      <Input
-                        value={itemDraftH}
-                        onChange={(e) => setItemDraftH(e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, "item")}
-                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
-                        disabled={threeDActive}
-                      />
-                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
-                        cm
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">{t.elevation}</span>
-                    <HoverTooltip
-                      content={
-                        selectedItem.placedOnId
-                          ? lang === "de"
-                            ? "Wird automatisch aus der Höhe des Objekts darunter berechnet"
-                            : "Automatically derived from the item it's placed on"
-                          : ""
-                      }
-                    >
+              <InspectorGroup
+                title={lang === "de" ? "Maße & Position" : "Dimensions & Position"}
+                icon={<Ruler className="h-3 w-3" />}
+                open={isGroupOpen("itemSize")}
+                onToggle={() => toggleGroup("itemSize")}
+                summary={
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {Math.round(Number(itemDraftL) || 0)}×{Math.round(Number(itemDraftW) || 0)}×
+                    {Math.round(Number(itemDraftH) || 0)}
+                  </span>
+                }
+              >
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">{t.width}</span>
                       <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
                         <span className="pl-2 text-muted-foreground/75">
-                          <ArrowUp className="h-3.5 w-3.5" />
+                          <Ruler className="h-3.5 w-3.5" />
                         </span>
                         <Input
-                          value={itemDraftElev}
-                          onChange={(e) => setItemDraftElev(e.target.value)}
+                          value={itemDraftW}
+                          onChange={(e) => setItemDraftW(e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, "item")}
-                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent disabled:opacity-70"
-                          disabled={threeDActive || Boolean(selectedItem.placedOnId)}
+                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                          disabled={threeDActive}
                         />
                         <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
                           cm
                         </span>
                       </div>
-                    </HoverTooltip>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">{t.length}</span>
+                      <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                        <span className="pl-2 text-muted-foreground/75">
+                          <Ruler className="h-3.5 w-3.5" />
+                        </span>
+                        <Input
+                          value={itemDraftL}
+                          onChange={(e) => setItemDraftL(e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, "item")}
+                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                          disabled={threeDActive}
+                        />
+                        <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                          cm
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Place on top of another item -- lets ANY item ride on
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">{t.height}</span>
+                      <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                        <span className="pl-2 text-muted-foreground/75">
+                          <Ruler className="h-3.5 w-3.5" />
+                        </span>
+                        <Input
+                          value={itemDraftH}
+                          onChange={(e) => setItemDraftH(e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, "item")}
+                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                          disabled={threeDActive}
+                        />
+                        <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                          cm
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">{t.elevation}</span>
+                      <HoverTooltip
+                        content={
+                          selectedItem.placedOnId
+                            ? lang === "de"
+                              ? "Wird automatisch aus der Höhe des Objekts darunter berechnet"
+                              : "Automatically derived from the item it's placed on"
+                            : ""
+                        }
+                      >
+                        <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                          <span className="pl-2 text-muted-foreground/75">
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </span>
+                          <Input
+                            value={itemDraftElev}
+                            onChange={(e) => setItemDraftElev(e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, "item")}
+                            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent disabled:opacity-70"
+                            disabled={threeDActive || Boolean(selectedItem.placedOnId)}
+                          />
+                          <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                            cm
+                          </span>
+                        </div>
+                      </HoverTooltip>
+                    </div>
+                  </div>
+
+                  {/* Place on top of another item -- lets ANY item ride on
                     top of any other, not just the built-in "on-top" layer
                     (see Item.placedOnId's doc comment). Elevation above
                     switches to a read-only derived value the moment a host
                     is picked; position keeps tracking the host automatically
                     whenever it's dragged (use-room-planner.ts). */}
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground">
-                    {lang === "de" ? "Auf anderem Objekt platzieren" : "Place on top of"}
-                  </span>
-                  <select
-                    value={selectedItem.placedOnId ?? ""}
-                    onChange={(e) => {
-                      const hostId = e.target.value || undefined;
-                      updateItem(selectedItem.id, {
-                        placedOnId: hostId,
-                        ...(hostId ? {} : { elevation: 0 }),
-                      });
-                    }}
-                    disabled={threeDActive}
-                    className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-primary transition-all disabled:opacity-50"
-                  >
-                    <option value="">
-                      {lang === "de" ? "Keins (auf dem Boden)" : "None (on the floor)"}
-                    </option>
-                    {items
-                      .filter((i) => i.id !== selectedItem.id && i.placedOnId !== selectedItem.id)
-                      .map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name}
-                        </option>
-                      ))}
-                  </select>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      {lang === "de" ? "Auf anderem Objekt platzieren" : "Place on top of"}
+                    </span>
+                    <select
+                      value={selectedItem.placedOnId ?? ""}
+                      onChange={(e) => {
+                        const hostId = e.target.value || undefined;
+                        updateItem(selectedItem.id, {
+                          placedOnId: hostId,
+                          ...(hostId ? {} : { elevation: 0 }),
+                        });
+                      }}
+                      disabled={threeDActive}
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-primary transition-all disabled:opacity-50"
+                    >
+                      <option value="">
+                        {lang === "de" ? "Keins (auf dem Boden)" : "None (on the floor)"}
+                      </option>
+                      {items
+                        .filter((i) => i.id !== selectedItem.id && i.placedOnId !== selectedItem.id)
+                        .map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
+              </InspectorGroup>
 
               {/* Rotation Section */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  {lang === "de" ? "Drehung" : "Rotation"}
-                </Label>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all flex-1">
-                    <span className="pl-2 text-muted-foreground/75">
-                      <RotateCw className="h-3.5 w-3.5" />
-                    </span>
-                    <Input
-                      value={itemDraftRot}
-                      onChange={(e) => setItemDraftRot(e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(e, "item")}
-                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-6 h-8 text-xs w-full bg-transparent"
-                      title={t.rotation}
-                      disabled={threeDActive}
-                    />
-                    <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
-                      °
-                    </span>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    {[-45, 45, 90].map((deg) => (
-                      <Button
-                        key={deg}
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        className="h-8 px-2 text-xs font-semibold active:scale-95 transition-all"
-                        onClick={() => {
-                          const newRotation = (((selectedItem.rotation + deg) % 360) + 360) % 360;
-                          updateItem(selectedItem.id, { rotation: newRotation });
-                        }}
+              <InspectorGroup
+                title={lang === "de" ? "Drehung" : "Rotation"}
+                icon={<RotateCw className="h-3 w-3" />}
+                open={isGroupOpen("itemRotation")}
+                onToggle={() => toggleGroup("itemRotation")}
+                summary={
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {Math.round(Number(itemDraftRot) || 0)}°
+                  </span>
+                }
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all flex-1">
+                      <span className="pl-2 text-muted-foreground/75">
+                        <RotateCw className="h-3.5 w-3.5" />
+                      </span>
+                      <Input
+                        value={itemDraftRot}
+                        onChange={(e) => setItemDraftRot(e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, "item")}
+                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-6 h-8 text-xs w-full bg-transparent"
+                        title={t.rotation}
                         disabled={threeDActive}
-                      >
-                        {deg > 0 ? `+${deg}` : deg}°
-                      </Button>
-                    ))}
+                      />
+                      <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                        °
+                      </span>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {[-45, 45, 90].map((deg) => (
+                        <Button
+                          key={deg}
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          className="h-8 px-2 text-xs font-semibold active:scale-95 transition-all"
+                          onClick={() => {
+                            const newRotation = (((selectedItem.rotation + deg) % 360) + 360) % 360;
+                            updateItem(selectedItem.id, { rotation: newRotation });
+                          }}
+                          disabled={threeDActive}
+                        >
+                          {deg > 0 ? `+${deg}` : deg}°
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </InspectorGroup>
 
               <Button
                 onClick={handleApplyItem}
@@ -846,252 +896,315 @@ export function InspectorSection({
             </div>
           ) : (
             /* Inspector for Room Settings (Nothing selected) */
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground">{t.width}</span>
-                  <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
-                    <span className="pl-2 text-muted-foreground/75">
-                      <Ruler className="h-3.5 w-3.5" />
-                    </span>
-                    <Input
-                      value={draftW}
-                      onChange={(e) => setDraftW(e.target.value)}
-                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
-                      disabled={threeDActive}
-                    />
-                    <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
-                      cm
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground">{t.length}</span>
-                  <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
-                    <span className="pl-2 text-muted-foreground/75">
-                      <Ruler className="h-3.5 w-3.5" />
-                    </span>
-                    <Input
-                      value={draftL}
-                      onChange={(e) => setDraftL(e.target.value)}
-                      className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
-                      disabled={threeDActive}
-                    />
-                    <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
-                      cm
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Room presets buttons */}
-              <div className="space-y-1.5 pt-1">
-                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Maximize2 className="h-3 w-3 text-muted-foreground" />
-                  {lang === "de" ? "Raumgröße Presets" : "Room Presets"}
-                </Label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { label: "3×3m", w: 300, l: 300 },
-                    { label: "4×3m", w: 400, l: 300 },
-                    { label: "5×4m", w: 500, l: 400 },
-                  ].map((preset) => (
-                    <Button
-                      key={preset.label}
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      disabled={threeDActive}
-                      onClick={() => {
-                        setDraftW(String(preset.w));
-                        setDraftL(String(preset.l));
-                        applyRoom(preset.w, preset.l);
-                      }}
-                      className="h-8 text-[10.5px] font-semibold active:scale-95 transition-all hover:bg-primary/5 hover:border-primary/40"
-                    >
-                      {preset.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <Button
-                onClick={() => applyRoom()}
-                size="sm"
-                type="button"
-                className="w-full h-8 text-xs font-semibold active:scale-95 transition-all"
-                disabled={!dirty || threeDActive}
+            <div className="space-y-2">
+              <InspectorGroup
+                title={lang === "de" ? "Maße" : "Dimensions"}
+                icon={<Ruler className="h-3 w-3" />}
+                open={isGroupOpen("size")}
+                onToggle={() => toggleGroup("size")}
+                summary={
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {Math.round(Number(draftW) || 0)} × {Math.round(Number(draftL) || 0)} cm
+                  </span>
+                }
               >
-                {t.apply}
-              </Button>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">{t.width}</span>
+                      <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                        <span className="pl-2 text-muted-foreground/75">
+                          <Ruler className="h-3.5 w-3.5" />
+                        </span>
+                        <Input
+                          value={draftW}
+                          onChange={(e) => setDraftW(e.target.value)}
+                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                          disabled={threeDActive}
+                        />
+                        <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                          cm
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">{t.length}</span>
+                      <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                        <span className="pl-2 text-muted-foreground/75">
+                          <Ruler className="h-3.5 w-3.5" />
+                        </span>
+                        <Input
+                          value={draftL}
+                          onChange={(e) => setDraftL(e.target.value)}
+                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                          disabled={threeDActive}
+                        />
+                        <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                          cm
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="h-px bg-border/20 my-3" />
+                  {/* Room presets buttons */}
+                  <div className="space-y-1.5 pt-1">
+                    <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Maximize2 className="h-3 w-3 text-muted-foreground" />
+                      {lang === "de" ? "Raumgröße Presets" : "Room Presets"}
+                    </Label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { label: "3×3m", w: 300, l: 300 },
+                        { label: "4×3m", w: 400, l: 300 },
+                        { label: "5×4m", w: 500, l: 400 },
+                      ].map((preset) => (
+                        <Button
+                          key={preset.label}
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          disabled={threeDActive}
+                          onClick={() => {
+                            setDraftW(String(preset.w));
+                            setDraftL(String(preset.l));
+                            applyRoom(preset.w, preset.l);
+                          }}
+                          className="h-8 text-[10.5px] font-semibold active:scale-95 transition-all hover:bg-primary/5 hover:border-primary/40"
+                        >
+                          {preset.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => applyRoom()}
+                    size="sm"
+                    type="button"
+                    className="w-full h-8 text-xs font-semibold active:scale-95 transition-all"
+                    disabled={!dirty || threeDActive}
+                  >
+                    {t.apply}
+                  </Button>
+                </div>
+              </InspectorGroup>
 
               {/* Room height + sloped ceilings ("Dachschrägen") */}
-              <RoomHeightSection
-                t={t}
-                lang={lang}
-                corners={corners}
-                ceilingHeight={ceilingHeight}
-                setCeilingHeight={setCeilingHeight}
-                wallSlopes={wallSlopes}
-                setWallSlopes={setWallSlopes}
-                openings={openings}
-                removeOpening={removeOpening}
-                disabled={threeDActive}
-              />
-
-              <div className="h-px bg-border/20 my-3" />
+              <InspectorGroup
+                title={lang === "de" ? "Höhe & Schrägen" : "Height & Slopes"}
+                icon={<ArrowUpDown className="h-3 w-3" />}
+                open={isGroupOpen("height")}
+                onToggle={() => toggleGroup("height")}
+                summary={
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {Math.round(ceilingHeight)} cm
+                    {slopeCount > 0 && (
+                      <span className="ml-1 text-amber-600 dark:text-amber-500">
+                        · {slopeCount}
+                        {lang === "de" ? " Schr." : " slope"}
+                        {lang === "de" ? "" : slopeCount > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </span>
+                }
+              >
+                <RoomHeightSection
+                  t={t}
+                  lang={lang}
+                  corners={corners}
+                  ceilingHeight={ceilingHeight}
+                  setCeilingHeight={setCeilingHeight}
+                  wallSlopes={wallSlopes}
+                  setWallSlopes={setWallSlopes}
+                  openings={openings}
+                  removeOpening={removeOpening}
+                  disabled={threeDActive}
+                />
+              </InspectorGroup>
 
               {/* Wall Colors Section */}
-              <div className="space-y-2">
-                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Palette className="h-3 w-3 text-muted-foreground" />
-                  {lang === "de" ? "Wandfarben (2D/3D)" : "Wall Colors (2D/3D)"}
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {Array.from({ length: corners.length }, (_, i) => i).map((i) => {
-                    const key = wallColorKey(i, corners.length);
-                    const currentColor = wallColors?.[key] || "#f1f5f9";
-                    const label = corners.length === 4 ? t[key] || key : wallLabel(i, t, lang);
-                    return (
-                      <div
-                        key={key}
-                        className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200"
-                      >
-                        {/* Color Preview & Native Picker */}
-                        <HoverTooltip content={`${label} color`}>
-                          <div
-                            className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
-                            style={{ backgroundColor: currentColor }}
-                          >
-                            <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
-                            <input
-                              type="color"
-                              value={currentColor}
-                              onChange={(e) => {
-                                const newCol = e.target.value;
-                                setWallColors((prev) => ({
-                                  ...prev,
-                                  [key]: newCol,
-                                }));
-                              }}
-                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                              disabled={threeDActive}
-                            />
+              <InspectorGroup
+                title={lang === "de" ? "Wandfarben" : "Wall Colors"}
+                icon={<Palette className="h-3 w-3" />}
+                open={isGroupOpen("walls")}
+                onToggle={() => toggleGroup("walls")}
+                summary={
+                  <span className="flex items-center gap-0.5">
+                    {wallKeys.slice(0, 6).map((k) => (
+                      <span
+                        key={k}
+                        className="h-2.5 w-2.5 rounded-full border border-border/50"
+                        style={{ backgroundColor: wallColors[k] || "#f1f5f9" }}
+                      />
+                    ))}
+                  </span>
+                }
+              >
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {Array.from({ length: corners.length }, (_, i) => i).map((i) => {
+                      const key = wallColorKey(i, corners.length);
+                      const currentColor = wallColors?.[key] || "#f1f5f9";
+                      const label = corners.length === 4 ? t[key] || key : wallLabel(i, t, lang);
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200"
+                        >
+                          {/* Color Preview & Native Picker */}
+                          <HoverTooltip content={`${label} color`}>
+                            <div
+                              className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
+                              style={{ backgroundColor: currentColor }}
+                            >
+                              <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
+                              <input
+                                type="color"
+                                value={currentColor}
+                                onChange={(e) => {
+                                  const newCol = e.target.value;
+                                  setWallColors((prev) => ({
+                                    ...prev,
+                                    [key]: newCol,
+                                  }));
+                                }}
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                disabled={threeDActive}
+                              />
+                            </div>
+                          </HoverTooltip>
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
+                              {label}
+                            </span>
+                            <span className="text-[8.5px] text-muted-foreground font-mono truncate uppercase leading-none">
+                              {currentColor}
+                            </span>
                           </div>
-                        </HoverTooltip>
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
-                            {label}
-                          </span>
-                          <span className="text-[8.5px] text-muted-foreground font-mono truncate uppercase leading-none">
-                            {currentColor}
-                          </span>
-                        </div>
-                        {/* Quick action: apply this exact wall's color to
+                          {/* Quick action: apply this exact wall's color to
                           every other wall in the room, instead of having
                           to open the color picker N times to match one
                           color across all walls. */}
-                        <HoverTooltip
-                          content={
-                            lang === "de"
-                              ? "Diese Farbe auf alle Wände anwenden"
-                              : "Apply this color to all walls"
-                          }
-                        >
-                          <button
-                            type="button"
-                            disabled={threeDActive}
-                            onClick={() => {
-                              const allKeys = Array.from({ length: corners.length }, (_, j) =>
-                                wallColorKey(j, corners.length),
-                              );
-                              setWallColors((prev) => {
-                                const next = { ...prev };
-                                for (const k of allKeys) next[k] = currentColor;
-                                return next;
-                              });
-                            }}
-                            className="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                          <HoverTooltip
+                            content={
+                              lang === "de"
+                                ? "Diese Farbe auf alle Wände anwenden"
+                                : "Apply this color to all walls"
+                            }
                           >
-                            <PaintBucket className="h-3 w-3" />
-                          </button>
-                        </HoverTooltip>
-                      </div>
-                    );
-                  })}
+                            <button
+                              type="button"
+                              disabled={threeDActive}
+                              onClick={() => {
+                                const allKeys = Array.from({ length: corners.length }, (_, j) =>
+                                  wallColorKey(j, corners.length),
+                                );
+                                setWallColors((prev) => {
+                                  const next = { ...prev };
+                                  for (const k of allKeys) next[k] = currentColor;
+                                  return next;
+                                });
+                              }}
+                              className="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/70 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                            >
+                              <PaintBucket className="h-3 w-3" />
+                            </button>
+                          </HoverTooltip>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-
-              <div className="h-px bg-border/20 my-3" />
+              </InspectorGroup>
 
               {/* Flooring Section -- material/pattern swatch grid (each
                 tile a live miniature of that material's actual pattern,
                 see floor-pattern-svg.tsx) plus a native color picker that
                 tints whichever material is currently selected. Mirrors the
                 Wall Colors section's swatch+picker convention above. */}
-              <div className="space-y-2">
-                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <LayoutGrid className="h-3 w-3 text-muted-foreground" />
-                  {lang === "de" ? "Bodenbelag" : "Flooring"}
-                </Label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {FLOOR_MATERIALS.map((mat) => {
-                    const isSelected = flooring.key === mat.key;
-                    const previewColor = isSelected ? flooring.color : mat.defaultColor;
-                    return (
-                      <HoverTooltip key={mat.key} content={lang === "de" ? mat.nameDe : mat.nameEn}>
-                        <button
-                          type="button"
-                          disabled={threeDActive}
-                          onClick={() => setFlooring({ key: mat.key, color: mat.defaultColor })}
-                          className={`aspect-square w-full block rounded-md overflow-hidden border transition-all duration-150 active:scale-95 ${
-                            isSelected
-                              ? "border-primary ring-1 ring-primary"
-                              : "border-border/40 hover:border-border/80"
-                          }`}
-                        >
-                          <FloorSwatchPreview
-                            materialKey={mat.key}
-                            color={previewColor}
-                            size={32}
-                          />
-                        </button>
-                      </HoverTooltip>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200">
-                  <HoverTooltip content={lang === "de" ? "Bodenfarbe" : "Floor color"}>
-                    <div
-                      className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
-                      style={{ backgroundColor: flooring.color }}
-                    >
-                      <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
-                      <input
-                        type="color"
-                        value={flooring.color}
-                        onChange={(e) =>
-                          setFlooring((prev) => ({ ...prev, color: e.target.value }))
-                        }
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        disabled={threeDActive}
+              <InspectorGroup
+                title={lang === "de" ? "Bodenbelag" : "Flooring"}
+                icon={<LayoutGrid className="h-3 w-3" />}
+                open={isGroupOpen("floor")}
+                onToggle={() => toggleGroup("floor")}
+                summary={
+                  <span className="flex items-center gap-1">
+                    <span className="h-4 w-4 overflow-hidden rounded-sm border border-border/50">
+                      <FloorSwatchPreview
+                        materialKey={flooring.key}
+                        color={flooring.color}
+                        size={16}
                       />
-                    </div>
-                  </HoverTooltip>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
+                    </span>
+                    <span className="max-w-[70px] truncate text-[10px] text-muted-foreground">
                       {lang === "de"
                         ? (FLOOR_MATERIALS.find((m) => m.key === flooring.key)?.nameDe ?? "")
                         : (FLOOR_MATERIALS.find((m) => m.key === flooring.key)?.nameEn ?? "")}
                     </span>
-                    <span className="text-[8.5px] text-muted-foreground font-mono truncate uppercase leading-none">
-                      {flooring.color}
-                    </span>
+                  </span>
+                }
+              >
+                <div className="space-y-2">
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {FLOOR_MATERIALS.map((mat) => {
+                      const isSelected = flooring.key === mat.key;
+                      const previewColor = isSelected ? flooring.color : mat.defaultColor;
+                      return (
+                        <HoverTooltip
+                          key={mat.key}
+                          content={lang === "de" ? mat.nameDe : mat.nameEn}
+                        >
+                          <button
+                            type="button"
+                            disabled={threeDActive}
+                            onClick={() => setFlooring({ key: mat.key, color: mat.defaultColor })}
+                            className={`aspect-square w-full block rounded-md overflow-hidden border transition-all duration-150 active:scale-95 ${
+                              isSelected
+                                ? "border-primary ring-1 ring-primary"
+                                : "border-border/40 hover:border-border/80"
+                            }`}
+                          >
+                            <FloorSwatchPreview
+                              materialKey={mat.key}
+                              color={previewColor}
+                              size={32}
+                            />
+                          </button>
+                        </HoverTooltip>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2 p-1.5 rounded-md border border-border/40 bg-background/40 hover:border-border/80 transition-all duration-200">
+                    <HoverTooltip content={lang === "de" ? "Bodenfarbe" : "Floor color"}>
+                      <div
+                        className="relative h-5 w-5 shrink-0 rounded-full border border-border/60 hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden shadow-sm flex items-center justify-center cursor-pointer"
+                        style={{ backgroundColor: flooring.color }}
+                      >
+                        <Palette className="h-2.5 w-2.5 text-muted-foreground/60 pointer-events-none" />
+                        <input
+                          type="color"
+                          value={flooring.color}
+                          onChange={(e) =>
+                            setFlooring((prev) => ({ ...prev, color: e.target.value }))
+                          }
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          disabled={threeDActive}
+                        />
+                      </div>
+                    </HoverTooltip>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[10px] font-medium text-foreground capitalize truncate leading-tight">
+                        {lang === "de"
+                          ? (FLOOR_MATERIALS.find((m) => m.key === flooring.key)?.nameDe ?? "")
+                          : (FLOOR_MATERIALS.find((m) => m.key === flooring.key)?.nameEn ?? "")}
+                      </span>
+                      <span className="text-[8.5px] text-muted-foreground font-mono truncate uppercase leading-none">
+                        {flooring.color}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </InspectorGroup>
             </div>
           )}
         </CardContent>

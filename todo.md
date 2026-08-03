@@ -494,9 +494,163 @@ carrying its own dimension line with extension ticks (a U's bottom reads
       **feet/centimetres** unit toggle. Neither was asked for; both are small
       if wanted.
 
-### Still open
+### Wall-length floor, door swing, and an app-wide cursor fix (2026-08-03)
 
-- [ ] **Walls perpendicular to a sloped wall are still full-height rectangles**, not trapezoids, so they can poke above the slanted ceiling. The knee wall itself and the ceiling surface are correct; this is the remaining piece of the 3D geometry (needs `THREE.Shape` + `ExtrudeGeometry` per segment instead of a box).
+- [x] **No wall can be dragged below 15cm any more** (`MIN_ANY_WALL_LENGTH`).
+      `dragWallEdge`'s guards only ever looked at the wall under the cursor
+      (min 60cm), its two neighbours (inversion) and the bounding box --
+      nothing checked the walls a drag *resizes indirectly*. On a T or U
+      that's routine: pushing the stem's side wall outward eats the shoulder
+      beside it, and the inversion check only stops it at zero, so you could
+      leave a 0.4cm sliver behind that was then impossible to grab again.
+      15cm rather than 60 because short connecting walls are legitimate (a
+      shallow alcove, a boxed-in pipe) -- this is a floor against degeneracy,
+      not a design opinion. `setWallLength` inherits it for free by going
+      through `dragWallEdge`. Covered by an exhaustive sweep: every wall of
+      every template x 16 drag vectors, asserting no result is ever
+      sub-minimum or self-intersecting.
+- [x] **Door swing is consistent across all three renderers.** Reported: a
+      door set in the wizard showed inward there, outward in the room's 2D
+      canvas, inward again in 3D. Measured on a square room with an
+      identical `swing: "in"` door on each wall -- the 2D canvas drew it
+      OUTSIDE the room on `top` and `right`, inside on `bottom` and `left`.
+      - Root cause is the documented reversed-winding quirk, one level
+        further on than where it had been chased before: `CanvasOpenings`
+        rotates each opening to `atan2(ptB - ptA)` and draws "in" toward the
+        local -y side, which is only genuinely inward when the segment runs
+        forward -- and `resolveWallSegment` walks "bottom"/"left" backwards.
+        3D never had the bug because it builds every wall forward-wound
+        (`buildWallSegments("bottom", corners[2], corners[3])`) and remaps
+        the opening into that frame; the wizard never had it because it
+        draws straight along `inwardNormal()`.
+      - **The stored data was always right** -- every creation site already
+        writes `swing: "in"`. Nothing needed migrating; only one renderer
+        was lying.
+      - Fixed in new `lib/opening-geometry.ts` (`wallFrameIsMirrored` /
+        `effectiveSwing`), which corrects the *input* to the four
+        hinge x swing SVG path cases rather than rewriting them -- those
+        arc sweep flags are noted in LEARNINGS as not derivable by pattern.
+      - 14 new tests asserting the real contract (the direction the leaf
+        ends up drawn in, vs. the polygon) rather than the returned string,
+        across rectangle/T/U and both swing values. Worth noting the first
+        draft of those tests asserted the string and was wrong: *every*
+        forward-wound wall is mirrored, so all numeric polygon walls report
+        mirrored and it's the two reversed named walls that don't.
+- [x] **App-wide `cursor: pointer`.** Tailwind v3's preflight set
+      `button, [role="button"] { cursor: pointer }`; v4 dropped it to match
+      the browser default of `cursor: default`. This app was written against
+      v3, so the upgrade quietly left most of the UI showing an arrow --
+      measured in the room editor, **192 of 218** interactive elements. Only
+      the few carrying an explicit class (the shared `Button`, checkbox,
+      switch, tabs, select, toggle primitives) still looked clickable, which
+      is why it read as inconsistent rather than as one uniform change.
+      Restored centrally in `styles.css`'s `@layer base` rather than adding
+      a class to ~190 elements, so it can't be forgotten on the next button.
+      Disabled controls keep `not-allowed`; because the rule sits in the
+      base layer, every Tailwind utility still wins, so `cursor-grab` on a
+      drag handle, `cursor-crosshair` for wall placement, `cursor-text` on an
+      editable label and `cursor-move` on an opening are all untouched --
+      verified live (8 wizard walls still `grab`, 8 labels still `text`).
+      A source scan for clickable non-button elements turned up only 3
+      candidates, all false positives (panel containers whose `onClick` is
+      just `stopPropagation`, deliberately `default`).
+- [x] Verified live on `/dashboard` (15/15), `/rooms` (32/35, the 3 being
+      genuinely disabled buttons), the room editor (215/218, same 3) and the
+      wizard (21/21). 604 tests, tsc clean, lint 18/19 (baseline).
+
+### Slope-adjacent walls are cut to the roof line in 3D (2026-08-03)
+
+The last piece of the Dachschrägen 3D geometry. A wall running *into* a
+slope was still a full-height rectangle, so its top corner poked straight up
+through the slanted ceiling -- the knee wall and the ceiling surface were
+already right, which is what made the leftover box so obvious.
+
+- [x] **`ceilingProfileAlongWall()`** (`wall-slopes.ts`) samples
+      `availableHeightAt` along a stretch of wall and returns the ceiling
+      height at each point. Sampled every ~15cm rather than solved
+      analytically: the true profile is piecewise linear, so exact
+      breakpoints would mean intersecting every pair of slope planes, while
+      15cm (the same step `buildCeilingSurface` uses) puts any kink within
+      15cm of where it belongs -- invisible at furniture scale. Endpoints
+      are always exact, so a wall meets its neighbours at the right height.
+      It takes a start/end distance, so the same call profiles a wall chunk
+      between openings or the strip above a door.
+- [x] **`ThreeDView` builds those walls as `THREE.Shape` + `ExtrudeGeometry`**
+      instead of `BoxGeometry` -- a trapezoid for a single slope, a gable
+      pentagon where two opposing slopes meet (`availableHeightAt` takes the
+      minimum, so that composes for free).
+- [x] **Door and window lintels get the same cut.** Otherwise the slope is
+      honoured across the wall but a square block survives over each
+      opening. A lintel whose whole span is already above the ceiling is
+      omitted rather than added degenerate.
+- [x] **Strictly additive.** Profiling is skipped for a wall that carries a
+      slope of its own (a knee wall is deliberately flat at `kneeHeight`)
+      and for any wall whose profile is flat at the ceiling
+      (`profileIsFlatAtCeiling`), so an unsloped room -- and every wall of a
+      sloped room that sits beyond the run -- keeps the original box path
+      and byte-identical geometry.
+- [x] Verified against the live scene graph, not by eye (a screenshot can't
+      settle whether a wall is 2cm proud of a ceiling). On a 400x300 room
+      with a 110cm knee / 150cm run on `top`: the sloped wall stays a
+      `BoxGeometry` 110cm tall; the far parallel wall stays a `BoxGeometry`
+      at the full 240; both perpendicular walls become `ExtrudeGeometry`
+      whose top edge rises **112.6 -> 240 over ~147cm and then runs flat** --
+      i.e. exactly the 150cm run, with the 112.6 accounted for by the wall's
+      miter offset past the slope's line. The door's lintel is a separate
+      profiled slab from 200 to the ceiling. 613 tests (9 new), tsc clean,
+      lint 18/19 (baseline).
+
+### Inspector: collapsible groups + a bottom safe zone (2026-08-03)
+
+The floating Room Inspector was overlapping the canvas's bottom-left back
+button. Per the user's call, the fix keeps everything **in** the Inspector
+rather than moving room settings to the sidebar -- it just stops rendering
+all of it at once.
+
+- [x] **New `InspectorGroup`** -- one collapsible block, with a `summary`
+      shown on the header while collapsed. The summary is what makes
+      collapsing-by-default acceptable: you still read the room's whole
+      setup at a glance ("400 × 350 cm", "240 cm · 1 slope", the wall
+      colours as dots, the flooring swatch and its name) and only expand the
+      one thing you came to change.
+- [x] **Seven groups**, four for room settings (Dimensions / Height &
+      Slopes / Wall Colors / Flooring) and three for a selected item (Color
+      & Finish / Dimensions & Position / Rotation). Only Dimensions starts
+      open in each mode. The item's name + quick actions and both Apply
+      buttons stay outside any group -- they're the primary actions, not
+      settings.
+- [x] **`useInspectorGroups`** persists which are open to
+      `planner-inspector-groups-v1`, merging over the defaults so a group
+      added later picks up its default rather than being undefined for
+      anyone who already has the key. Read in an effect, not during render
+      (the hydration trap in LEARNINGS).
+- [x] **New `lib/canvas-layout.ts`** -- `STAGE_BOTTOM_SAFE_ZONE` (64px) plus
+      `clampInspectorPos` and `inspectorMaxHeight`, shared by both canvases
+      and unit-tested. A uniform reserved strip rather than a cut-out around
+      the pill's exact rectangle: the bottom toolbar and scale bar live in
+      the same band, so one rule fixes all three.
+- [x] **The max-height is the half that actually fixes it.** Clamping the
+      drag alone wouldn't have: the panel was never *dragged* over the back
+      button, it *grew* over it as sections expanded. `maxHeight` is now
+      derived from the panel's own `y`, so its bottom edge always stops
+      short of the strip and the body scrolls instead.
+- [x] Verified live at 1440x820 on a T-shaped room with two slopes (the
+      exact case that was open when the build broke): default state 391px
+      tall, no overlap; **all four groups expanded** -> capped with a 65px
+      reserved strip, 1243px of content scrolling inside 573px, still no
+      overlap; dragged hard to the bottom -> stops at a 66px strip. Group
+      state survives a reload. 620 tests (8 new), tsc clean, lint 18/19
+      (baseline).
+- **Note on the build error seen mid-session**
+      (`Expected corresponding JSX closing tag for <InspectorGroup>`): that
+      was Vite hot-reloading this file between an opening tag being written
+      and its closing tag -- not a data-dependent crash, and nothing to do
+      with the T-shape or its slopes. A syntax error can't be caught by a
+      React error boundary; Vite's overlay *is* the graceful failure. Worth
+      knowing that editing a large JSX file in several passes will do this
+      to a running dev server.
+
+### Still open
 - [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` -- a window can currently be taller than the knee wall it sits in. Roof windows (*Dachfenster*) remain out of scope.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.
 - [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it (e.g. `/rooms` → open a room from the auto-seeded apartment). Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.

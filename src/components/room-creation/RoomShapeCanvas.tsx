@@ -126,6 +126,14 @@ function OpeningSymbol({
 
   // Door: hinge at `start`, leaf swung a quarter turn into the room, and the
   // arc it sweeps between open and closed.
+  //
+  // Always drawn INTO the room -- `geo.nx/ny` comes from inwardNormal(), so
+  // this is right on every wall of every shape without the local-frame
+  // correction the main 2D canvas needs (see lib/opening-geometry.ts). That
+  // holds only because this wizard exclusively creates `swing: "in"` doors
+  // and offers no control to change it. If a swing control is ever added
+  // here, this has to honour it, or the wizard becomes the renderer that
+  // disagrees with the other two.
   const leafEnd = { x: geo.start.x + geo.nx * geo.width, y: geo.start.y + geo.ny * geo.width };
   return (
     <g>

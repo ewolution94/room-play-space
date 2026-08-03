@@ -10,7 +10,13 @@ import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/li
 import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/lib/kit-models";
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
-import { DEFAULT_CEILING_HEIGHT, buildCeilingSurface, type WallSlopeMap } from "@/lib/wall-slopes";
+import {
+  DEFAULT_CEILING_HEIGHT,
+  buildCeilingSurface,
+  ceilingProfileAlongWall,
+  profileIsFlatAtCeiling,
+  type WallSlopeMap,
+} from "@/lib/wall-slopes";
 import { getFloorTexture } from "@/lib/floor-textures";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
@@ -1075,6 +1081,76 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             ? wallSlope.kneeHeight
             : wallHeight;
 
+        /**
+         * A wall that runs INTO a slope has to be cut off along it.
+         *
+         * The sloped wall itself is already right -- it's a knee wall and
+         * stops at `kneeHeight` above. Its perpendicular neighbours were
+         * still full-height rectangles, so their top corners poked straight
+         * up through the slanted ceiling. Each such wall becomes a profile
+         * (a trapezoid, or a gable pentagon when two opposite slopes meet)
+         * whose top edge follows the ceiling.
+         *
+         * Only for walls that DON'T carry a slope of their own: a knee wall
+         * is deliberately flat at kneeHeight, and profiling it would fight
+         * that. And only when the profile actually dips -- every wall clear
+         * of every run keeps the plain BoxGeometry path untouched, so an
+         * unsloped room produces byte-identical geometry to before.
+         */
+        const carriesSlope = segmentHeight !== wallHeight;
+        const wallNeedsProfile =
+          !carriesSlope &&
+          !!room.wallSlopes &&
+          !profileIsFlatAtCeiling(
+            ceilingProfileAlongWall(ptA, ptB, 0, length, room.corners, room.wallSlopes, wallHeight),
+            wallHeight,
+          );
+
+        /**
+         * A vertical slab of wall between `startAlong`/`endAlong` (cm from
+         * ptA) rising from `bottomY` to the ceiling above it. Used for the
+         * plain wall chunks (bottomY 0) and for the strip above a door or
+         * window, which needs cutting for exactly the same reason.
+         *
+         * Returns null when the ceiling is already at or below the slab's
+         * floor across the whole span -- e.g. the lintel over a door that
+         * reaches the slope -- so the caller simply omits the mesh rather
+         * than adding a degenerate one.
+         */
+        const buildProfiledSlab = (startAlong: number, endAlong: number, bottomY: number) => {
+          const profile = ceilingProfileAlongWall(
+            ptA,
+            ptB,
+            startAlong,
+            endAlong,
+            room.corners,
+            room.wallSlopes,
+            wallHeight,
+          );
+          if (profile.length < 2) return null;
+          const tops = profile.map((p) => Math.max(bottomY, p.height));
+          if (tops.every((h) => h - bottomY <= 0.1)) return null;
+
+          const shape = new THREE.Shape();
+          const localX = (along: number) => along - length / 2;
+          shape.moveTo(localX(profile[0].along), bottomY);
+          shape.lineTo(localX(profile[profile.length - 1].along), bottomY);
+          // Back along the top edge, so the outline stays a simple polygon.
+          for (let i = profile.length - 1; i >= 0; i--) {
+            shape.lineTo(localX(profile[i].along), tops[i]);
+          }
+          shape.closePath();
+
+          const geo = new THREE.ExtrudeGeometry(shape, {
+            depth: wallThickness,
+            bevelEnabled: false,
+          });
+          // ExtrudeGeometry runs z from 0 to depth; every box on this wall is
+          // centred on z, so match it.
+          geo.translate(0, 0, -wallThickness / 2);
+          return geo;
+        };
+
         const localWallMat = wallMat.clone();
         localWallMat.color.set(room.wallColors[colorKey] || "#f1f5f9");
 
@@ -1167,14 +1243,27 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             sillMesh.receiveShadow = true;
             wallGroup.add(sillMesh);
 
-            const lintelH = segmentHeight - (sillHeight + windowHeight);
-            if (lintelH > 0) {
-              const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
-              const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-              lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
+            // The strip above the window needs the same cut as the wall
+            // chunks either side of it -- otherwise the slope is honoured
+            // across the wall but a square block survives over each opening.
+            const windowLintelGeo = wallNeedsProfile
+              ? buildProfiledSlab(opStart, opEnd, sillHeight + windowHeight)
+              : null;
+            if (windowLintelGeo) {
+              const lintelMesh = new THREE.Mesh(windowLintelGeo, localWallMat);
               lintelMesh.castShadow = true;
               lintelMesh.receiveShadow = true;
               wallGroup.add(lintelMesh);
+            } else if (!wallNeedsProfile) {
+              const lintelH = segmentHeight - (sillHeight + windowHeight);
+              if (lintelH > 0) {
+                const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
+                const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
+                lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
+                lintelMesh.castShadow = true;
+                lintelMesh.receiveShadow = true;
+                wallGroup.add(lintelMesh);
+              }
             }
 
             // Glass pane (rendered in the middle, slightly smaller to fit inside frame border)
@@ -1244,14 +1333,24 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             rightPost.receiveShadow = true;
             wallGroup.add(rightPost);
           } else if (o.kind === "door") {
-            const lintelH = segmentHeight - doorHeight;
-            if (lintelH > 0) {
-              const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
-              const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-              lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
+            const doorLintelGeo = wallNeedsProfile
+              ? buildProfiledSlab(opStart, opEnd, doorHeight)
+              : null;
+            if (doorLintelGeo) {
+              const lintelMesh = new THREE.Mesh(doorLintelGeo, localWallMat);
               lintelMesh.castShadow = true;
               lintelMesh.receiveShadow = true;
               wallGroup.add(lintelMesh);
+            } else if (!wallNeedsProfile) {
+              const lintelH = segmentHeight - doorHeight;
+              if (lintelH > 0) {
+                const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
+                const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
+                lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
+                lintelMesh.castShadow = true;
+                lintelMesh.receiveShadow = true;
+                wallGroup.add(lintelMesh);
+              }
             }
 
             const doorThick = 4;
@@ -1308,6 +1407,17 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         for (const seg of finalSegments) {
           const segLen = seg.end - seg.start;
           if (segLen <= 0.1) continue;
+          if (wallNeedsProfile) {
+            const profGeo = buildProfiledSlab(seg.start, seg.end, 0);
+            if (!profGeo) continue;
+            const segMesh = new THREE.Mesh(profGeo, localWallMat);
+            // The profile carries its own local x/y, so unlike the box below
+            // it is not repositioned.
+            segMesh.castShadow = true;
+            segMesh.receiveShadow = true;
+            wallGroup.add(segMesh);
+            continue;
+          }
           const segGeo = new THREE.BoxGeometry(segLen, segmentHeight, wallThickness);
           const segMesh = new THREE.Mesh(segGeo, localWallMat);
           const localCenter = (seg.start + seg.end) / 2 - length / 2;
