@@ -25,8 +25,23 @@ import { NAMED_WALLS, polygonBoundingBox, resolveWallSegment } from "@/lib/hallw
 import { createRoomLayoutWithCorners } from "@/lib/multi-room-actions";
 import { STRINGS } from "@/lib/planner-translations";
 import { ROOM_SWATCHES } from "@/lib/swatches";
-import type { Lang, Opening, Point, RoomLayout } from "@/types/planner";
-import { ArrowLeft, ArrowRight, DoorOpen, Home, RectangleHorizontal, Trash2 } from "lucide-react";
+import type { Lang, Opening, OpeningKind, Point, RoomLayout } from "@/types/planner";
+import {
+  defaultOpeningWidth,
+  isSwingingOpening,
+  openingKindLabel,
+  openingLeaves,
+  openingWidthPresets,
+} from "@/lib/openings";
+import {
+  ArrowLeft,
+  ArrowRight,
+  DoorOpen,
+  Home,
+  PanelsTopLeft,
+  RectangleHorizontal,
+  Trash2,
+} from "lucide-react";
 
 interface IkeaRoomWizardProps {
   lang: Lang;
@@ -79,7 +94,10 @@ export function IkeaRoomWizard({
   const [roomName, setRoomName] = useState("");
   const [color, setColor] = useState(ROOM_SWATCHES[0].value);
   const [openings, setOpenings] = useState<Opening[]>([]);
-  const [openingKind, setOpeningKind] = useState<"door" | "window">("door");
+  const [openingKind, setOpeningKind] = useState<OpeningKind>("door");
+  // Terrace doors only (see Opening.leaves) -- a one-leaf door is 90cm, a
+  // pair 180, which is why the placed width follows this too.
+  const [openingLeavesSel, setOpeningLeavesSel] = useState<1 | 2>(1);
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
 
   // Fresh start every time the wizard is (re)opened.
@@ -137,20 +155,23 @@ export function IkeaRoomWizard({
     const seg = resolveWallSegment(corners, wallKey);
     if (!seg) return;
     const wallLength = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
-    if (wallLength < DEFAULT_OPENING_WIDTH) {
+    // Real-world width for whatever is being placed (lib/openings.ts), so a
+    // two-leaf terrace door doesn't land as a 90cm single.
+    const newWidth = defaultOpeningWidth(openingKind, openingLeavesSel);
+    if (wallLength < newWidth) {
       toast.error(lang === "de" ? "Diese Wand ist zu kurz." : "This wall is too short.");
       return;
     }
     // Center the new opening on the click point, then clamp it onto the
     // wall's own span.
-    let position = positionAlongWall - DEFAULT_OPENING_WIDTH / 2;
-    position = Math.max(0, Math.min(position, wallLength - DEFAULT_OPENING_WIDTH));
+    let position = positionAlongWall - newWidth / 2;
+    position = Math.max(0, Math.min(position, wallLength - newWidth));
 
     const overlapsExisting = openings.some(
       (o) =>
         String(o.wall) === String(wallKey) &&
         position < o.position + o.width &&
-        o.position < position + DEFAULT_OPENING_WIDTH,
+        o.position < position + newWidth,
     );
     if (overlapsExisting) {
       toast.error(
@@ -166,8 +187,11 @@ export function IkeaRoomWizard({
         kind: openingKind,
         wall: wallKey,
         position: Math.round(position * 100) / 100,
-        width: DEFAULT_OPENING_WIDTH,
-        ...(openingKind === "door" ? { hinge: "start" as const, swing: "in" as const } : {}),
+        width: newWidth,
+        ...(isSwingingOpening(openingKind)
+          ? { hinge: "start" as const, swing: "in" as const }
+          : {}),
+        ...(openingKind === "terrace-door" ? { leaves: openingLeavesSel } : {}),
       },
     ]);
   };
@@ -363,6 +387,33 @@ export function IkeaRoomWizard({
                 <RectangleHorizontal className="h-4 w-4" />
                 {t.window}
               </Button>
+              <Button
+                type="button"
+                variant={openingKind === "terrace-door" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setOpeningKind("terrace-door")}
+              >
+                <PanelsTopLeft className="h-4 w-4" />
+                {t.terraceDoor}
+              </Button>
+              {/* Leaves, only while placing a terrace door -- nothing else
+                  has them. */}
+              {openingKind === "terrace-door" && (
+                <div className="flex items-center gap-1 rounded-md border p-0.5">
+                  {([1, 2] as const).map((n) => (
+                    <Button
+                      key={n}
+                      type="button"
+                      variant={openingLeavesSel === n ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setOpeningLeavesSel(n)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      {n === 1 ? t.oneLeaf : t.twoLeaves}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="relative flex h-[440px] justify-center rounded-lg border bg-muted/20 py-3">
@@ -372,6 +423,7 @@ export function IkeaRoomWizard({
                 mode="openings"
                 openings={openings}
                 ghostKind={openingKind}
+                ghostLeaves={openingLeavesSel}
                 onWallClick={handleWallClick}
                 onRemoveOpening={removeOpening}
                 onMoveOpening={moveOpening}
@@ -387,13 +439,11 @@ export function IkeaRoomWizard({
                 the shape. */}
             {selectedOpening ? (
               <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border bg-background px-3 py-2">
-                <span className="text-xs font-medium">
-                  {selectedOpening.kind === "door" ? t.door : t.window}
-                </span>
+                <span className="text-xs font-medium">{openingKindLabel(selectedOpening, t)}</span>
                 <span className="text-xs text-muted-foreground">
                   {lang === "de" ? "Breite" : "Width"}
                 </span>
-                {(selectedOpening.kind === "door" ? [70, 80, 90, 100] : [60, 90, 120, 160]).map(
+                {openingWidthPresets(selectedOpening.kind, openingLeaves(selectedOpening)).map(
                   (w) => (
                     <Button
                       key={w}

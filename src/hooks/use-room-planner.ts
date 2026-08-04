@@ -6,6 +6,7 @@ import type {
   ItemLayer,
   ItemShape,
   Opening,
+  OpeningKind,
   Preset,
   Snapshot,
   Point,
@@ -42,6 +43,7 @@ import {
   type WallOpenInterval,
 } from "@/lib/room-adjacency";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
+import { defaultOpeningWidth, isSwingingOpening } from "@/lib/openings";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 import { useSettings } from "@/hooks/use-settings";
 
@@ -547,10 +549,14 @@ export function useRoomPlanner(
   const [nShape, setNShape] = useState<ItemShape>("rect");
 
   // -------- New opening form --------
-  const [oKind, setOKind] = useState<"door" | "window">("door");
+  const [oKind, setOKind] = useState<OpeningKind>("door");
+  // Terrace doors only (see Opening.leaves). Kept as its own field rather
+  // than folded into oKind so "terrace door" stays one kind of thing in the
+  // data, with a property, instead of two near-identical enum members.
+  const [oLeaves, setOLeaves] = useState<1 | 2>(1);
   const [oWall, setOWall] = useState<Opening["wall"]>("top");
   const [oPos, setOPos] = useState(50);
-  const [oWidth, setOWidth] = useState(90);
+  const [oWidth, setOWidth] = useState(defaultOpeningWidth("door"));
 
   const stageRef = useRef<HTMLDivElement>(null);
   // 600x400 is only ever a placeholder for the very first render, before
@@ -898,7 +904,10 @@ export function useRoomPlanner(
         wall: oWall,
         position: oPos,
         width: oWidth,
-        ...(oKind === "door" ? { hinge: "start" as const, swing: "in" as const } : {}),
+        // Anything you walk through gets hinges; a terrace door is a door
+        // that happens to be glazed (see isSwingingOpening).
+        ...(isSwingingOpening(oKind) ? { hinge: "start" as const, swing: "in" as const } : {}),
+        ...(oKind === "terrace-door" ? { leaves: oLeaves } : {}),
       },
     ]);
   };
@@ -1611,6 +1620,8 @@ export function useRoomPlanner(
     setNShape,
     oKind,
     setOKind,
+    oLeaves,
+    setOLeaves,
     oWall,
     setOWall,
     oPos,

@@ -12,7 +12,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { Opening, Point } from "@/types/planner";
+import type { Opening, OpeningKind, Point } from "@/types/planner";
+import { defaultOpeningWidth, openingWidthPresets } from "@/lib/openings";
 import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 
@@ -22,8 +23,11 @@ interface OpeningsDialogProps {
   threeDActive: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  oKind: "door" | "window";
-  setOKind: (kind: "door" | "window") => void;
+  oKind: OpeningKind;
+  setOKind: (kind: OpeningKind) => void;
+  /** Terrace doors only -- one leaf or two (see Opening.leaves). */
+  oLeaves: 1 | 2;
+  setOLeaves: (leaves: 1 | 2) => void;
   oWall: Opening["wall"];
   setOWall: (wall: Opening["wall"]) => void;
   oPos: number;
@@ -53,6 +57,8 @@ export function OpeningsDialog({
   onOpenChange,
   oKind,
   setOKind,
+  oLeaves,
+  setOLeaves,
   oWall,
   setOWall,
   oPos,
@@ -146,13 +152,23 @@ export function OpeningsDialog({
                 <select
                   className="w-full bg-transparent pl-1.5 pr-2 h-8 text-xs focus:outline-none focus:ring-0 focus:border-0 border-0 cursor-pointer"
                   value={oKind}
-                  onChange={(e) => setOKind(e.target.value as "door" | "window")}
+                  onChange={(e) => {
+                    const kind = e.target.value as OpeningKind;
+                    setOKind(kind);
+                    // Each kind has its own real-world size, so the width
+                    // follows the choice instead of leaving a 90cm window
+                    // or a 120cm door behind. See lib/openings.ts.
+                    setOWidth(defaultOpeningWidth(kind, oLeaves));
+                  }}
                 >
                   <option value="door" className="bg-background">
                     {t.door}
                   </option>
                   <option value="window" className="bg-background">
                     {t.window}
+                  </option>
+                  <option value="terrace-door" className="bg-background">
+                    {t.terraceDoor}
                   </option>
                 </select>
               </div>
@@ -209,6 +225,39 @@ export function OpeningsDialog({
             </div>
           </div>
 
+          {/* Leaves, terrace doors only: a one-leaf door is a door you can
+              see through, a two-leaf one is the wide "French" pair that
+              opens from the middle. Nothing else in the catalogue has
+              leaves, so this appears only when it applies -- and picking
+              one resets the width, since 90cm is a single leaf and 180cm a
+              pair. */}
+          {oKind === "terrace-door" && (
+            <div className="space-y-1">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.leaves}
+              </Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([1, 2] as const).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => {
+                      setOLeaves(n);
+                      setOWidth(defaultOpeningWidth("terrace-door", n));
+                    }}
+                    className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+                      oLeaves === n
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                    }`}
+                  >
+                    {n === 1 ? t.oneLeaf : t.twoLeaves}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -248,6 +297,25 @@ export function OpeningsDialog({
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* The sizes these things are actually sold in, so the common
+              case is one click rather than a number you have to know. */}
+          <div className="flex flex-wrap gap-1.5">
+            {openingWidthPresets(oKind, oLeaves).map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setOWidth(w)}
+                className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                  oWidth === w
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                {w} cm
+              </button>
+            ))}
           </div>
         </div>
 

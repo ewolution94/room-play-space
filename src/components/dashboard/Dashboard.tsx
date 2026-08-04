@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { findHomeIdForRoom, loadHomes } from "@/lib/homes";
@@ -10,6 +10,10 @@ import { TOUR_KEY } from "@/hooks/use-room-planner";
 import type { Lang, PlannerSettings } from "@/types/planner";
 import { CreateSingleRoomFlow } from "@/components/dashboard/CreateSingleRoomFlow";
 import { CreateHomeFlow } from "@/components/dashboard/CreateHomeFlow";
+import {
+  CREATE_OPTION_LIST_CLASS,
+  CreateOptionButton,
+} from "@/components/dashboard/CreateOptionButton";
 import { RecentlyOpened } from "@/components/dashboard/RecentlyOpened";
 import { SingleRoomsList } from "@/components/dashboard/SingleRoomsList";
 import { HomesList } from "@/components/dashboard/HomesList";
@@ -73,7 +77,14 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
     <div className="min-h-dvh bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
+          {/* A link to the page you're already on, deliberately: a logo
+              that stops being clickable on one page is the kind of small
+              inconsistency people notice without being able to say why. */}
+          <Link
+            to="/dashboard"
+            aria-label="PLANUM — Dashboard"
+            className="flex min-w-0 items-center gap-3 rounded-md transition-opacity hover:opacity-80"
+          >
             <img
               src="/logo.svg"
               alt="PLANUM"
@@ -89,7 +100,7 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
                   : "Plan the space you actually have."}
               </p>
             </div>
-          </div>
+          </Link>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -120,6 +131,10 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
             almost always what they came to do. */}
         <RecentlyOpened lang={lang} lastActive={settings.lastActive} />
 
+        {/* min-h-10 on every card description = two lines of text-sm, so a
+            description that wraps in one language but not another (the Home
+            card's does in German) can't push that card's buttons out of
+            line with the card beside it. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -127,46 +142,44 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
                 <DoorOpen className="h-5 w-5 text-primary" />
                 {lang === "de" ? "Einzelnen Raum erstellen" : "Create a Single Room"}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="min-h-10">
                 {lang === "de"
                   ? "Ein Zimmer, direkt einrichten."
                   : "One room, ready to furnish right away."}
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
+            <CardContent className={CREATE_OPTION_LIST_CLASS}>
+              <CreateOptionButton
+                icon={DoorOpen}
+                title={lang === "de" ? "Von Grund auf" : "From scratch"}
+                description={
+                  lang === "de"
+                    ? "Leerer Raum, Größe selbst wählen"
+                    : "Empty room, you set the size"
+                }
                 onClick={() => setScratchRoomOpen(true)}
-                className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:bg-accent hover:border-primary/40"
-              >
-                <DoorOpen className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  {lang === "de" ? "Von Grund auf" : "From scratch"}
-                </span>
-              </button>
+              />
               {/* No picker in between -- this builds the app's one example
                   room (the hand-tuned home office) and opens it. See
                   buildHomeOfficeRoom's doc comment. */}
-              <button
-                type="button"
+              <CreateOptionButton
+                icon={Sparkles}
+                title={lang === "de" ? "Aus Beispiel" : "From example"}
+                description={
+                  lang === "de"
+                    ? "Ein voll eingerichtetes Arbeitszimmer"
+                    : "A fully furnished home office"
+                }
                 onClick={() => createSingleRoom(buildHomeOfficeRoom(lang))}
-                className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:bg-accent hover:border-primary/40"
-              >
-                <Sparkles className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  {lang === "de" ? "Aus Beispiel" : "From example"}
-                </span>
-              </button>
-              <button
-                type="button"
+              />
+              <CreateOptionButton
+                icon={Wand2}
+                title={lang === "de" ? "Geführt" : "Guided"}
+                description={
+                  lang === "de" ? "Form wählen, Wände ziehen" : "Pick a shape, drag the walls"
+                }
                 onClick={() => setIkeaWizardOpen(true)}
-                className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:bg-accent hover:border-primary/40"
-              >
-                <Wand2 className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  {lang === "de" ? "Geführt (Form wählen)" : "Guided (Pick a Shape)"}
-                </span>
-              </button>
+              />
             </CardContent>
           </Card>
 
@@ -176,7 +189,7 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
                 <HomeIcon className="h-5 w-5 text-primary" />
                 {lang === "de" ? "Erstelle ein Zuhause" : "Create a Home"}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="min-h-10">
                 {lang === "de"
                   ? "Eine Wohnung oder ein Haus, mit einer oder mehreren Etagen."
                   : "A flat or a house, with one floor or several."}
@@ -200,7 +213,7 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
                 <DoorOpen className="h-5 w-5 text-primary" />
                 {lang === "de" ? "Deine einzelnen Räume" : "Your Single Rooms"}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="min-h-10">
                 {lang === "de"
                   ? "Räume für sich, unabhängig von jedem Grundriss."
                   : "Rooms on their own, independent of any floor plan."}
@@ -215,9 +228,9 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <HomeIcon className="h-5 w-5 text-primary" />
-                {lang === "de" ? "Deine geplanten Zuhauses" : "Your Homes"}
+                {lang === "de" ? "Deine geplanten Zuhause" : "Your Homes"}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="min-h-10">
                 {lang === "de"
                   ? "Jedes Zuhause mit seinen eigenen Etagen und Räumen."
                   : "Each home with its own floors and rooms."}

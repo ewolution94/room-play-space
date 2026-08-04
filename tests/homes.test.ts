@@ -291,6 +291,34 @@ describe("naming", () => {
     );
     assert.equal(homeDisplayName({ id: "a", name: null, floors: [] }, 0, "en"), "My Home");
   });
+
+  // What the dashboard's rename field relies on when you clear it: storing
+  // null is the only way back to a translated, auto-renumbering name once
+  // one has been typed over.
+  test("renaming to null restores the positional default, in both languages", () => {
+    const home = createHome([makeFloor("f1")]);
+    addHome(home);
+
+    updateHome(home.id, { name: "Ferienhaus" });
+    assert.equal(homeDisplayName(findHome(home.id)!, 1, "en"), "Ferienhaus");
+
+    updateHome(home.id, { name: null });
+    assert.equal(homeDisplayName(findHome(home.id)!, 1, "en"), "Home 2");
+    assert.equal(homeDisplayName(findHome(home.id)!, 1, "de"), "Zuhause 2");
+  });
+
+  test("renaming one home leaves every other home's name alone", () => {
+    const a = createHome([makeFloor("a1")]);
+    const b = createHome([makeFloor("b1")]);
+    addHome(a);
+    addHome(b);
+
+    updateHome(b.id, { name: "Beach Flat" });
+    assert.equal(findHome(a.id)?.name, null);
+    assert.equal(findHome(b.id)?.name, "Beach Flat");
+    // And nothing else about the renamed home moved.
+    assert.deepEqual(findHome(b.id)?.floors, b.floors);
+  });
 });
 
 describe("summaries", () => {

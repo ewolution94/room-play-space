@@ -35,9 +35,12 @@ const openingSchema = z.object({
   wall: z.union([z.enum(["top", "bottom", "left", "right"]), z.number().int().min(0)]),
   position: z.number().min(0).max(10000),
   width: z.number().min(0).max(5000),
-  kind: z.enum(["door", "window"]),
+  kind: z.enum(["door", "window", "terrace-door"]),
   hinge: z.enum(["start", "end"]).optional(),
   swing: z.enum(["in", "out"]).optional(),
+  // Terrace doors only, and optional -- every file exported before terrace
+  // doors existed still imports, and an absent value means one leaf.
+  leaves: z.union([z.literal(1), z.literal(2)]).optional(),
   color: z.string().optional(),
 });
 

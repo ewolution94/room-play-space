@@ -31,6 +31,8 @@ export function Sidebar({
   setNShape,
   oKind,
   setOKind,
+  oLeaves,
+  setOLeaves,
   oWall,
   setOWall,
   oPos,
@@ -200,6 +202,8 @@ export function Sidebar({
                 onOpenChange={setOpeningOpen}
                 oKind={oKind}
                 setOKind={setOKind}
+                oLeaves={oLeaves}
+                setOLeaves={setOLeaves}
                 oWall={oWall}
                 setOWall={setOWall}
                 oPos={oPos}

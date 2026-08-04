@@ -233,7 +233,7 @@ export function SettingsDialog({
             </Button>
             <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
               {lang === "de"
-                ? "Löscht alle Räume, Zuhauses, eigenen Katalog-Objekte und Einstellungen."
+                ? "Löscht alle Räume, Zuhause, eigenen Katalog-Objekte und Einstellungen."
                 : "Deletes every room, home, custom catalog item and setting."}
             </p>
           </div>
@@ -248,7 +248,7 @@ export function SettingsDialog({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {lang === "de"
-                ? "Alle einzelnen Räume, alle Zuhauses mit ihren Etagen, dein eigener Katalog und sämtliche Einstellungen werden gelöscht. Die App startet danach wie beim allerersten Besuch. Das lässt sich nicht rückgängig machen."
+                ? "Alle einzelnen Räume, alle Zuhause mit ihren Etagen, dein eigener Katalog und sämtliche Einstellungen werden gelöscht. Die App startet danach wie beim allerersten Besuch. Das lässt sich nicht rückgängig machen."
                 : "Every single room, every home and its floors, your own catalog and all settings will be deleted. The app restarts as if you'd never used it. This cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>

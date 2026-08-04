@@ -6,6 +6,7 @@ import { AlertTriangle, Trash2 } from "lucide-react";
 import type { Item, Opening } from "@/types/planner";
 import { wallLabel } from "@/lib/hallway-shapes";
 import { getDefaultHeight } from "@/lib/planner-presets";
+import { openingKindLabel } from "@/lib/openings";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface ElementsListSectionProps {
@@ -158,7 +159,7 @@ export function ElementsListSection({
                     }`}
                   >
                     <span className="truncate min-w-0 capitalize">
-                      {o.kind === "door" ? t.door : t.window} · {wallLabel(o.wall, t, lang)} ·{" "}
+                      {openingKindLabel(o, t)} · {wallLabel(o.wall, t, lang)} ·{" "}
                       {Math.round(o.position)}cm
                     </span>
                     <div className="flex items-center gap-1 shrink-0">

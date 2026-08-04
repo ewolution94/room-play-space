@@ -790,10 +790,169 @@ one piece. Design + phasing in `docs/HOMES-PROPOSAL.md`.
   standing in) and **Phase 3** (copy pass). Renaming a Home has no UI at
   all yet, which is now the most obvious gap.
 
+### Homes follow-ups: renaming, one button shape, im/export audit (2026-08-04)
+
+Four things off the back of Phase 1.
+
+- [x] **Renaming, for Homes *and* standalone rooms.** A Home had no rename
+      surface at all (floors rename in the switcher, Homes have no
+      switcher), and -- as the user spotted -- neither did a standalone
+      room: a room inside a home renames in the multi-room inspector, but a
+      single room's name was fixed at whatever it was created as. Both now
+      rename from their dashboard row, through one shared `SavedRowRename`
+      so the two lists sitting side by side can't behave differently. Same
+      convention as the floor switcher's rename: commit on Enter or blur,
+      revert on Escape, whole name selected on focus.
+      - **Clearing a Home's name resets it to the positional default**
+        (`name: null` → "My Home"/"Home 2"), which is the only way back to
+        a translated, auto-renumbering name once one has been typed over. A
+        room's name has no such default, so an empty value is simply not a
+        rename there.
+      - Escape unmounts the input, and an unmounting focused input still
+        fires `blur` -- which would commit the edit Escape just discarded.
+        A ref flag makes that one blur a no-op.
+      - The input is `h-5 leading-5` and keeps the subtitle visible, so the
+        row stays exactly 62px and the list doesn't jump when you click the
+        pencil. Verified live: 62px before and during a rename.
+- [x] **German plural fixed**: "Deine geplanten Zuhause" (*Zuhause* is its
+      own plural), plus the two "Zuhauses" in the Settings dialog's reset
+      copy. The genitive singular ("alle Geschosse dieses Zuhauses") is
+      correct German and stayed.
+- [x] **One button shape on the dashboard.** The single-room card stacked
+      its icon above a bare label -- three tall tiles, one of which wrapped
+      "Guided (Pick a Shape)" onto three lines -- while the Home card used a
+      wide icon-left row with a description. Same action, two shapes,
+      visibly different heights. New shared `CreateOptionButton` (icon,
+      title, one line of what it does) and one list class for both cards;
+      the single-room options gained the descriptions they never had, and
+      "Guided (Pick a Shape)" became "Guided" + "Pick a shape, drag the
+      walls" (matching the sidebar's own label). Stacked rather than in
+      columns because a description needs the width. Measured live: all five
+      buttons are exactly 62 x 370 in both cards -- and the saved rows below
+      are 62px too, so the page is one rhythm.
+      - **Found while checking it in German**: equal-sized buttons still sat
+        20px out of line across the two cards, because the Home card's
+        description wraps to two lines in German and one in English. Every
+        card description now reserves two lines (`min-h-10`), so a
+        translation that wraps can't shift its card's contents. Both cards'
+        first buttons now start at exactly the same y in both languages.
+- [x] **Export/import audited end-to-end after the Homes move**, since it
+      was the seam most likely to have been broken quietly. All of it works,
+      no code changes needed:
+      - Home export, scope "current floor": correct preview (7 rooms / 59
+        items / 14 openings), filename `ground-floor-2026-08-04`, and the
+        raw JSON is the documented `{ floors, customCatalog }` wrapper.
+      - Home import, "current floor": replaces that floor's rooms and keeps
+        the floor's own id; "all floors" replaces **only the home you're
+        standing in** -- checked against a second home holding the same
+        content, which came through byte-identical.
+      - Round trip: export → import restores all 7 rooms and all 59 items,
+        and the bundled catalog item does **not** duplicate (deduped by id).
+      - Single-room export/import: full shape (`version`/`room`/`openings`/
+        `items`/`corners`/`wallColors`/`flooring`/`ceilingHeight`/
+        `wallSlopes` + bundled catalog), and importing a modified file
+        applies to the single-room store while both homes stay untouched.
+- [x] 679 tests (2 new, covering the rename-to-null reset and that renaming
+      one home touches nothing else), tsc clean, lint 18/19 (baseline).
+
+### Terrace doors, a clickable logo, explicit L×W×H (2026-08-04)
+
+- [x] **The mark and the PLANUM wordmark link to the dashboard**, the way a
+      site's logo goes to its home page -- on the dashboard itself too
+      (a logo that stops being clickable on one page is the sort of small
+      inconsistency people notice without being able to name). On a home's
+      floor plan only the *mark* links: the heading there is the home's own
+      name, page content rather than the wordmark, so navigating away from
+      it would be a trap.
+- [x] **Item dimensions now say what they are**: `120×60×75 L×W×H` on the
+      2D canvas, translated (`L×B×H` in German, since the initials follow
+      Länge/Breite/Höhe). The tooltip stays for the full wording and the
+      unit. Three bare numbers were ambiguous -- especially after the
+      earlier change reordered the first two -- and a tooltip only answers
+      the question once you think to hover.
+- [x] **Terrace doors**, one- and two-leaf ("1-/2-flügelig"). A third
+      `Opening.kind` rather than a wide window, because what defines one is
+      that it's **bodentief**: it starts at the floor instead of on a 90cm
+      sill, and you walk through it, so it swings and eats floor space.
+      - **New `lib/openings.ts` is the single source of truth** for what
+        each kind is dimensionally (window 90→210, door 0→200, terrace door
+        0→210), which kinds swing, which are glazed, and the real-world
+        widths. Those three heights used to be `const`s inside ThreeDView's
+        per-wall loop, which was fine only while the 3D view was the only
+        thing that knew an opening had a height -- now the 2D canvas, the
+        dialog and the wizard all have to agree with it.
+      - **2D**: glazing plus a door's leaf + swing arc; two mirrored arcs
+        and a centre mullion when it has two leaves. The four hinge × swing
+        arc cases were *parameterised by radius*, not re-derived -- their
+        sweep flags are noted in LEARNINGS as not reasonable-out-able.
+      - **3D**: the window branch was generalised rather than copied --
+        with `sill: 0` there is simply no wall built under the pane, which
+        is precisely what "bodentief" means. Plus a centre mullion for two
+        leaves.
+      - **Both creation surfaces**: the sidebar's Add Door/Window dialog
+        (kind select → leaves toggle → width presets that change with the
+        leaf count) and the guided wizard's openings step (third button,
+        leaves toggle, ghost preview, per-opening presets).
+      - `leaves` is optional and absent means one, so every room and every
+        exported file that predates this keeps its exact meaning.
+      - Verified live: all three symbols side by side in 2D (single arc vs.
+        two mirrored ones), and in 3D the terrace doors' glazing reaching
+        the floor with a visible mullion on the two-leaf one while the
+        window sits up on its sill. Dialog checked end to end -- picking
+        2 leaves swaps the presets 80/90/100 → 160/180/200 and sets the
+        width to 180. 690 tests (13 new), tsc clean, lint 18/19 (baseline).
+- [ ] Not done: terrace doors are refused on sloped walls like every other
+      opening, and their height isn't validated against a low ceiling --
+      same open item as the one below.
+
+### Fixed: you could see straight through the walls when looking in through glass (2026-08-04)
+
+User: *"when looking from the outside through a window or glass pane... the
+walls inside the room in that direction of view do not display. Instead, you
+look directly onto the endless grid lines void."* Long-standing, and the big
+terrace-door glazing made it impossible to ignore.
+
+- [x] **Root cause was a flag on the walls, not anything about the glass.**
+      three.js builds the refraction seen through a `transmission` material
+      from a render pass containing only the **opaque** list -- every
+      transparent object is excluded by construction. The wall-fade loop set
+      `mat.transparent = true` on every wall material on every frame,
+      regardless of opacity, so *no wall existed at all* as far as any glass
+      in the scene was concerned. What showed through a window was whatever
+      was genuinely opaque behind it: the ground grid.
+- [x] Walls (and ceilings) are now flagged transparent only while actually
+      translucent. The glass pane itself stays transparent -- flipping it
+      opaque would make windows solid.
+- [x] **A second, hidden half of the same bug**: the opacity lerp only ever
+      *approaches* its target, so a wall returning to solid sat at 0.997 for
+      the best part of a second -- still counted translucent, still missing
+      from every window. `settleOpacity` snaps the last few thousandths, so
+      the transition actually ends.
+- [x] Faded walls also stop writing depth now (`depthWrite = !translucent`),
+      the same rule the ceiling already used -- writing depth while
+      translucent hides whatever is behind instead of letting it show through.
+- [x] New `lib/three-materials.ts` holds the two rules with the reasoning,
+      so this can't be re-broken by someone "simplifying" a flag assignment
+      in a render loop. 10 new tests, including one that runs the real lerp
+      to completion and asserts it reaches exactly solid.
+- [x] Verified against the **live scene graph**, not screenshots: 19 wall
+      materials genuinely opaque where previously every one was transparent,
+      glass still transparent, and the loop restoring correct values frame by
+      frame (it undid a manual override). Then confirmed in a rendered frame
+      from a viewpoint high enough that walls don't fade at all -- so
+      anything visible inside a pane got there *through the glass* -- where
+      the terrace door now shows the room's floor rather than the void.
+      700 tests, tsc clean, lint 18/19 (baseline).
+- **Worth knowing for next time**: the Browser pane here only paints
+      intermittently, and two screenshots taken while it wasn't painting
+      showed a stale pre-fix frame that looked like the fix had done
+      nothing. The scene-graph query was what settled it -- exactly the
+      "verify 3D against the scene graph, not a screenshot" rule already in
+      LEARNINGS.
+
 ### Still open
 - [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` -- a window can currently be taller than the knee wall it sits in. Roof windows (*Dachfenster*) remain out of scope.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.
 - [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it. Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.
 - [ ] The canvas's floating Room Inspector can overlap the bottom-left back pill at shorter viewport heights (~720px). Pre-existing on both room routes -- not introduced by any recent change, but now more visible since the back pill is a single room's main way out.
 - [ ] Pre-existing duplicate apartment floors from before the placement fix aren't cleaned up retroactively -- they're just ordinary floors inside the migrated home now, deletable from the floor switcher.
-- [ ] **A Home can't be renamed.** Floors rename in the switcher; Homes have no equivalent surface, so a second one is stuck reading "Home 2". Additive, and the natural next follow-up to Phase 1.

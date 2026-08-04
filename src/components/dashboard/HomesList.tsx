@@ -11,10 +11,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { countItems, countRooms, homeDisplayName, loadHomes, removeHome } from "@/lib/homes";
-import { SAVED_ROW_CLASS, SavedRowBody } from "@/components/dashboard/SavedRow";
+import {
+  countItems,
+  countRooms,
+  homeDisplayName,
+  loadHomes,
+  removeHome,
+  updateHome,
+} from "@/lib/homes";
+import { SAVED_ROW_CLASS, SavedRowBody, SavedRowRename } from "@/components/dashboard/SavedRow";
 import type { Home, Lang } from "@/types/planner";
-import { Home as HomeIcon, Trash2 } from "lucide-react";
+import { Home as HomeIcon, Pencil, Trash2 } from "lucide-react";
 
 interface HomesListProps {
   lang: Lang;
@@ -35,6 +42,11 @@ interface HomesListProps {
  * says exactly how much. Deleting all of them is allowed, exactly like
  * deleting every single room: nothing re-seeds behind your back, and the
  * example is one click away via "From example" whenever it's wanted.
+ *
+ * Renaming lives here too, for the same reason deleting does: this list is
+ * the only surface a Home has. (A floor renames inside the switcher; a Home
+ * has no switcher.) It uses the shared SavedRowRename so it behaves exactly
+ * like renaming a standalone room in the list next to it.
  */
 export function HomesList({ lang }: HomesListProps) {
   // Client-only, same SSR-hydration-safe pattern as the app's other
@@ -42,6 +54,8 @@ export function HomesList({ lang }: HomesListProps) {
   // rendered) then fills in once mounted.
   const [homes, setHomes] = useState<Home[]>([]);
   const [pendingDelete, setPendingDelete] = useState<Home | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     setHomes(loadHomes() ?? []);
@@ -52,6 +66,21 @@ export function HomesList({ lang }: HomesListProps) {
     removeHome(pendingDelete.id);
     setHomes((prev) => prev.filter((h) => h.id !== pendingDelete.id));
     setPendingDelete(null);
+  };
+
+  /**
+   * An empty name isn't a rename -- it resets the Home to its
+   * position-based default ("My Home", "Home 2", ...) by storing null,
+   * which is the same thing `name: null` has always meant and the only way
+   * back to a translated, auto-renumbering name once one has been typed
+   * over. Anything else is stored verbatim.
+   */
+  const commitRename = (homeId: string) => {
+    const trimmed = draft.trim();
+    const name = trimmed === "" ? null : trimmed;
+    updateHome(homeId, { name });
+    setHomes((prev) => prev.map((h) => (h.id === homeId ? { ...h, name } : h)));
+    setRenamingId(null);
   };
 
   if (homes.length === 0) {
@@ -71,23 +100,48 @@ export function HomesList({ lang }: HomesListProps) {
           const floorCount = home.floors.length;
           const roomCount = countRooms(home);
           const itemCount = countItems(home);
+          const displayName = homeDisplayName(home, index, lang);
+          const icon = <HomeIcon className="h-5 w-5 shrink-0 text-muted-foreground" />;
+          const subtitle =
+            lang === "de"
+              ? `${floorCount} Etage(n) · ${roomCount} Raum/Räume · ${itemCount} Objekte`
+              : `${floorCount} floor${floorCount === 1 ? "" : "s"} · ${roomCount} room${roomCount === 1 ? "" : "s"} · ${itemCount} item${itemCount === 1 ? "" : "s"}`;
           return (
             <li key={home.id} className="flex items-center gap-2">
-              <Link
-                to="/home/$homeId"
-                params={{ homeId: home.id }}
-                className={`min-w-0 flex-1 ${SAVED_ROW_CLASS}`}
-              >
-                <SavedRowBody
-                  leading={<HomeIcon className="h-5 w-5 shrink-0 text-muted-foreground" />}
-                  title={homeDisplayName(home, index, lang)}
-                  subtitle={
-                    lang === "de"
-                      ? `${floorCount} Etage(n) · ${roomCount} Raum/Räume · ${itemCount} Objekte`
-                      : `${floorCount} floor${floorCount === 1 ? "" : "s"} · ${roomCount} room${roomCount === 1 ? "" : "s"} · ${itemCount} item${itemCount === 1 ? "" : "s"}`
-                  }
+              {renamingId === home.id ? (
+                <SavedRowRename
+                  leading={icon}
+                  subtitle={subtitle}
+                  label={lang === "de" ? "Zuhause umbenennen" : "Rename home"}
+                  value={draft}
+                  onChange={setDraft}
+                  onCommit={() => commitRename(home.id)}
+                  onCancel={() => setRenamingId(null)}
                 />
-              </Link>
+              ) : (
+                <Link
+                  to="/home/$homeId"
+                  params={{ homeId: home.id }}
+                  className={`min-w-0 flex-1 ${SAVED_ROW_CLASS}`}
+                >
+                  <SavedRowBody leading={icon} title={displayName} subtitle={subtitle} />
+                </Link>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Seeded with what's on screen, not with `home.name` --
+                  // an un-renamed Home has no name of its own, and starting
+                  // from a blank field would hide which one you're editing.
+                  setDraft(displayName);
+                  setRenamingId(home.id);
+                }}
+                aria-label={lang === "de" ? "Zuhause umbenennen" : "Rename home"}
+                className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

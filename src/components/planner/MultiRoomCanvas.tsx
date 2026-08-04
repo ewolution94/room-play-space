@@ -51,6 +51,7 @@ import { CanvasLoadingOverlay } from "./canvas/CanvasLoadingOverlay";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 import { FloorPatternDef } from "@/lib/floor-pattern-svg";
+import { isGlazedOpening } from "@/lib/openings";
 import { resolveFlooring } from "@/lib/floor-materials";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { clampInspectorPos, inspectorMaxHeight } from "@/lib/canvas-layout";
@@ -1953,7 +1954,12 @@ export function MultiRoomCanvas({
                             ol = op.width;
                           }
 
-                          if (op.kind === "window") {
+                          // A terrace door is glazed, so at this zoom it
+                          // reads like a window (the overview deliberately
+                          // draws no leaves or swing arcs at all -- see the
+                          // door branch below); its centre mullion is what
+                          // marks a two-leaf one.
+                          if (isGlazedOpening(op.kind)) {
                             return (
                               <g key={op.id}>
                                 {/* Gap cover */}

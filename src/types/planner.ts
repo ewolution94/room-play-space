@@ -372,14 +372,30 @@ export interface UseSettingsReturn {
 // src/lib/hallway-shapes.ts for the winding convention and
 // resolveWallSegment(), which is the single place both conventions are
 // resolved to physical points.
+/**
+ * What can be put in a wall.
+ *
+ * "terrace-door" is a glazed door to a garden or balcony -- the thing that
+ * separates it from a window is that it's *bodentief*: it starts at the
+ * floor instead of on a 90cm sill, and you walk through it, so it swings and
+ * eats floor space like a door. See lib/openings.ts, which is where the
+ * dimensional difference between the three actually lives.
+ */
+export type OpeningKind = "door" | "window" | "terrace-door";
+
 export interface Opening {
   id: string;
   wall: "top" | "bottom" | "left" | "right" | number;
   position: number;
   width: number;
-  kind: "door" | "window";
-  hinge?: "start" | "end"; // doors only
-  swing?: "in" | "out"; // doors only
+  kind: OpeningKind;
+  hinge?: "start" | "end"; // doors + terrace doors
+  swing?: "in" | "out"; // doors + terrace doors
+  /** Terrace doors only: one leaf ("einflügelig") or two ("zweiflügelig").
+   * Absent means one -- so every opening saved before terrace doors existed
+   * keeps its exact meaning. A two-leaf door swings from both ends, each
+   * leaf half the total width. */
+  leaves?: 1 | 2;
   color?: string;
 }
 
@@ -586,8 +602,11 @@ export interface SidebarProps {
   setNLayer: (layer: ItemLayer) => void;
   nShape: ItemShape;
   setNShape: (shape: ItemShape) => void;
-  oKind: "door" | "window";
-  setOKind: (kind: "door" | "window") => void;
+  oKind: OpeningKind;
+  setOKind: (kind: OpeningKind) => void;
+  /** Terrace doors only -- see Opening.leaves. */
+  oLeaves: 1 | 2;
+  setOLeaves: (leaves: 1 | 2) => void;
   oWall: Opening["wall"];
   setOWall: (wall: Opening["wall"]) => void;
   oPos: number;
@@ -826,8 +845,10 @@ export interface UseRoomPlannerReturn {
   setNLayer: React.Dispatch<React.SetStateAction<ItemLayer>>;
   nShape: ItemShape;
   setNShape: React.Dispatch<React.SetStateAction<ItemShape>>;
-  oKind: "door" | "window";
-  setOKind: React.Dispatch<React.SetStateAction<"door" | "window">>;
+  oKind: OpeningKind;
+  setOKind: React.Dispatch<React.SetStateAction<OpeningKind>>;
+  oLeaves: 1 | 2;
+  setOLeaves: React.Dispatch<React.SetStateAction<1 | 2>>;
   oWall: Opening["wall"];
   setOWall: React.Dispatch<React.SetStateAction<Opening["wall"]>>;
   oPos: number;

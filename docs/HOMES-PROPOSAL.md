@@ -201,7 +201,8 @@ Per `LEARNINGS.md`, against a **real** profile, not a cleared one:
   existing `FloorSwitcher` rule, unchanged) — deleting the whole Home is a
   dashboard action.
 - **German copy**: "Erstelle ein Zuhause" (create) and "Deine geplanten
-  Zuhauses" (the list). Settles the plural question.
+  Zuhause" (the list) — *Zuhause* is its own plural. Settled on screen
+  (2026-08-04) after "Zuhauses" was tried and read wrong.
 - **The user's own localStorage gets cleared once, by hand, at the end of
   Phase 1** — a clean slate on their machine only. No data-deleting code
   ships: the migration writes the new key and leaves the old ones alone. The
@@ -218,10 +219,9 @@ Per `LEARNINGS.md`, against a **real** profile, not a cleared one:
 2. ~~Can you delete the last floor inside a Home?~~ **No** — the switcher's
    existing can't-delete-the-last-one rule is unchanged, and deleting the
    whole Home from the dashboard is how you remove everything.
-3. **Should a Home be renameable?** Still open, and now the most obvious
-   gap: floors rename in the switcher, Homes have no rename surface at all,
-   so "Home 2" is stuck being called that. Additive; a good first follow-up.
-4. **German copy.** Built as decided ("Erstelle ein Zuhause" / "Deine
-   geplanten Zuhauses"), but *Zuhauses* is not a real German plural — worth
-   a look now that it's on screen. "Deine Wohnungen & Häuser" is the honest
-   alternative.
+3. ~~Should a Home be renameable?~~ **Yes, done** (2026-08-04) — a pencil on
+   the dashboard row, and standalone rooms got the same thing in the list
+   beside it, since they had no rename surface either. Clearing the field
+   resets a Home to its position-based default.
+4. ~~German copy.~~ **"Deine geplanten Zuhause"** — *Zuhause* is its own
+   plural.

@@ -734,6 +734,23 @@ permanent debug hook for this; add `window.__scene = scene` next to
 
 ## Three.js and SVG gotchas that surface far from their cause
 
+- **`material.transparent` is not a hint, and it is not free.** three.js builds
+  the refraction seen through a `transmission` material from a render pass
+  containing only the **opaque** list — every transparent object is excluded by
+  construction. So a surface flagged `transparent` does not exist as far as any
+  glass in the scene is concerned, *even at full opacity*. The wall-fade loop
+  used to set `transparent = true` on every wall material on every frame,
+  whether or not it was fading, and the result was that looking in through a
+  window showed the ground grid where the room's far walls should be. It read
+  as "windows are broken"; the cause was a flag on walls. Set it only while a
+  surface is genuinely translucent (`lib/three-materials.ts`).
+  - Two things that hide this bug from you: an exponential opacity lerp
+    *approaches* its target without reaching it, so "solid" walls sit at 0.997
+    forever and stay in the transparent queue — snap the last few thousandths
+    (`settleOpacity`). And the fade is driven by camera pitch, so at eye level
+    the near wall is faded anyway and you see through the whole wall; the bug
+    is most obvious looking *down* at a solid wall, where only the glass shows
+    the void.
 - **`THREE.ShapeGeometry` is indexed.** Its `position` attribute holds each
   unique corner once; `index` is what groups them into triangles. Walking
   `position` in threes runs off the end of a 4-corner polygon and produces

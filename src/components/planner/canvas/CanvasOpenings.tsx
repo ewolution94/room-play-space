@@ -2,6 +2,13 @@ import React from "react";
 import type { Opening, Point } from "@/types/planner";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
 import { effectiveSwing } from "@/lib/opening-geometry";
+import {
+  isGlazedOpening,
+  isSwingingOpening,
+  openingKindLabel,
+  openingLeaves,
+} from "@/lib/openings";
+import { STRINGS } from "@/lib/planner-translations";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
@@ -80,7 +87,9 @@ export function CanvasOpenings({
 
         const isSelected = selectedOpeningId === o.id;
         const hitThick = 24; // 24px hit target
-        const isWindow = o.kind === "window";
+        const isGlazed = isGlazedOpening(o.kind);
+        const swings = isSwingingOpening(o.kind);
+        const leaves = openingLeaves(o);
         const visualThickCm = 5;
 
         const containerStyle: React.CSSProperties = {
@@ -111,11 +120,13 @@ export function CanvasOpenings({
         };
 
         // Get opening color or fall back to default styling
-        const frameColor = o.color || (isWindow ? "rgb(14, 165, 233)" : "#475569");
+        const frameColor = o.color || (isGlazed ? "rgb(14, 165, 233)" : "#475569");
 
-        // Calculate paths for door swing in 2D
-        let dLeaf = "";
-        let dArc = "";
+        // Calculate paths for door swing in 2D. A terrace door swings like
+        // any other door -- that's most of the point of drawing one in plan,
+        // since floor-length glazing still eats the floor it opens over --
+        // so it gets the same leaf + arc, doubled when it has two leaves.
+        const swingPaths: { leaf: string; arc: string }[] = [];
         const W = cm(o.width);
         const hinge = o.hinge || "start";
 
@@ -128,23 +139,49 @@ export function CanvasOpenings({
         // right, inside on bottom and left.
         const swing = effectiveSwing(o.swing, corners, ptA, ptB);
 
-        if (o.kind === "door") {
-          if (hinge === "start") {
-            if (swing === "in") {
-              dLeaf = `M 0,${W} L 0,0`;
-              dArc = `M ${W},${W} A ${W},${W} 0 0,0 0,0`;
-            } else {
-              dLeaf = `M 0,${W} L 0,${2 * W}`;
-              dArc = `M ${W},${W} A ${W},${W} 0 0,1 0,${2 * W}`;
-            }
+        /**
+         * One hinged leaf. `origin` is where it's hinged along the opening
+         * (0 = the start end, `W` = the far end) and `span` how far it
+         * reaches -- the full width for a single leaf, half for each of a
+         * pair. The wall itself is the line y = W in this local frame.
+         *
+         * The four hinge x swing cases below are the original single-leaf
+         * paths with the radius parameterised; the arc sweep flags are
+         * carried over verbatim rather than re-derived, since (per
+         * docs/LEARNINGS.md) they don't follow a pattern you can reason your
+         * way to.
+         */
+        const leafPaths = (origin: number, span: number, hingedAtStart: boolean) => {
+          const tip = hingedAtStart ? origin + span : origin - span;
+          if (hingedAtStart) {
+            return swing === "in"
+              ? {
+                  leaf: `M ${origin},${W} L ${origin},${W - span}`,
+                  arc: `M ${tip},${W} A ${span},${span} 0 0,0 ${origin},${W - span}`,
+                }
+              : {
+                  leaf: `M ${origin},${W} L ${origin},${W + span}`,
+                  arc: `M ${tip},${W} A ${span},${span} 0 0,1 ${origin},${W + span}`,
+                };
+          }
+          return swing === "in"
+            ? {
+                leaf: `M ${origin},${W} L ${origin},${W - span}`,
+                arc: `M ${tip},${W} A ${span},${span} 0 0,1 ${origin},${W - span}`,
+              }
+            : {
+                leaf: `M ${origin},${W} L ${origin},${W + span}`,
+                arc: `M ${tip},${W} A ${span},${span} 0 0,0 ${origin},${W + span}`,
+              };
+        };
+
+        if (swings) {
+          if (leaves === 2) {
+            // A pair meeting in the middle: each leaf is half the opening
+            // and hinged at its own end, so the two arcs mirror each other.
+            swingPaths.push(leafPaths(0, W / 2, true), leafPaths(W, W / 2, false));
           } else {
-            if (swing === "in") {
-              dLeaf = `M ${W},${W} L ${W},0`;
-              dArc = `M 0,${W} A ${W},${W} 0 0,1 ${W},0`;
-            } else {
-              dLeaf = `M ${W},${W} L ${W},${2 * W}`;
-              dArc = `M 0,${W} A ${W},${W} 0 0,0 ${W},${2 * W}`;
-            }
+            swingPaths.push(leafPaths(hinge === "start" ? 0 : W, W, hinge === "start"));
           }
         }
 
@@ -215,21 +252,15 @@ export function CanvasOpenings({
           window.addEventListener("pointerup", up);
         };
 
-        const kindLabel =
-          o.kind === "door"
-            ? lang === "de"
-              ? "Tür"
-              : "Door"
-            : lang === "de"
-              ? "Fenster"
-              : "Window";
+        const kindLabel = openingKindLabel(o, STRINGS[lang === "de" ? "de" : "en"]);
         const dragLabel = lang === "de" ? "ziehen zum Bewegen" : "drag to move";
 
         return (
           <HoverTooltip key={o.id} content={`${kindLabel} (${o.width}cm) — ${dragLabel}`}>
             <div style={containerStyle} onPointerDown={onOpeningDown}>
-              {/* 2D Door Swing Representation */}
-              {o.kind === "door" && (
+              {/* 2D swing representation -- one leaf for a door, two for a
+                  double terrace door. */}
+              {swingPaths.length > 0 && (
                 <svg
                   width={W}
                   height={2 * W}
@@ -244,29 +275,36 @@ export function CanvasOpenings({
                     zIndex: 2,
                   }}
                 >
-                  {/* Door Leaf (Solid) */}
-                  <path
-                    d={dLeaf}
-                    fill="none"
-                    stroke={frameColor}
-                    className={o.color ? "" : "stroke-slate-600 dark:stroke-slate-300"}
-                    strokeWidth="1.5"
-                  />
-                  {/* Swing Arc (Dashed) */}
-                  <path
-                    d={dArc}
-                    fill="none"
-                    stroke={frameColor}
-                    className={o.color ? "" : "stroke-slate-400 dark:stroke-slate-500"}
-                    strokeWidth="1.2"
-                    strokeDasharray="3,3"
-                    opacity="0.9"
-                  />
+                  {swingPaths.map((p, i) => (
+                    <React.Fragment key={i}>
+                      {/* Door Leaf (Solid) */}
+                      <path
+                        d={p.leaf}
+                        fill="none"
+                        stroke={frameColor}
+                        className={o.color ? "" : "stroke-slate-600 dark:stroke-slate-300"}
+                        strokeWidth="1.5"
+                      />
+                      {/* Swing Arc (Dashed) */}
+                      <path
+                        d={p.arc}
+                        fill="none"
+                        stroke={frameColor}
+                        className={o.color ? "" : "stroke-slate-400 dark:stroke-slate-500"}
+                        strokeWidth="1.2"
+                        strokeDasharray="3,3"
+                        opacity="0.9"
+                      />
+                    </React.Fragment>
+                  ))}
                 </svg>
               )}
 
               <div style={visualStyle}>
-                {o.kind === "window" && (
+                {/* The glazing line down the middle of the pane, and -- on a
+                    two-leaf terrace door -- the mullion the two leaves meet
+                    at, which is what tells the two apart at a glance. */}
+                {isGlazed && (
                   <div
                     style={{
                       position: "absolute",
@@ -277,6 +315,19 @@ export function CanvasOpenings({
                       height: "1px",
                       transform: "translateY(-50%)",
                       opacity: 0.8,
+                    }}
+                  />
+                )}
+                {leaves === 2 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      background: frameColor,
+                      top: 0,
+                      bottom: 0,
+                      left: "50%",
+                      width: "1.5px",
+                      transform: "translateX(-50%)",
                     }}
                   />
                 )}

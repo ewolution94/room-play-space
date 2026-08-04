@@ -265,6 +265,8 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
           nShape={planner.nShape}
           setNShape={planner.setNShape}
           oKind={planner.oKind}
+          oLeaves={planner.oLeaves}
+          setOLeaves={planner.setOLeaves}
           setOKind={planner.setOKind}
           oWall={planner.oWall}
           setOWall={planner.setOWall}

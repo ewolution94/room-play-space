@@ -523,11 +523,17 @@ function HomeOverview() {
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
-            <img
-              src="/logo.svg"
-              alt="PLANUM"
-              className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
-            />
+            {/* Only the mark links to the dashboard here, not the heading
+                beside it: on this route the heading is the home's name --
+                page content, not the wordmark -- so making it navigate
+                somewhere else would be a trap. */}
+            <Link to="/dashboard" aria-label="PLANUM — Dashboard" className="shrink-0">
+              <img
+                src="/logo.svg"
+                alt="PLANUM"
+                className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1 transition-opacity hover:opacity-80"
+              />
+            </Link>
             <div className="min-w-0">
               {/* The home's own name, not a generic "Floor Plan" heading --
                   with several homes on the dashboard, which one you're

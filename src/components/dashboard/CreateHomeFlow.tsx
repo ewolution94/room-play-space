@@ -4,6 +4,10 @@ import { generateDefaultApartmentLayout } from "@/lib/default-apartment";
 import { createFloor } from "@/lib/floors";
 import { addHome, createHome, saveActiveHomeId } from "@/lib/homes";
 import { TOUR_KEY } from "@/hooks/use-room-planner";
+import {
+  CREATE_OPTION_LIST_CLASS,
+  CreateOptionButton,
+} from "@/components/dashboard/CreateOptionButton";
 import type { Home, Lang } from "@/types/planner";
 import { FilePlus2, Sparkles } from "lucide-react";
 
@@ -52,39 +56,25 @@ export function CreateHomeFlow({ lang }: CreateHomeFlowProps) {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <button
-        type="button"
+    <div className={CREATE_OPTION_LIST_CLASS}>
+      <CreateOptionButton
+        icon={FilePlus2}
+        title={lang === "de" ? "Von Grund auf" : "From scratch"}
+        description={
+          lang === "de" ? "Leeres Erdgeschoss, Räume später" : "Empty ground floor, rooms later"
+        }
         onClick={createEmpty}
-        className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent hover:border-primary/40"
-      >
-        <FilePlus2 className="h-5 w-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0">
-          <div className="text-sm font-medium">
-            {lang === "de" ? "Von Grund auf" : "From scratch"}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {lang === "de" ? "Leeres Erdgeschoss, Räume später" : "Empty ground floor, rooms later"}
-          </div>
-        </div>
-      </button>
-      <button
-        type="button"
+      />
+      <CreateOptionButton
+        icon={Sparkles}
+        title={lang === "de" ? "Aus Beispiel" : "From example"}
+        description={
+          lang === "de"
+            ? "Voll eingerichtetes Beispiel-Erdgeschoss"
+            : "A fully furnished example ground floor"
+        }
         onClick={createFromExample}
-        className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent hover:border-primary/40"
-      >
-        <Sparkles className="h-5 w-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0">
-          <div className="text-sm font-medium">
-            {lang === "de" ? "Aus Beispiel" : "From example"}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {lang === "de"
-              ? "Voll eingerichtetes Beispiel-Erdgeschoss"
-              : "A fully furnished example ground floor"}
-          </div>
-        </div>
-      </button>
+      />
     </div>
   );
 }

@@ -78,17 +78,28 @@ export function Header({
               bottom-left of the canvas itself instead (see CanvasArea.tsx's
               backUrl/backLabel props), so this slot always just shows the
               logo. */}
-          <img
-            src="/logo.svg"
-            alt="PLANUM"
-            className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
-          />
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-sky-400">
-              {t.title}
-            </h1>
-            <p className="hidden sm:block truncate text-xs text-muted-foreground">{t.subtitle}</p>
-          </div>
+          {/* Mark + wordmark go to the dashboard, the way a site's logo
+              goes to its home page. The room editor has no other
+              always-visible way back to the hub (the "Floor Plans" button
+              beside it only appears for a room inside a home, and the
+              canvas's back pill returns to that home, not the hub). */}
+          <Link
+            to="/dashboard"
+            aria-label="PLANUM — Dashboard"
+            className="flex min-w-0 items-center gap-3 rounded-md transition-opacity hover:opacity-80"
+          >
+            <img
+              src="/logo.svg"
+              alt="PLANUM"
+              className="h-10 w-10 shrink-0 object-contain rounded-md shadow-sm border border-border/20 bg-background/50 p-1"
+            />
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-sky-400">
+                {t.title}
+              </h1>
+              <p className="hidden sm:block truncate text-xs text-muted-foreground">{t.subtitle}</p>
+            </div>
+          </Link>
           {roomsUrl && !isPortrait && (
             <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 shrink-0">
               <Link to={roomsUrl}>

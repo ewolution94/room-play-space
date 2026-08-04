@@ -14,6 +14,10 @@ interface CanvasItemsProps {
   dragToRotateLabel: string;
   /** Tooltip clarifying the compact "L×W×H" figure on each box. */
   dimsLabel: string;
+  /** The same clarification printed inline after the numbers ("L×W×H" /
+   * "L×B×H") -- three bare figures are ambiguous, and a tooltip only helps
+   * someone who already thought to hover. */
+  dimsAxesLabel: string;
   /** Items that are too tall for the sloped ceiling where they currently
    * sit, keyed by item id (see SlopeFitIssue in CanvasArea.tsx). Deliberately
    * a persistent marker rather than a drop-time toast: a layout you come back
@@ -41,6 +45,7 @@ export function CanvasItems({
   onRotateHandleDown,
   dragToRotateLabel,
   dimsLabel,
+  dimsAxesLabel,
   slopeIssues,
 }: CanvasItemsProps) {
   // Whole cm -- a dragged item's raw float would otherwise render 15 digits
@@ -159,14 +164,19 @@ export function CanvasItems({
                       {it.name}
                     </span>
                   </HoverTooltip>
-                  {/* Length × Width × Height. Height comes from the item's
-                      own value, falling back to its preset default -- the
-                      same number the 3D view and the slope fit-check use,
-                      so all three agree. */}
+                  {/* Length × Width × Height, with the axis order spelled
+                      out after it -- the numbers on their own don't say
+                      which is which, and this reordered the first two from
+                      the width×length it used to print. Height comes from
+                      the item's own value, falling back to its preset
+                      default -- the same number the 3D view and the slope
+                      fit-check use, so all three agree. The tooltip stays
+                      for the full wording (and the unit). */}
                   <HoverTooltip content={dimsLabel}>
                     <span style={{ fontSize: dimSize, opacity: 0.8 }}>
                       {round(it.length)}×{round(it.width)}×
-                      {round(it.height ?? getDefaultHeight(it.icon, it.kind))}
+                      {round(it.height ?? getDefaultHeight(it.icon, it.kind))}{" "}
+                      <span style={{ opacity: 0.7 }}>{dimsAxesLabel}</span>
                     </span>
                   </HoverTooltip>
                 </div>

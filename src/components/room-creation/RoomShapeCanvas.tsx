@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { wallSegments, resolveWallSegment, NAMED_WALLS } from "@/lib/hallway-shapes";
 import { dragWallEdge } from "@/lib/room-shapes";
-import type { Point, Opening } from "@/types/planner";
+import type { Point, Opening, OpeningKind } from "@/types/planner";
 import { inwardNormal } from "@/lib/wall-slopes";
+import { openingLeaves } from "@/lib/openings";
 
 interface RoomShapeCanvasProps {
   corners: Point[];
@@ -24,7 +25,9 @@ interface RoomShapeCanvasProps {
   /** Slide an existing opening along its own wall (drag to reposition). */
   onMoveOpening?: (id: string, position: number) => void;
   /** Which kind the next click will place -- drives the ghost preview. */
-  ghostKind?: "door" | "window";
+  ghostKind?: OpeningKind;
+  /** Leaf count for the ghost, terrace doors only (see Opening.leaves). */
+  ghostLeaves?: 1 | 2;
   /** Selection is lifted so the step's toolbar (width presets, delete) can
    * act on the same opening the canvas is highlighting. */
   selectedOpeningId?: string | null;
@@ -69,22 +72,28 @@ const DEFAULT_OPENING_WIDTH = 90;
 const CENTRE_SNAP_CM = 18;
 
 /**
- * A door or window drawn the way a floor plan draws it.
+ * A door, window or terrace door drawn the way a floor plan draws it.
  *
  * Doors get a leaf plus a quarter-circle swing arc -- which is the only way
  * to see, at placement time, which direction it opens and how much floor it
  * sterilises. Windows get the conventional thin double line inset into the
  * wall. Previously both were a single fat coloured stroke, which told you
  * nothing beyond "something is here".
+ *
+ * A terrace door is both: the glazing lines of a window plus the swing of a
+ * door, with two mirrored leaves when it has two. That combination is the
+ * drawing -- it's a door you can see through.
  */
 function OpeningSymbol({
   geo,
   kind,
+  leaves = 1,
   selected,
   dashed,
 }: {
   geo: OpeningGeometry;
-  kind: "door" | "window";
+  kind: OpeningKind;
+  leaves?: 1 | 2;
   selected?: boolean;
   dashed?: boolean;
 }) {
@@ -98,6 +107,52 @@ function OpeningSymbol({
     vectorEffect: "non-scaling-stroke" as const,
     strokeDasharray: dashed ? "4 4" : undefined,
   };
+
+  if (kind === "terrace-door") {
+    // Glazing (a single inset rail -- the pane is the full opening, unlike
+    // a window's two rails around a sash) plus one swing per leaf.
+    const off = geo.width * 0.05;
+    const half = geo.width / 2;
+    const leafSwing = (from: Point, to: Point, span: number) => {
+      const tip = { x: from.x + geo.nx * span, y: from.y + geo.ny * span };
+      return (
+        <g key={`${from.x},${from.y}`}>
+          <line
+            x1={from.x}
+            y1={from.y}
+            x2={tip.x}
+            y2={tip.y}
+            strokeWidth={selected ? 3.5 : 2.5}
+            {...common}
+          />
+          <path
+            d={`M ${tip.x} ${tip.y} A ${span} ${span} 0 0 0 ${to.x} ${to.y}`}
+            fill="none"
+            strokeWidth={selected ? 2 : 1.5}
+            className={`${stroke} pointer-events-none opacity-70`}
+            vectorEffect="non-scaling-stroke"
+            strokeDasharray={dashed ? "4 4" : "3 3"}
+          />
+        </g>
+      );
+    };
+    const mid = { x: (geo.start.x + geo.end.x) / 2, y: (geo.start.y + geo.end.y) / 2 };
+    return (
+      <g>
+        <line
+          x1={geo.start.x + geo.nx * off}
+          y1={geo.start.y + geo.ny * off}
+          x2={geo.end.x + geo.nx * off}
+          y2={geo.end.y + geo.ny * off}
+          strokeWidth={selected ? 3 : 2}
+          {...common}
+        />
+        {leaves === 2
+          ? [leafSwing(geo.start, mid, half), leafSwing(geo.end, mid, half)]
+          : leafSwing(geo.start, geo.end, geo.width)}
+      </g>
+    );
+  }
 
   if (kind === "window") {
     // Two thin rails inset from the wall line, the standard window glyph.
@@ -179,6 +234,7 @@ export function RoomShapeCanvas({
   onRemoveOpening,
   onMoveOpening,
   ghostKind = "door",
+  ghostLeaves = 1,
   selectedOpeningId = null,
   onSelectOpening,
   onWallLengthChange,
@@ -605,7 +661,7 @@ export function RoomShapeCanvas({
                       strokeWidth={6}
                       vectorEffect="non-scaling-stroke"
                     />
-                    <OpeningSymbol geo={g} kind={ghostKind} dashed />
+                    <OpeningSymbol geo={g} kind={ghostKind} leaves={ghostLeaves} dashed />
                   </g>
                 );
               })()}
@@ -628,7 +684,12 @@ export function RoomShapeCanvas({
                     strokeWidth={6}
                     vectorEffect="non-scaling-stroke"
                   />
-                  <OpeningSymbol geo={g} kind={o.kind} selected={isSelected} />
+                  <OpeningSymbol
+                    geo={g}
+                    kind={o.kind}
+                    leaves={openingLeaves(o)}
+                    selected={isSelected}
+                  />
                   {/* Grab area: select on click, drag to slide along the
                       wall. Deliberately NOT delete-on-click -- that made
                       every mis-click destructive. */}

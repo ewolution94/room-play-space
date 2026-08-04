@@ -10,6 +10,8 @@ import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/li
 import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/lib/kit-models";
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
+import { isTranslucent, setMaterialTransparency, settleOpacity } from "@/lib/three-materials";
+import { OPENING_GEOMETRY, isGlazedOpening, openingLeaves } from "@/lib/openings";
 import {
   DEFAULT_CEILING_HEIGHT,
   buildCeilingSurface,
@@ -1231,23 +1233,30 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           const opStart = o.position;
           const opEnd = o.position + o.width;
           const opCenterLocal = (opStart + opEnd) / 2 - length / 2;
-          const sillHeight = 90;
-          const windowHeight = 120;
-          const doorHeight = 200;
+          // Per-kind geometry (lib/openings.ts). A terrace door is glazed
+          // like a window but *bodentief* -- sill 0 -- which is exactly what
+          // the two numbers below express, so the whole glazed branch is
+          // shared rather than copied.
+          const { sill: sillHeight, height: paneHeight } = OPENING_GEOMETRY[o.kind];
+          const doorHeight = OPENING_GEOMETRY.door.height;
 
-          if (o.kind === "window") {
-            const sillGeo = new THREE.BoxGeometry(o.width, sillHeight, wallThickness);
-            const sillMesh = new THREE.Mesh(sillGeo, localWallMat);
-            sillMesh.position.set(opCenterLocal, sillHeight / 2, 0);
-            sillMesh.castShadow = true;
-            sillMesh.receiveShadow = true;
-            wallGroup.add(sillMesh);
+          if (isGlazedOpening(o.kind)) {
+            // Only a window has wall under it. A terrace door's sill is 0,
+            // so there's nothing to build and this is skipped.
+            if (sillHeight > 0) {
+              const sillGeo = new THREE.BoxGeometry(o.width, sillHeight, wallThickness);
+              const sillMesh = new THREE.Mesh(sillGeo, localWallMat);
+              sillMesh.position.set(opCenterLocal, sillHeight / 2, 0);
+              sillMesh.castShadow = true;
+              sillMesh.receiveShadow = true;
+              wallGroup.add(sillMesh);
+            }
 
             // The strip above the window needs the same cut as the wall
             // chunks either side of it -- otherwise the slope is honoured
             // across the wall but a square block survives over each opening.
             const windowLintelGeo = wallNeedsProfile
-              ? buildProfiledSlab(opStart, opEnd, sillHeight + windowHeight)
+              ? buildProfiledSlab(opStart, opEnd, sillHeight + paneHeight)
               : null;
             if (windowLintelGeo) {
               const lintelMesh = new THREE.Mesh(windowLintelGeo, localWallMat);
@@ -1255,7 +1264,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
               lintelMesh.receiveShadow = true;
               wallGroup.add(lintelMesh);
             } else if (!wallNeedsProfile) {
-              const lintelH = segmentHeight - (sillHeight + windowHeight);
+              const lintelH = segmentHeight - (sillHeight + paneHeight);
               if (lintelH > 0) {
                 const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
                 const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
@@ -1267,9 +1276,9 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             }
 
             // Glass pane (rendered in the middle, slightly smaller to fit inside frame border)
-            const glassGeo = new THREE.BoxGeometry(o.width - 8, windowHeight - 8, 4);
+            const glassGeo = new THREE.BoxGeometry(o.width - 8, paneHeight - 8, 4);
             const glassMesh = new THREE.Mesh(glassGeo, localGlassMat);
-            glassMesh.position.set(opCenterLocal, sillHeight + windowHeight / 2, 0);
+            glassMesh.position.set(opCenterLocal, sillHeight + paneHeight / 2, 0);
             // Flagged so the wall-fade animation loop below can also fade
             // this mesh's `transmission`, not just its `opacity` -- see that
             // loop for why `opacity` alone doesn't visibly fade glass.
@@ -1288,7 +1297,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             // Top frame rail
             const topRailGeo = new THREE.BoxGeometry(o.width, frameBorder, frameThickness);
             const topRail = new THREE.Mesh(topRailGeo, frameMat);
-            topRail.position.set(opCenterLocal, sillHeight + windowHeight - frameBorder / 2, 0);
+            topRail.position.set(opCenterLocal, sillHeight + paneHeight - frameBorder / 2, 0);
             topRail.castShadow = true;
             topRail.receiveShadow = true;
             wallGroup.add(topRail);
@@ -1304,13 +1313,13 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             // Left frame post
             const leftPostGeo = new THREE.BoxGeometry(
               frameBorder,
-              windowHeight - frameBorder * 2,
+              paneHeight - frameBorder * 2,
               frameThickness,
             );
             const leftPost = new THREE.Mesh(leftPostGeo, frameMat);
             leftPost.position.set(
               opCenterLocal - o.width / 2 + frameBorder / 2,
-              sillHeight + windowHeight / 2,
+              sillHeight + paneHeight / 2,
               0,
             );
             leftPost.castShadow = true;
@@ -1320,18 +1329,34 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             // Right frame post
             const rightPostGeo = new THREE.BoxGeometry(
               frameBorder,
-              windowHeight - frameBorder * 2,
+              paneHeight - frameBorder * 2,
               frameThickness,
             );
             const rightPost = new THREE.Mesh(rightPostGeo, frameMat);
             rightPost.position.set(
               opCenterLocal + o.width / 2 - frameBorder / 2,
-              sillHeight + windowHeight / 2,
+              sillHeight + paneHeight / 2,
               0,
             );
             rightPost.castShadow = true;
             rightPost.receiveShadow = true;
             wallGroup.add(rightPost);
+
+            // Centre mullion where a two-leaf terrace door's leaves meet --
+            // the one thing that distinguishes it from a single wide pane,
+            // and the same detail the 2D plan draws.
+            if (openingLeaves(o) === 2) {
+              const mullionGeo = new THREE.BoxGeometry(
+                frameBorder,
+                paneHeight - frameBorder * 2,
+                frameThickness,
+              );
+              const mullion = new THREE.Mesh(mullionGeo, frameMat);
+              mullion.position.set(opCenterLocal, sillHeight + paneHeight / 2, 0);
+              mullion.castShadow = true;
+              mullion.receiveShadow = true;
+              wallGroup.add(mullion);
+            }
           } else if (o.kind === "door") {
             const doorLintelGeo = wallNeedsProfile
               ? buildProfiledSlab(opStart, opEnd, doorHeight)
@@ -1923,12 +1948,18 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           targetOpacity = THREE.MathUtils.lerp(1.0, wallFadeOpacityRef.current, fadeFactor);
         }
 
-        c.currentOpacity = THREE.MathUtils.lerp(c.currentOpacity, targetOpacity, 0.12);
+        c.currentOpacity = settleOpacity(
+          THREE.MathUtils.lerp(c.currentOpacity, targetOpacity, 0.12),
+          targetOpacity,
+        );
         c.group.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach((m) => {
-              m.transparent = true;
+              // Only transparent while actually translucent -- see the wall
+              // loop below for why a permanently-transparent surface is
+              // invisible through any glass in the scene.
+              setMaterialTransparency(m, isTranslucent(c.currentOpacity));
               m.opacity = c.currentOpacity;
               // Writing depth while translucent makes the furniture behind
               // it vanish rather than show through.
@@ -1970,15 +2001,45 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           targetOpacity = THREE.MathUtils.lerp(1.0, wallFadeOpacityRef.current, fadeFactor);
         }
 
-        w.currentOpacity = THREE.MathUtils.lerp(w.currentOpacity, targetOpacity, 0.12);
+        // Snapped once it's close enough: the lerp only ever *approaches*
+        // its target, so a wall coming back to solid would otherwise sit at
+        // 0.997 for the best part of a second -- still counted translucent,
+        // and so still missing from every window's glass -- long after it
+        // looks solid.
+        w.currentOpacity = settleOpacity(
+          THREE.MathUtils.lerp(w.currentOpacity, targetOpacity, 0.12),
+          targetOpacity,
+        );
 
         w.group.traverse((child) => {
           if (child instanceof THREE.Mesh) {
             if (child.material) {
+              const isGlass = child.userData.isGlassPane === true;
+              const translucent = isTranslucent(w.currentOpacity);
               const mats = Array.isArray(child.material) ? child.material : [child.material];
               mats.forEach((mat) => {
-                mat.transparent = true;
+                // A wall is flagged `transparent` only while it is actually
+                // translucent, and never merely because it *might* fade.
+                //
+                // This is not a micro-optimisation. three.js renders the
+                // refraction seen through a `transmission` material from a
+                // dedicated pass containing ONLY opaque objects -- every
+                // transparent one is excluded by construction. Walls used
+                // to be marked transparent unconditionally, every frame,
+                // so no wall existed as far as any glass was concerned:
+                // looking in through a window from outside showed the
+                // ground grid where the room's far walls should have been.
+                // Big terrace-door glazing made it impossible to miss.
+                //
+                // The glass pane itself is genuinely transparent and stays
+                // that way -- flipping it opaque would make windows solid.
+                setMaterialTransparency(mat, isGlass || translucent);
                 mat.opacity = w.currentOpacity;
+                // Writing depth while translucent hides whatever is behind
+                // the wall instead of letting it show through -- the same
+                // rule the ceiling loop above already uses. The glass keeps
+                // its own setting, which the window build chose.
+                if (!isGlass) mat.depthWrite = !translucent;
                 // A window's glass pane is a MeshPhysicalMaterial with
                 // `transmission` > 0 (see localGlassMat above) -- that
                 // property renders real refraction through a dedicated pass
@@ -1999,7 +2060,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             if (child.material) {
               const mats = Array.isArray(child.material) ? child.material : [child.material];
               mats.forEach((mat) => {
-                mat.transparent = true;
+                setMaterialTransparency(mat, isTranslucent(w.currentOpacity));
                 mat.opacity = w.currentOpacity;
               });
             }

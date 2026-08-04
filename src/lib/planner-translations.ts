@@ -16,6 +16,13 @@ export const STRINGS = {
     position: "Position (cm)",
     door: "Door",
     window: "Window",
+    // A glazed door onto a garden or balcony. Called out as its own kind
+    // rather than a wide window because it's floor-length and you walk
+    // through it -- see lib/openings.ts.
+    terraceDoor: "Terrace door",
+    leaves: "Leaves",
+    oneLeaf: "1 leaf",
+    twoLeaves: "2 leaves",
     top: "Top",
     bottom: "Bottom",
     left: "Left",
@@ -109,6 +116,11 @@ export const STRINGS = {
     // box and the Elements list -- the numbers alone are ambiguous about
     // which is which.
     dimsLWH: "Length × Width × Height (cm)",
+    // The same thing said inline, printed right after the numbers on a
+    // canvas item. A tooltip only answers the question once you think to
+    // hover, and on a plan you're reading at a glance. Translated because
+    // the initials follow the words: Länge/Breite/Höhe -> L×B×H.
+    dimsAxes: "L×W×H",
     openingOnSlopedWall: "Doors and windows aren't supported on a sloped wall.",
     slopeRemovesOpeningsTitle: "Remove doors and windows on this wall?",
     slopeRemovesOpeningsBody:
@@ -171,6 +183,10 @@ export const STRINGS = {
     position: "Position (cm)",
     door: "Tür",
     window: "Fenster",
+    terraceDoor: "Terrassentür",
+    leaves: "Flügel",
+    oneLeaf: "1-flügelig",
+    twoLeaves: "2-flügelig",
     top: "Oben",
     bottom: "Unten",
     left: "Links",
@@ -261,6 +277,7 @@ export const STRINGS = {
     twoDMode: "2D-Modus",
     roomHeight: "Wandhöhe (cm)",
     dimsLWH: "Länge × Breite × Höhe (cm)",
+    dimsAxes: "L×B×H",
     openingOnSlopedWall: "Türen und Fenster werden an einer Schräge nicht unterstützt.",
     slopeRemovesOpeningsTitle: "Türen und Fenster an dieser Wand entfernen?",
     slopeRemovesOpeningsBody:

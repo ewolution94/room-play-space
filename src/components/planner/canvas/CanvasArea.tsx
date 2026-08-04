@@ -709,6 +709,7 @@ export function CanvasArea({
                   onRotateHandleDown={isMobileViewOnly ? () => {} : onRotateHandleDown}
                   dragToRotateLabel={t.dragToRotate}
                   dimsLabel={t.dimsLWH}
+                  dimsAxesLabel={t.dimsAxes}
                   slopeIssues={slopeIssues}
                 />
 
