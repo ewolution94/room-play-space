@@ -950,8 +950,74 @@ terrace-door glazing made it impossible to ignore.
       "verify 3D against the scene graph, not a screenshot" rule already in
       LEARNINGS.
 
+### An opening must fit its wall, + Homes phases 2 and 3 (2026-08-05)
+
+**1. An opening that doesn't fit can't be built.** Terrace doors are 210cm
+and wall height is user-editable down to 50, so nothing stopped a door
+poking through the ceiling -- it renders as glazing floating above the wall
+with no lintel over it. Blocked rather than warned (which is what too-tall
+*furniture* gets): furniture merely stands in a room, an opening is a hole
+in a wall.
+
+- [x] One rule in `lib/openings.ts` (`openingFitsWall`, `requiredWallHeight`),
+      enforced at all three places state can change: adding an opening,
+      editing one, and lowering the wall height under existing ones. Each
+      refusal names the numbers -- "needs 210 cm of wall — these walls are
+      200 cm" -- because "doesn't fit" alone doesn't say what to change.
+- [x] **Closed a bypass found while doing it**: `updateOpening` re-validated
+      bounds and overlap when the wall changed but never re-checked whether
+      the *new* wall was sloped, so the wall picker could move a door onto a
+      knee wall that `addOpening` would have refused outright.
+- [x] Only the user-facing setter is guarded. Undo/redo restore and file
+      import call the raw setState: they replay a state that existed as a
+      whole, and validating one field of it in isolation would corrupt
+      history. The 3D view clamps defensively instead, so an imported file
+      (which never passes through the UI) can't render a floating pane.
+- [x] **Fixed a lie the new refusal exposed, in a shared primitive**:
+      `NumberField` keeps a local draft and only re-synced it when `value`
+      *changed* -- so a rejected (or clamped-to-the-same-number) commit left
+      the field displaying what you typed while the app held something else.
+      It now re-syncs after every commit, which fixes it for every numeric
+      field in the app, not just this one.
+
+**2. Homes Phase 2 -- home-level export/import.** Export/import was
+floor-scoped inside a home; a whole home couldn't leave the app.
+
+- [x] New "This home" scope exports `{ name, floors }` -- the one shape that
+      round-trips a home somewhere else. No id in the file: an imported home
+      either replaces one (which keeps its own id) or becomes a new one.
+- [x] New `parseImportedHome` accepts **four** generations, so nothing
+      anyone ever exported stops working: a home export, a `{floors, ...}`
+      bundle, a bare `Floor[]`, and a pre-floors `RoomLayout[]`. Only the
+      first carries a name; the rest become un-named homes.
+- [x] **"From a file" on the dashboard** creates a *new* home from any of
+      those, with `withFreshIds` re-minting floor and room ids -- without it,
+      importing the same file twice leaves two homes sharing room ids and
+      anything resolving a room id across homes lands on whichever it finds
+      first.
+- [x] Importing "This home" over an existing home replaces its floors *and*
+      its name; a file with no name of its own leaves the current name alone
+      rather than blanking it.
+
+**3. Homes Phase 3 -- copy pass.** Export/import dialogs now say "Export
+from this home" / "Import into this home" (they offer three scopes, not just
+floors), with a scope-aware success toast. Removed the header's dead
+"Floor Plans" button -- `roomsUrl` had not been passed since the back-pill
+replaced it, so its stale wording never rendered -- plus its now-unused
+imports and the orphaned `backToRooms` string.
+
+- [x] Verified live: adding a terrace door to a 200cm room is refused with
+      the exact message and saves nothing; lowering a 240cm room with a
+      210cm terrace door in it is refused, the field snaps back to 240, and
+      a *valid* change to 260 still commits. Home export produces
+      `{name, floors}` named "Ferienhaus" as `ferienhaus-2026-08-05.json`;
+      importing it from the dashboard creates a second home with the name
+      preserved, **fresh ids (no collision)** and the original untouched;
+      importing a renamed copy over a home renames it live. 717 tests
+      (23 new), tsc clean, lint 18/19 (baseline).
+
 ### Still open
-- [ ] Openings on a shortened (sloped) wall aren't height-validated against `kneeHeight` -- a window can currently be taller than the knee wall it sits in. Roof windows (*Dachfenster*) remain out of scope.
+- [ ] Roof windows (*Dachfenster*) -- openings on a sloped wall remain unsupported entirely, now enforced on both the add and the edit path rather than just the add.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.
 - [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it. Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.
 - [ ] The canvas's floating Room Inspector can overlap the bottom-left back pill at shorter viewport heights (~720px). Pre-existing on both room routes -- not introduced by any recent change, but now more visible since the back pill is a single room's main way out.

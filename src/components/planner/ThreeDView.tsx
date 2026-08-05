@@ -1237,8 +1237,15 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           // like a window but *bodentief* -- sill 0 -- which is exactly what
           // the two numbers below express, so the whole glazed branch is
           // shared rather than copied.
-          const { sill: sillHeight, height: paneHeight } = OPENING_GEOMETRY[o.kind];
-          const doorHeight = OPENING_GEOMETRY.door.height;
+          const { sill: sillHeight, height: nominalPaneHeight } = OPENING_GEOMETRY[o.kind];
+          // Clamped to what the wall can actually contain. The editor
+          // refuses to create or keep an opening taller than its wall (see
+          // openingFitsWall in lib/openings.ts), but an imported file has
+          // no such guarantee -- and an unclamped pane renders as glazing
+          // floating above the wall with no lintel over it, which reads as
+          // a rendering bug rather than as bad data.
+          const paneHeight = Math.min(nominalPaneHeight, segmentHeight - sillHeight);
+          const doorHeight = Math.min(OPENING_GEOMETRY.door.height, segmentHeight);
 
           if (isGlazedOpening(o.kind)) {
             // Only a window has wall under it. A terrace door's sill is 0,

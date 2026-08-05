@@ -27,10 +27,17 @@ export const NumberField = React.forwardRef<HTMLInputElement, NumberFieldProps>(
   ({ value, onCommit, min, max, onKeyDown, ...props }, ref) => {
     const [draft, setDraft] = React.useState(String(value));
     const focusedRef = React.useRef(false);
+    // Bumped by every commit, so the sync effect below re-runs even when
+    // `value` did NOT change -- which is exactly what happens when the
+    // owner clamps the committed number to what it already was, or refuses
+    // it outright (e.g. a wall height below the openings already in the
+    // wall). Without this the field goes on displaying the rejected number
+    // while the app holds a different one, which reads as "it worked".
+    const [commitTick, setCommitTick] = React.useState(0);
 
     React.useEffect(() => {
       if (!focusedRef.current) setDraft(String(value));
-    }, [value]);
+    }, [value, commitTick]);
 
     const commit = () => {
       const parsed = parseFloat(draft);
@@ -39,6 +46,10 @@ export const NumberField = React.forwardRef<HTMLInputElement, NumberFieldProps>(
       if (max !== undefined) next = Math.min(max, next);
       setDraft(String(next));
       if (next !== value) onCommit(next);
+      // Batched with whatever onCommit just did, so the effect above runs
+      // once, after the owner has settled, and shows what is actually in
+      // effect rather than what was typed.
+      setCommitTick((t) => t + 1);
     };
 
     return (

@@ -32,6 +32,33 @@ export function openingTopHeight(kind: OpeningKind): number {
   return g.sill + g.height;
 }
 
+/**
+ * How much taller a wall would have to be for this opening to fit in it,
+ * in cm. 0 when it already fits.
+ *
+ * An opening is a hole in a wall, so unlike furniture -- which merely
+ * stands in a room, and is warned about rather than blocked -- one that
+ * doesn't fit is not a thing that can be built. A 210cm terrace door in a
+ * room whose walls are 200cm high has no lintel and renders as glazing
+ * floating above the wall.
+ */
+export function openingHeightShortfall(kind: OpeningKind, wallHeight: number): number {
+  return Math.max(0, openingTopHeight(kind) - wallHeight);
+}
+
+export function openingFitsWall(kind: OpeningKind, wallHeight: number): boolean {
+  return openingHeightShortfall(kind, wallHeight) === 0;
+}
+
+/**
+ * The shortest a room's walls can be while still containing every opening
+ * already in them -- i.e. the tallest opening's top edge. 0 for a room with
+ * no openings, which is then free to have any ceiling height at all.
+ */
+export function requiredWallHeight(openings: Pick<Opening, "kind">[]): number {
+  return openings.reduce((tallest, o) => Math.max(tallest, openingTopHeight(o.kind)), 0);
+}
+
 /** Does this kind swing on hinges (leaf + arc in plan, floor space eaten)? */
 export function isSwingingOpening(kind: OpeningKind): boolean {
   return kind === "door" || kind === "terrace-door";

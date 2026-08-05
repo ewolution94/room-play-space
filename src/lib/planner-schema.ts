@@ -141,6 +141,23 @@ const floorSchema = z.object({
 // render an unbounded number of floors at once.
 export const floorsArrayImportSchema = floorSchema.array().min(1).max(100);
 
+/**
+ * A whole Home in a file: its name plus its floors.
+ *
+ * The id is deliberately NOT part of this. A home is imported either into
+ * an existing home (which keeps its own id) or as a brand-new one (which
+ * gets a fresh id), so an id in the file could only ever collide with
+ * something already saved. Everything below the home -- floors, rooms --
+ * keeps its ids, exactly as the floors-only import always has.
+ *
+ * `name` is nullable because that is what "no custom name, show the
+ * position-based default" means for a Home (see Home in types/planner.ts).
+ */
+export const homeImportSchema = z.object({
+  name: z.string().max(100).nullable().optional(),
+  floors: floorSchema.array().min(1).max(100),
+});
+
 /** Turns a caught import error (a ZodError from a failed `.parse()`, a
  * plain Error, or anything else) into one readable string -- shared by
  * every import path (single-room, floor/building) so the export/import

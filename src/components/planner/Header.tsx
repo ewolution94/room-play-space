@@ -20,13 +20,11 @@ import {
   FileStack,
   Sun,
   Moon,
-  LayoutGrid,
   LayoutDashboard,
   Settings,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
 import { Link } from "@tanstack/react-router";
-import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { ExportImportDialog } from "./ExportImportDialog";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
@@ -50,21 +48,8 @@ export function Header({
   theme,
   toggleTheme,
   onOpenSettings,
-  roomsUrl,
   viewOnly,
 }: HeaderProps) {
-  // Drives the roomsUrl cross-navigation link below: a wide labeled button
-  // when there's enough room (landscape, at any width -- including
-  // desktop), an icon-only button on the right when there isn't (portrait).
-  // Previously this was decided by two independent, mismatched thresholds
-  // (a `hidden md:flex` CSS breakpoint at 768px for the wide button, and
-  // the JS-driven `viewOnly` prop, itself gated at 1024px) which could both
-  // evaluate true at once -- e.g. a landscape phone at ~900px wide is under
-  // 1024 (so viewOnly's icon button rendered) but over 768 (so the wide
-  // button's CSS also matched), showing both simultaneously. Using a
-  // single `isPortrait` boolean for both instead guarantees exactly one
-  // ever renders.
-  const { isPortrait } = useMobileViewOnly();
   const [exportOpen, setExportOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const roomScopes = [{ id: "room", label: lang === "de" ? "Dieser Raum" : "This room" }];
@@ -72,17 +57,12 @@ export function Header({
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
         <div id="tour-header" className="flex min-w-0 items-center gap-3">
-          {/* The single-room view's "back to floor plan" button used to
-              live here as a small icon-only button -- easy to miss and not
-              very self-explanatory. It now lives as a labeled pill at the
-              bottom-left of the canvas itself instead (see CanvasArea.tsx's
-              backUrl/backLabel props), so this slot always just shows the
-              logo. */}
-          {/* Mark + wordmark go to the dashboard, the way a site's logo
-              goes to its home page. The room editor has no other
-              always-visible way back to the hub (the "Floor Plans" button
-              beside it only appears for a room inside a home, and the
-              canvas's back pill returns to that home, not the hub). */}
+          {/* Mark + wordmark go to the dashboard, the way a site's logo goes
+              to its home page -- and the room editor's only always-visible
+              way back to the hub. Going back to the room's own home is the
+              canvas's bottom-left pill instead (CanvasArea's backUrl), which
+              is where the old icon-only "back to floor plan" button in this
+              slot ended up: easy to miss here, self-explanatory there. */}
           <Link
             to="/dashboard"
             aria-label="PLANUM — Dashboard"
@@ -100,29 +80,12 @@ export function Header({
               <p className="hidden sm:block truncate text-xs text-muted-foreground">{t.subtitle}</p>
             </div>
           </Link>
-          {roomsUrl && !isPortrait && (
-            <Button variant="outline" size="sm" asChild className="ml-2 gap-1.5 shrink-0">
-              <Link to={roomsUrl}>
-                <LayoutGrid className="h-4 w-4" />
-                <span>{lang === "de" ? "Grundrisse" : "Floor Plans"}</span>
-              </Link>
-            </Button>
-          )}
         </div>
         {/* Mobile view-only mode: every editing action below (undo/redo/
             import/export/reset/tour) is meaningless with no sidebar or
             tools to act on -- keep just navigation + theme/language. */}
         {viewOnly ? (
           <div className="flex items-center gap-2">
-            {roomsUrl && isPortrait && (
-              <HoverTooltip content={lang === "de" ? "Grundrisse" : "Floor Plans"}>
-                <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
-                  <Link to={roomsUrl}>
-                    <LayoutGrid className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </HoverTooltip>
-            )}
             <HoverTooltip content={lang === "en" ? "Deutsch" : "English"}>
               <Button
                 variant="outline"
@@ -160,16 +123,6 @@ export function Header({
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
-            {roomsUrl && isPortrait && (
-              <HoverTooltip content={lang === "de" ? "Grundrisse" : "Floor Plans"}>
-                <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
-                  <Link to={roomsUrl}>
-                    <LayoutGrid className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </HoverTooltip>
-            )}
-
             {/* History: a single segmented control reads as one unit rather
                 than two separate buttons, and is the most frequently used
                 pair here -- kept unconditionally visible, unlike everything

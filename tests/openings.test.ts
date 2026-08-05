@@ -9,6 +9,9 @@ import {
   defaultOpeningWidth,
   openingWidthPresets,
   openingKindLabel,
+  openingFitsWall,
+  openingHeightShortfall,
+  requiredWallHeight,
 } from "@/lib/openings";
 import { STRINGS } from "@/lib/planner-translations";
 import type { OpeningKind } from "@/types/planner";
@@ -91,6 +94,64 @@ describe("real-world widths", () => {
     for (const w of openingWidthPresets("terrace-door", 2)) {
       assert.ok(w >= 160, `${w}cm is too narrow for two leaves`);
     }
+  });
+});
+
+// An opening is a hole in a wall: one taller than the wall it sits in
+// can't be built, and renders as glazing floating above the wall with no
+// lintel. This is what the editor blocks on -- unlike too-tall furniture,
+// which only warns, because furniture merely stands in the room.
+describe("fitting an opening into its wall", () => {
+  test("the default 240cm room takes every kind", () => {
+    for (const kind of KINDS) {
+      assert.equal(openingFitsWall(kind, 240), true, `${kind} should fit a 240cm wall`);
+    }
+  });
+
+  // The case that prompted this: terrace doors are 210, and wall height is
+  // user-editable well below that.
+  test("a 200cm room cannot take a terrace door, but still takes a door", () => {
+    assert.equal(openingFitsWall("terrace-door", 200), false);
+    assert.equal(openingHeightShortfall("terrace-door", 200), 10);
+    assert.equal(openingFitsWall("door", 200), true);
+  });
+
+  test("the shortfall is what the message needs: how much taller the wall must be", () => {
+    assert.equal(openingHeightShortfall("window", 150), 60); // 90 sill + 120 pane
+    assert.equal(openingHeightShortfall("window", 210), 0);
+    assert.equal(openingHeightShortfall("door", 260), 0, "a fitting opening has no shortfall");
+  });
+
+  test("exactly tall enough counts as fitting", () => {
+    assert.equal(openingFitsWall("terrace-door", 210), true);
+    assert.equal(openingFitsWall("terrace-door", 209.9), false);
+  });
+});
+
+describe("requiredWallHeight", () => {
+  test("is the tallest opening's top edge", () => {
+    assert.equal(
+      requiredWallHeight([{ kind: "door" }, { kind: "terrace-door" }, { kind: "window" }]),
+      210,
+    );
+    assert.equal(requiredWallHeight([{ kind: "door" }]), 200);
+  });
+
+  // A room with nothing in its walls can have any ceiling height at all.
+  test("a room with no openings constrains nothing", () => {
+    assert.equal(requiredWallHeight([]), 0);
+  });
+
+  test("it agrees with openingFitsWall -- a wall at exactly this height fits them all", () => {
+    const openings = [{ kind: "door" as const }, { kind: "terrace-door" as const }];
+    const needed = requiredWallHeight(openings);
+    for (const o of openings) {
+      assert.equal(openingFitsWall(o.kind, needed), true, `${o.kind} should fit at ${needed}`);
+    }
+    // And it is the *binding* constraint: one cm lower and the tallest
+    // stops fitting, while the shorter one is still fine.
+    assert.equal(openingFitsWall("terrace-door", needed - 1), false);
+    assert.equal(openingFitsWall("door", needed - 1), true);
   });
 });
 

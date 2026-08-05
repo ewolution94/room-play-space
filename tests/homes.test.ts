@@ -20,6 +20,8 @@ import {
   saveActiveHomeId,
   loadActiveFloorId,
   saveActiveFloorId,
+  parseImportedHome,
+  withFreshIds,
 } from "@/lib/homes";
 import { MULTI_FLOORS_KEY, createFloor } from "@/lib/floors";
 import type { Floor, Home, RoomLayout } from "@/types/planner";
@@ -318,6 +320,93 @@ describe("naming", () => {
     assert.equal(findHome(b.id)?.name, "Beach Flat");
     // And nothing else about the renamed home moved.
     assert.deepEqual(findHome(b.id)?.floors, b.floors);
+  });
+});
+
+// Phase 2: a whole home in a file. The point of the exercise is that
+// nothing anyone ever exported from this app stops working, so each
+// generation gets its own case.
+describe("parseImportedHome", () => {
+  const roomsOf = (h: { floors: Floor[] }) => h.floors.flatMap((f) => f.rooms.map((r) => r.id));
+
+  test("a home export round-trips, name included", () => {
+    const file = { name: "Beach Flat", floors: [makeFloor("f1", [makeRoom({ id: "r1" })])] };
+    const parsed = parseImportedHome(file);
+    assert.equal(parsed?.name, "Beach Flat");
+    assert.deepEqual(roomsOf(parsed!), ["r1"]);
+  });
+
+  test("a home exported without a custom name comes back un-named", () => {
+    const parsed = parseImportedHome({ name: null, floors: [makeFloor("f1")] });
+    assert.equal(parsed?.name, null);
+  });
+
+  test("a bare floors export still imports -- as an un-named home", () => {
+    const parsed = parseImportedHome([makeFloor("f1", [makeRoom({ id: "r1" })])]);
+    assert.equal(parsed?.name, null, "floors carry no home name");
+    assert.deepEqual(roomsOf(parsed!), ["r1"]);
+  });
+
+  test("the { floors, customCatalog } bundle shape still imports", () => {
+    const parsed = parseImportedHome({
+      floors: [makeFloor("f1", [makeRoom({ id: "r1" })])],
+      customCatalog: [],
+    });
+    assert.deepEqual(roomsOf(parsed!), ["r1"]);
+  });
+
+  test("a pre-floors RoomLayout[] export becomes one floor in one home", () => {
+    const parsed = parseImportedHome([makeRoom({ id: "old" })]);
+    assert.equal(parsed?.floors.length, 1);
+    assert.deepEqual(roomsOf(parsed!), ["old"]);
+  });
+
+  test("garbage is rejected rather than half-imported", () => {
+    assert.equal(parseImportedHome({ nope: true }), null);
+    assert.equal(parseImportedHome(null), null);
+    assert.equal(parseImportedHome({ name: "x", floors: "not floors" }), null);
+  });
+
+  // The id is deliberately not in the file: an imported home either
+  // replaces one (which keeps its own id) or becomes a new one.
+  test("an id in the file is ignored, not adopted", () => {
+    const parsed = parseImportedHome({
+      id: "some-other-home",
+      name: "X",
+      floors: [makeFloor("f")],
+    });
+    assert.equal((parsed as unknown as { id?: string }).id, undefined);
+  });
+});
+
+describe("withFreshIds", () => {
+  // Without this, importing the same file twice leaves two homes sharing
+  // room ids, and anything resolving a room id across homes lands on
+  // whichever it finds first.
+  test("re-mints every floor and room id", () => {
+    const floors = [makeFloor("f1", [makeRoom({ id: "r1" }), makeRoom({ id: "r2" })])];
+    const fresh = withFreshIds(floors);
+    assert.notEqual(fresh[0].id, "f1");
+    assert.deepEqual(
+      fresh[0].rooms.map((r) => r.id === "r1" || r.id === "r2"),
+      [false, false],
+    );
+  });
+
+  test("changes nothing else", () => {
+    const floors = [makeFloor("f1", [makeRoom({ id: "r1", name: "Kitchen" })])];
+    const fresh = withFreshIds(floors);
+    assert.equal(fresh[0].name, floors[0].name);
+    assert.equal(fresh[0].rooms[0].name, "Kitchen");
+    assert.equal(fresh[0].rooms[0].width, floors[0].rooms[0].width);
+  });
+
+  test("two imports of the same file never collide", () => {
+    const floors = [makeFloor("f1", [makeRoom({ id: "r1" })])];
+    const a = withFreshIds(floors);
+    const b = withFreshIds(floors);
+    assert.notEqual(a[0].rooms[0].id, b[0].rooms[0].id);
+    assert.notEqual(a[0].id, b[0].id);
   });
 });
 

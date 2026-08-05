@@ -575,7 +575,6 @@ export interface HeaderProps {
   /** Opens SettingsDialog -- owned by the route (rooms.$roomId.tsx), not by
    * Header itself, same reasoning as every other dialog trigger here. */
   onOpenSettings: () => void;
-  roomsUrl?: string;
   /** Mobile "view only" mode (see useMobileViewOnly) -- strips the header
    * down to just identity + theme/language + navigation, since every
    * editing action (undo/redo/import/export/reset/tour) is meaningless

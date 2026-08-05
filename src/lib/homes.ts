@@ -1,5 +1,11 @@
 import type { Floor, Home, Lang, RoomLayout } from "@/types/planner";
-import { createFloor, isRoomLayoutArray, MULTI_FLOORS_KEY } from "@/lib/floors";
+import {
+  createFloor,
+  isRoomLayoutArray,
+  MULTI_FLOORS_KEY,
+  parseImportedFloors,
+} from "@/lib/floors";
+import { homeImportSchema } from "@/lib/planner-schema";
 
 /**
  * Home persistence + migration.
@@ -258,4 +264,52 @@ export function saveActiveFloorId(homeId: string, floorId: string): void {
   const map = readActiveFloorMap();
   map[homeId] = floorId;
   window.localStorage.setItem(ACTIVE_FLOOR_BY_HOME_KEY, JSON.stringify(map));
+}
+
+/** A home read out of a file: everything a Home has except an identity,
+ * which the importer supplies (see homeImportSchema for why). */
+export interface ImportedHome {
+  name: string | null;
+  floors: Floor[];
+}
+
+/**
+ * Best-effort parse of an imported JSON file into a whole Home.
+ *
+ * Accepts four generations, newest first, so nothing anyone has ever
+ * exported from this app stops working:
+ *
+ *   { name, floors }   a Home export (name preserved)
+ *   { floors, ... }    a floors export, with or without a bundled catalog
+ *   Floor[]            a bare floors export
+ *   RoomLayout[]       a pre-floors export -> one floor
+ *
+ * Only the first carries a name; everything older becomes an un-named home
+ * and picks up the position-based default, which is the same thing that
+ * happens to a home created from scratch.
+ */
+export function parseImportedHome(raw: unknown): ImportedHome | null {
+  const asHome = homeImportSchema.safeParse(raw);
+  if (asHome.success) {
+    return { name: asHome.data.name ?? null, floors: asHome.data.floors as Floor[] };
+  }
+  const floors = parseImportedFloors(raw);
+  return floors ? { name: null, floors } : null;
+}
+
+/**
+ * The same floors with fresh floor and room ids.
+ *
+ * Used when a file becomes a *new* home rather than replacing one: without
+ * it, importing the same file twice leaves two homes sharing room ids, and
+ * anything that resolves a room id across homes (the /rooms/$roomId
+ * redirect, the one-time lastActive upgrade) would land on whichever it
+ * happened to find first.
+ */
+export function withFreshIds(floors: Floor[]): Floor[] {
+  return floors.map((floor) => ({
+    ...floor,
+    id: crypto.randomUUID(),
+    rooms: floor.rooms.map((room) => ({ ...room, id: crypto.randomUUID() })),
+  }));
 }

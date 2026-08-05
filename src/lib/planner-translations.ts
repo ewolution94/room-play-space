@@ -122,6 +122,13 @@ export const STRINGS = {
     // the initials follow the words: Länge/Breite/Höhe -> L×B×H.
     dimsAxes: "L×W×H",
     openingOnSlopedWall: "Doors and windows aren't supported on a sloped wall.",
+    // An opening is a hole in a wall, so one that doesn't fit can't be
+    // built -- unlike furniture, which only warns. The numbers are in the
+    // message because "it doesn't fit" alone doesn't say what to change.
+    openingTooTall: (what: string, needed: number, available: number) =>
+      `${what} needs ${needed} cm of wall — these walls are ${available} cm. Raise the wall height first.`,
+    ceilingBelowOpenings: (needed: number) =>
+      `Walls can't be shorter than ${needed} cm while a door or window that tall is in them.`,
     slopeRemovesOpeningsTitle: "Remove doors and windows on this wall?",
     slopeRemovesOpeningsBody:
       "Doors and windows aren't supported on a sloped wall yet. Adding a slope here will permanently delete the openings already on this wall.",
@@ -159,7 +166,6 @@ export const STRINGS = {
     deleteRoom: "Delete Room",
     duplicateRoom: "Duplicate Room",
     enterRoom: "Enter Room",
-    backToRooms: "Back to Floor Plan",
     roomName: "Room Name",
     overviewGrid: "Floor Plan Grid",
     dragRoomHint:
@@ -279,6 +285,10 @@ export const STRINGS = {
     dimsLWH: "Länge × Breite × Höhe (cm)",
     dimsAxes: "L×B×H",
     openingOnSlopedWall: "Türen und Fenster werden an einer Schräge nicht unterstützt.",
+    openingTooTall: (what: string, needed: number, available: number) =>
+      `${what} braucht ${needed} cm Wandhöhe — diese Wände sind ${available} cm hoch. Erhöhe zuerst die Wandhöhe.`,
+    ceilingBelowOpenings: (needed: number) =>
+      `Die Wände können nicht niedriger als ${needed} cm sein, solange eine so hohe Tür oder ein so hohes Fenster darin sitzt.`,
     slopeRemovesOpeningsTitle: "Türen und Fenster an dieser Wand entfernen?",
     slopeRemovesOpeningsBody:
       "Türen und Fenster werden an einer Schräge noch nicht unterstützt. Wenn du hier eine Schräge hinzufügst, werden die vorhandenen Öffnungen dieser Wand dauerhaft gelöscht.",
@@ -316,7 +326,6 @@ export const STRINGS = {
     deleteRoom: "Raum löschen",
     duplicateRoom: "Raum duplizieren",
     enterRoom: "Raum betreten",
-    backToRooms: "Zurück zum Grundriss",
     roomName: "Raumname",
     overviewGrid: "Grundriss-Raster",
     dragRoomHint:

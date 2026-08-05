@@ -13,6 +13,7 @@ import { MultiRoomSidebar } from "@/components/planner/MultiRoomSidebar";
 import { createFloor, parseImportedFloors, floorDisplayName } from "@/lib/floors";
 import {
   findHome,
+  parseImportedHome,
   updateHome,
   loadHomes,
   loadActiveFloorId,
@@ -323,8 +324,10 @@ function HomeOverview() {
   }, [homeId, activeFloorId]);
 
   // -------- Export / Import --------
-  // Two scopes: just the currently-active floor, or every floor in this
-  // home. Both go through the shared ExportImportDialog (see that
+  // Three scopes: just the currently-active floor, every floor in this
+  // home, or the home itself (its floors *and* its name -- the one shape
+  // that round-trips a whole home into another profile). All go through
+  // the shared ExportImportDialog (see that
   // component's own doc comment) rather than downloading/replacing
   // directly, so there's a preview -- and, for import, a chance to back
   // out -- before anything actually changes. Export/import state
@@ -336,6 +339,7 @@ function HomeOverview() {
   const floorScopes = [
     { id: "current", label: lang === "de" ? "Aktuelles Geschoss" : "Current floor" },
     { id: "all", label: lang === "de" ? "Alle Geschosse" : "All floors" },
+    { id: "home", label: lang === "de" ? "Dieses Zuhause" : "This home" },
   ];
 
   const homeLabel = homeDisplayName({ id: homeId, name: homeName, floors }, homeIndex, lang);
@@ -376,6 +380,21 @@ function HomeOverview() {
 
   const buildFloorsExportPreview = (scopeId: string, includeCatalog: boolean) => {
     const base = (() => {
+      if (scopeId === "home") {
+        // The whole home: its floors AND its name, which is the only shape
+        // that can be re-imported as a home somewhere else rather than as
+        // a nameless pile of floors. No id -- see homeImportSchema.
+        return {
+          summaryLines: [
+            homeLabel,
+            ...summarizeFloors(
+              floors.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
+            ),
+          ],
+          filename: buildExportFilename(homeLabel),
+          json: { name: homeName, floors } as unknown,
+        };
+      }
       if (scopeId === "current") {
         const idx = Math.max(
           0,
@@ -411,7 +430,13 @@ function HomeOverview() {
           ? `+ ${customCatalog.items.length} Katalog-Element(e)`
           : `+ ${customCatalog.items.length} My Catalog item(s)`,
       ],
-      json: { floors: base.json, customCatalog: customCatalog.items },
+      // A home export is already an object, so the catalog joins it as a
+      // sibling key; a floors export is an array, so it gets wrapped. Both
+      // shapes are what parseImportedHome/parseImportedFloors expect back.
+      json:
+        scopeId === "home"
+          ? { ...(base.json as object), customCatalog: customCatalog.items }
+          : { floors: base.json, customCatalog: customCatalog.items },
     };
   };
 
@@ -438,6 +463,36 @@ function HomeOverview() {
               : `+ ${bundled.length} My Catalog item(s)`,
           ]
         : [];
+    if (scopeId === "home") {
+      const home = parseImportedHome(raw);
+      if (!home) {
+        return {
+          ok: false as const,
+          error:
+            lang === "de"
+              ? "Ungültiges Format -- diese Datei sieht nicht wie ein exportiertes Zuhause aus."
+              : "Invalid format -- this file doesn't look like an exported home.",
+        };
+      }
+      return {
+        ok: true as const,
+        summaryLines: [
+          // Named explicitly because this scope overwrites the name too --
+          // a file with no name of its own leaves the current one alone.
+          home.name
+            ? lang === "de"
+              ? `Wird umbenannt in "${home.name}"`
+              : `Will be renamed to "${home.name}"`
+            : lang === "de"
+              ? `Name unverändert ("${homeLabel}")`
+              : `Name unchanged ("${homeLabel}")`,
+          ...summarizeFloors(
+            home.floors.map((f, i) => ({ floor: f, displayName: floorDisplayName(f, i, lang) })),
+          ),
+          ...catalogLine,
+        ],
+      };
+    }
     if (scopeId === "current" && imported.length > 1) {
       return {
         ok: true as const,
@@ -464,7 +519,8 @@ function HomeOverview() {
   };
 
   const applyFloorsImport = (scopeId: string, raw: unknown, includeCatalog: boolean) => {
-    const imported = parseImportedFloors(raw);
+    const imported =
+      scopeId === "home" ? (parseImportedHome(raw)?.floors ?? null) : parseImportedFloors(raw);
     if (!imported) {
       toast.error(lang === "de" ? "Fehler beim Importieren" : "Failed to import file");
       return;
@@ -488,9 +544,25 @@ function HomeOverview() {
       // you're standing in rather than to "the building".
       setFloors(imported);
       setActiveFloorId(imported[0].id);
+      // The "this home" scope also carries a name. A file without one (an
+      // older floors-only export) leaves the current name alone rather
+      // than blanking it.
+      if (scopeId === "home") {
+        const name = parseImportedHome(raw)?.name ?? null;
+        if (name !== null) {
+          setHomeName(name);
+          updateHome(homeId, { name });
+        }
+      }
     }
     toast.success(
-      lang === "de" ? "Layout erfolgreich importiert" : "Floor plan layout imported successfully",
+      scopeId === "home"
+        ? lang === "de"
+          ? "Zuhause importiert"
+          : "Home imported"
+        : lang === "de"
+          ? "Layout erfolgreich importiert"
+          : "Floor plan imported",
     );
   };
 
@@ -731,11 +803,11 @@ function HomeOverview() {
         mode="export"
         open={exportOpen}
         onOpenChange={setExportOpen}
-        title={lang === "de" ? "Layout exportieren" : "Export Floor Plan"}
+        title={lang === "de" ? "Aus diesem Zuhause exportieren" : "Export from this home"}
         description={
           lang === "de"
-            ? "Speichert ein Geschoss oder alle Geschosse dieses Zuhauses als JSON-Datei."
-            : "Saves one floor, or every floor of this home, as a JSON file."
+            ? "Speichert ein Geschoss, alle Geschosse oder dieses ganze Zuhause als JSON-Datei."
+            : "Saves one floor, every floor, or this whole home as a JSON file."
         }
         scopes={floorScopes}
         buildExport={buildFloorsExportPreview}
@@ -757,11 +829,11 @@ function HomeOverview() {
         mode="import"
         open={importOpen}
         onOpenChange={setImportOpen}
-        title={lang === "de" ? "Layout importieren" : "Import Floor Plan"}
+        title={lang === "de" ? "In dieses Zuhause importieren" : "Import into this home"}
         description={
           lang === "de"
-            ? "Ersetzt das aktuelle Geschoss oder alle Geschosse dieses Zuhauses durch den Inhalt einer JSON-Datei."
-            : "Replaces the current floor, or every floor of this home, with the contents of a JSON file."
+            ? "Ersetzt das aktuelle Geschoss, alle Geschosse oder dieses ganze Zuhause durch den Inhalt einer JSON-Datei. Andere Zuhause bleiben unverändert."
+            : "Replaces the current floor, every floor, or this whole home with the contents of a JSON file. Your other homes are untouched."
         }
         scopes={floorScopes}
         validateImport={validateFloorsImport}

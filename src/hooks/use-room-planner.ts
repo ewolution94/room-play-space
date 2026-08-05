@@ -43,7 +43,14 @@ import {
   type WallOpenInterval,
 } from "@/lib/room-adjacency";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
-import { defaultOpeningWidth, isSwingingOpening } from "@/lib/openings";
+import {
+  defaultOpeningWidth,
+  isSwingingOpening,
+  openingFitsWall,
+  openingKindLabel,
+  openingTopHeight,
+  requiredWallHeight,
+} from "@/lib/openings";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 import { useSettings } from "@/hooks/use-settings";
 
@@ -879,6 +886,21 @@ export function useRoomPlanner(
       toast.error(t.openingOnSlopedWall);
       return;
     }
+    // An opening is a hole in a wall, so one that is taller than the wall
+    // simply can't be built -- it renders as glazing floating above the
+    // wall with no lintel over it. Blocked rather than warned (which is
+    // what too-tall *furniture* gets) for the same reason the
+    // out-of-bounds check blocks: it isn't a judgement call.
+    if (!openingFitsWall(oKind, ceilingHeight)) {
+      toast.error(
+        t.openingTooTall(
+          openingKindLabel({ kind: oKind, leaves: oLeaves }, t),
+          openingTopHeight(oKind),
+          Math.round(ceilingHeight),
+        ),
+      );
+      return;
+    }
     const seg = resolveWallSegment(corners, oWall);
     const wallLength = seg ? Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y) : Infinity;
     if (oPos < 0 || oWidth <= 0 || oPos + oWidth > wallLength + 0.01) {
@@ -911,6 +933,26 @@ export function useRoomPlanner(
       },
     ]);
   };
+  /**
+   * The wall-height field, guarded: shortening the walls below an opening
+   * already in them would leave that opening protruding with no wall around
+   * it, so it's refused with a message naming the height that's blocking it.
+   *
+   * Only this user-facing setter is guarded. Undo/redo restore and file
+   * import call the raw setState directly -- they replay a state that
+   * existed as a whole, and validating one field of it in isolation would
+   * corrupt history.
+   */
+  const applyCeilingHeight: React.Dispatch<React.SetStateAction<number>> = (value) => {
+    const next = typeof value === "function" ? value(ceilingHeight) : value;
+    const needed = requiredWallHeight(openings);
+    if (next < needed) {
+      toast.error(t.ceilingBelowOpenings(needed));
+      return;
+    }
+    setCeilingHeight(next);
+  };
+
   const removeOpening = (id: string) => {
     pushHistory();
     setOpenings((p) => p.filter((o) => o.id !== id));
@@ -924,7 +966,29 @@ export function useRoomPlanner(
     // an overlap, so it skips straight to committing (same reasoning as the
     // position/width fields being the only inspector inputs that can
     // reintroduce the addOpening bug this mirrors).
-    if (patch.position !== undefined || patch.width !== undefined || patch.wall !== undefined) {
+    if (
+      patch.position !== undefined ||
+      patch.width !== undefined ||
+      patch.wall !== undefined ||
+      patch.kind !== undefined
+    ) {
+      // Moving an opening onto a sloped wall was the way round addOpening's
+      // refusal: that check only ran at creation, so the wall picker could
+      // put a door on a knee wall afterwards. Same rule, same message.
+      if (patch.wall !== undefined && wallSlopes[String(merged.wall)]) {
+        toast.error(t.openingOnSlopedWall);
+        return;
+      }
+      if (!openingFitsWall(merged.kind, ceilingHeight)) {
+        toast.error(
+          t.openingTooTall(
+            openingKindLabel(merged, t),
+            openingTopHeight(merged.kind),
+            Math.round(ceilingHeight),
+          ),
+        );
+        return;
+      }
       const seg = resolveWallSegment(corners, merged.wall);
       const wallLength = seg ? Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y) : Infinity;
       if (
@@ -1665,7 +1729,7 @@ export function useRoomPlanner(
     flooring,
     setFlooring,
     ceilingHeight,
-    setCeilingHeight,
+    setCeilingHeight: applyCeilingHeight,
     wallSlopes,
     setWallSlopes,
     slopeIssues,

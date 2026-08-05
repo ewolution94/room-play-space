@@ -2,14 +2,16 @@
 
 Written 2026-08-03.
 
-**Status: Phases 0 and 1 are built, tested and verified in the browser.
-Phases 2-3 are not started.**
+**Status: all four phases (0-3) are built, tested and verified in the
+browser.**
 `lib/homes.ts` is now the store the whole app runs on: `/home/$homeId` and
 `/home/$homeId/room/$roomId` are the real routes, the dashboard lists Homes,
 and `lib/floors.ts` keeps only the floor *helpers* (naming, `createFloor`,
 `parseImportedFloors`) — it no longer persists anything. `/rooms` and
-`/rooms/$roomId` redirect. What's left is Phase 2 (home-level export/import)
-and Phase 3 (a copy pass). See todo.md's Phase 1 entry for what landed.
+`/rooms/$roomId` redirect. Phase 2 added a home-level export/import (a
+`{ name, floors }` file, importable over an existing home or as a brand-new
+one, still accepting every older shape) and Phase 3 the copy pass. See
+todo.md for what landed in each.
 
 ## The bug, stated precisely
 
@@ -164,8 +166,8 @@ works. Don't try to split it.
 |---|---|---|
 | **0** | ✅ **DONE** — `lib/homes.ts` + the 3-generation migration + 34 tests. Not wired to anything; zero behaviour change | Low. Same approach as the slopes geometry layer, which worked well here |
 | **1** | ✅ **DONE** — wired: routes, dashboard list + create flows, `use-room-planner`, `FloorSwitcher` scoping, `lastActive`. The `/rooms` redirects were pulled forward from Phase 3, since leaving the old route live on the old store would have been a genuinely broken half-state | **Medium-high.** The one that had to land in one piece |
-| **2** | Export/import (home-level, accepting old floor-array files) | Low |
-| **3** | Copy pass, `/rooms` redirects, delete the dead replace-confirm dialog | Low |
+| **2** | ✅ **DONE** — export/import (home-level, accepting old floor-array files) | Low |
+| **3** | ✅ **DONE** — copy pass. The `/rooms` redirects and the dead replace-confirm dialog were pulled forward into Phase 1 | Low |
 
 Phase 0 is worth doing on its own even if Phase 1 waits: it's where the
 migration risk lives, and it can be proven with tests alone.
