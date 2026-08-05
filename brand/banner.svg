@@ -1,0 +1,118 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a0e1a"/>
+      <stop offset="0.55" stop-color="#05070c"/>
+      <stop offset="1" stop-color="#050609"/>
+    </linearGradient>
+    <!-- Local to the mark's own 0..64 box: the lockup group is scaled 2.1x,
+         and userSpaceOnUse gradient coordinates resolve inside that same
+         transformed space, so these must be mark coordinates, not page ones. -->
+    <linearGradient id="plan" x1="14" y1="52" x2="52" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="planSmall" x1="130" y1="560" x2="580" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <radialGradient id="markGlow" cx="45" cy="19" r="17" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ambientGlow" cx="1010" cy="520" r="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="1.4" cy="1.4" r="1.4" fill="#1b2333"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#05070c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#05070c" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+  <rect width="1200" height="630" fill="url(#ambientGlow)"/>
+
+  <!-- ambient isometric attic: floor, two walls, and the ceiling dropping to
+       a knee wall on the left — the 3D view, sketched at wallpaper weight -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 950 280 L 1158 400 L 985 500 L 777 380 Z" fill="#38bdf8" opacity="0.05"/>
+    <path d="M 950 280 L 1158 400 L 1158 260 L 950 140 Z" fill="#38bdf8" opacity="0.035"/>
+    <path d="M 950 280 L 777 380 L 777 320 L 950 140 Z" fill="#0d9488" opacity="0.05"/>
+    <g fill="none" stroke="#38bdf8" opacity="0.22">
+      <path d="M 950 280 L 1158 400 L 985 500 L 777 380 Z" stroke-width="2"/>
+      <path d="M 950 280 L 950 140" stroke-width="2"/>
+      <path d="M 1158 400 L 1158 260 L 950 140" stroke-width="2"/>
+      <path d="M 777 380 L 777 320" stroke-width="2"/>
+    </g>
+    <!-- the slope itself, called out -->
+    <path d="M 950 140 L 777 320" fill="none" stroke="#38bdf8" stroke-width="2.4" opacity="0.42" stroke-dasharray="7 6"/>
+    <!-- a wardrobe that fits under the full height, and one that would not -->
+    <path d="M 905 305 L 963 338 L 963 290 L 905 257 Z" fill="#38bdf8" opacity="0.06"/>
+    <path d="M 905 305 L 963 338 L 963 290 L 905 257 Z" fill="none" stroke="#38bdf8" stroke-width="1.4" opacity="0.28"/>
+  </g>
+
+  <!-- logo lockup -->
+  <g transform="translate(120,150) scale(2.1)">
+    <rect width="64" height="64" rx="16" fill="#0a0e1a" stroke="#1b2333" stroke-width="1"/>
+    <circle cx="45" cy="19" r="17" fill="url(#markGlow)"/>
+    <g fill="none" stroke="url(#plan)" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 25 L15 14 L49 14 L49 50 L15 50 L15 37" stroke-width="3.4"/>
+      <path d="M33 14 L33 50" stroke-width="2.4" opacity="0.8"/>
+      <path d="M33 23 L49 14" stroke-width="2" opacity="0.55"/>
+    </g>
+    <circle cx="15" cy="31" r="2.4" fill="#38bdf8"/>
+  </g>
+
+  <text x="266" y="222" font-family="'Space Grotesk','Segoe UI',Helvetica,Arial,sans-serif" font-size="58" font-weight="700" letter-spacing="2" fill="#eef1f8">PLANUM</text>
+
+  <text x="122" y="330" font-family="'Space Grotesk','Segoe UI',Helvetica,Arial,sans-serif" font-size="30" font-weight="500" fill="#eef1f8">Plan the space you actually have.</text>
+  <text x="122" y="368" font-family="'JetBrains Mono','SFMono-Regular',Consolas,monospace" font-size="16" letter-spacing="0.5" fill="#8993a8">Multi-room floor planner in 2D and 3D — sloped attic ceilings included.</text>
+
+  <!-- ghost plan card -->
+  <g transform="translate(122,420)" font-family="'JetBrains Mono','SFMono-Regular',Consolas,monospace">
+    <rect width="460" height="152" rx="12" fill="#0d1220" stroke="#1b2333"/>
+
+    <!-- room A -->
+    <g fill="none" stroke="url(#planSmall)" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M26 34 L26 26 L246 26 L246 126 L26 126 L26 92" stroke-width="2.6"/>
+      <path d="M246 26 L246 126" stroke-width="2.6"/>
+      <!-- room B, sharing the partition -->
+      <path d="M246 26 L434 26 L434 126 L246 126" stroke-width="2.6" opacity="0.85"/>
+    </g>
+    <!-- door swing in the left wall gap -->
+    <path d="M26 63 A 16 16 0 0 1 42 47" fill="none" stroke="#38bdf8" stroke-width="1.4" opacity="0.5"/>
+    <circle cx="26" cy="63" r="2.4" fill="#38bdf8"/>
+
+    <!-- furniture -->
+    <rect x="40" y="40" width="62" height="34" rx="3" fill="#38bdf8" opacity="0.16"/>
+    <rect x="40" y="40" width="62" height="34" rx="3" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.45"/>
+    <rect x="176" y="82" width="58" height="34" rx="3" fill="#38bdf8" opacity="0.16"/>
+    <rect x="176" y="82" width="58" height="34" rx="3" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.45"/>
+    <circle cx="140" cy="76" r="18" fill="#0d9488" opacity="0.16"/>
+    <circle cx="140" cy="76" r="18" fill="none" stroke="#0d9488" stroke-width="1" opacity="0.5"/>
+
+    <!-- sloped ceiling hatch in room B -->
+    <g stroke="#38bdf8" stroke-width="1.2" opacity="0.3">
+      <path d="M370 26 L370 126"/>
+      <path d="M378 30 L378 126"/>
+      <path d="M386 38 L386 126"/>
+      <path d="M394 46 L394 126"/>
+      <path d="M402 54 L402 126"/>
+      <path d="M410 62 L410 126"/>
+      <path d="M418 70 L418 126"/>
+      <path d="M426 78 L426 126"/>
+    </g>
+    <path d="M366 26 L434 88" fill="none" stroke="#38bdf8" stroke-width="1.6" opacity="0.6" stroke-dasharray="5 4"/>
+
+    <text x="26" y="146" font-size="11" letter-spacing="1.4" fill="#7d8aa3">4.80 × 3.20 M</text>
+    <text x="246" y="146" font-size="11" letter-spacing="1.4" fill="#7d8aa3">ATTIC · KNEE 1.20 M</text>
+    <text x="434" y="146" font-size="11" letter-spacing="1.4" fill="#38bdf8" text-anchor="end" opacity="0.8">3D</text>
+  </g>
+
+  <rect width="1200" height="630" fill="url(#fade)"/>
+</svg>
