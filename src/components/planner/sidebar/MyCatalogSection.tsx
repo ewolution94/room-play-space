@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { BookmarkPlus, Download, Pencil, Trash2, Upload } from "lucide-react";
 import type { Preset, CatalogSaveDraft, UseCustomCatalogReturn } from "@/types/planner";
 import { customCatalogItemToPreset, customCatalogArraySchema } from "@/lib/custom-catalog";
+import { getDefaultHeight } from "@/lib/planner-presets";
 import { buildExportFilename } from "@/lib/export-filename";
 import { ExportImportDialog } from "@/components/planner/ExportImportDialog";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
@@ -191,6 +192,13 @@ export function MyCatalogSection({
                               name: label,
                               w: item.w,
                               l: item.l,
+                              // Falls back to the source preset the same way
+                              // customCatalogItemToPreset does, so editing an
+                              // entry saved before heights were stored shows
+                              // the height it actually drops in at rather
+                              // than an empty box.
+                              h: item.h ?? getDefaultHeight(item.sourceKey),
+                              elevation: item.elevation ?? 0,
                               color: item.color,
                               sourceKey: item.sourceKey,
                               layer: item.layer,

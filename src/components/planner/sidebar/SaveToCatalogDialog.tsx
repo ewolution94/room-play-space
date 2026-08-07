@@ -11,7 +11,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Sliders, Ruler, Palette, BookmarkPlus, Save } from "lucide-react";
+import {
+  Sliders,
+  Ruler,
+  Palette,
+  BookmarkPlus,
+  Save,
+  MoveVertical,
+  ArrowUpFromLine,
+} from "lucide-react";
 import type { CatalogSaveDraft } from "@/types/planner";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
@@ -20,7 +28,14 @@ interface SaveToCatalogDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: CatalogSaveDraft | null;
-  onSave: (values: { name: string; w: number; l: number; color: string }) => void;
+  onSave: (values: {
+    name: string;
+    w: number;
+    l: number;
+    h: number;
+    elevation: number;
+    color: string;
+  }) => void;
   swatches: Array<{ name: string; value: string }>;
 }
 
@@ -35,6 +50,14 @@ export function SaveToCatalogDialog({
   const [name, setName] = useState("");
   const [w, setW] = useState(50);
   const [l, setL] = useState(50);
+  // Height and elevation are shown -- and saved -- alongside width and
+  // length rather than silently inherited from the source preset. In a
+  // planner whose point is whether things fit in 3D, "how tall" and "how
+  // high up" are not lesser dimensions, and a saved item that quietly came
+  // back at the generic preset's height was wrong in exactly the case the
+  // catalog exists for: a piece you measured yourself.
+  const [h, setH] = useState(75);
+  const [elevation, setElevation] = useState(0);
   const [color, setColor] = useState("#5cbdb9");
 
   // Re-seed every time the dialog is (re)opened with a new draft -- e.g.
@@ -46,6 +69,8 @@ export function SaveToCatalogDialog({
       setName(draft.name);
       setW(draft.w);
       setL(draft.l);
+      setH(draft.h);
+      setElevation(draft.elevation);
       setColor(draft.color);
     }
   }, [open, draft]);
@@ -54,7 +79,7 @@ export function SaveToCatalogDialog({
 
   const handleSave = () => {
     if (!name.trim()) return;
-    onSave({ name: name.trim(), w, l, color });
+    onSave({ name: name.trim(), w, l, h, elevation, color });
     onOpenChange(false);
   };
 
@@ -79,11 +104,11 @@ export function SaveToCatalogDialog({
           <DialogDescription>
             {isEditing
               ? lang === "de"
-                ? "Passe Name, Maße oder Farbe dieses gespeicherten Elements an."
-                : "Adjust this saved item's name, dimensions, or color."
+                ? "Passe Name, Maße, Höhe, Bodenabstand oder Farbe dieses gespeicherten Elements an."
+                : "Adjust this saved item's name, footprint, height, elevation, or color."
               : lang === "de"
-                ? "Speichere eine angepasste Version für die zukünftige Verwendung."
-                : "Save a customized version for future use."}
+                ? "Speichert die aktuellen Maße dieses Objekts -- Breite, Länge, Höhe und Bodenabstand -- zur Wiederverwendung."
+                : "Saves this item's current measurements -- width, length, height and elevation -- for reuse."}
           </DialogDescription>
         </DialogHeader>
 
@@ -137,6 +162,47 @@ export function SaveToCatalogDialog({
                   min={1}
                   value={l}
                   onCommit={setL}
+                  className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                />
+                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                  cm
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {lang === "de" ? "Höhe" : "Height"}
+              </Label>
+              <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                <span className="pl-2.5 text-muted-foreground/75">
+                  <MoveVertical className="h-3.5 w-3.5" />
+                </span>
+                <NumberField
+                  min={1}
+                  value={h}
+                  onCommit={setH}
+                  className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
+                />
+                <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">
+                  cm
+                </span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {lang === "de" ? "Bodenabstand" : "Elevation"}
+              </Label>
+              <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all">
+                <span className="pl-2.5 text-muted-foreground/75">
+                  <ArrowUpFromLine className="h-3.5 w-3.5" />
+                </span>
+                <NumberField
+                  min={0}
+                  value={elevation}
+                  onCommit={setElevation}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-1.5 pr-7 h-8 text-xs w-full bg-transparent"
                 />
                 <span className="absolute right-2 text-[10px] font-medium text-muted-foreground/60 select-none">

@@ -101,13 +101,22 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
     setSaveDraft(draft);
     setSaveDialogOpen(true);
   };
-  const handleSaveDialogSave = (values: { name: string; w: number; l: number; color: string }) => {
+  const handleSaveDialogSave = (values: {
+    name: string;
+    w: number;
+    l: number;
+    h: number;
+    elevation: number;
+    color: string;
+  }) => {
     if (saveDraft?.editingId) {
       customCatalog.updateItem(saveDraft.editingId, {
         nameEn: values.name,
         nameDe: values.name,
         w: values.w,
         l: values.l,
+        h: values.h,
+        elevation: values.elevation,
         color: values.color,
       });
     } else {
@@ -116,6 +125,8 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
         nameDe: values.name,
         w: values.w,
         l: values.l,
+        h: values.h,
+        elevation: values.elevation,
         color: values.color,
         sourceKey: saveDraft?.sourceKey,
         layer: saveDraft?.layer,

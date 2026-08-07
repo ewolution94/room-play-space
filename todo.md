@@ -1016,6 +1016,46 @@ imports and the orphaned `backToRooms` string.
       importing a renamed copy over a home renames it live. 717 tests
       (23 new), tsc clean, lint 18/19 (baseline).
 
+### My Catalog now saves height and elevation (2026-08-05)
+
+User: *"When saving custom items to your catalog, it doesn't save the value
+for the height... there are actually four key values: width, length, height,
+and elevation."* Correct, and the cause ran deeper than the dialog: **four
+separate links in the chain dropped the value**, so fixing only the dialog
+would have looked fixed and still come back wrong.
+
+- [x] **The dialog** only ever collected name/width/length/color. It now
+      shows all four measurements, pre-filled from the item -- the user's
+      option 2, chosen because it subsumes option 1 (just pressing Save
+      stores all four) while making visible what's about to be baked in.
+      That matters most for height, which is usually *inherited* from the
+      source preset rather than set explicitly.
+- [x] **The seeding**: the draft carries the item's *effective* height and
+      elevation -- the same two numbers the Inspector displays, resolved
+      defaults and `resolveEffectiveElevation` included -- so an item whose
+      height comes from its preset can't open the dialog with a blank field.
+- [x] **The stored shape**: `CustomCatalogItem.h` existed but was documented
+      and used as IKEA-only; `elevation` didn't exist at all. Added, bounded
+      in the schema like every other user-supplied dimension (My Catalog has
+      its own JSON import), both optional so every entry saved before this
+      behaves exactly as it did.
+- [x] **The converter**: `customCatalogItemToPreset` read `elevation` *only*
+      from the base preset, so a saved value would have been ignored even
+      once stored. Now `item.elevation ?? base?.elevation`, matching how `h`
+      already worked -- the saved entry outranks the preset it started from.
+- [x] **The drop path**: `addPreset` derived elevation purely from the layer,
+      consulting `preset.elevation` for wall items only -- so the saved
+      number was read out of storage and then discarded at the very last
+      step. Now `preset.elevation ?? <layer default>`. Zero change for
+      built-ins: all 23 presets that set an elevation are wall items, which
+      already took that path.
+- [x] Verified end to end in the browser, against `localStorage` at each
+      step: a sconce customised to 44 cm tall at 205 cm elevation (its preset
+      says **18 / 160**) opened the dialog pre-filled with 140/90/44/205,
+      saved as `h: 44, elevation: 205`, and dropped back into the room as a
+      44 cm item at 205 cm rather than reverting to the preset's numbers.
+      722 tests (5 new), tsc clean, lint 18/19 (baseline).
+
 ### Still open
 - [ ] Roof windows (*Dachfenster*) -- openings on a sloped wall remain unsupported entirely, now enforced on both the add and the edit path rather than just the add.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.

@@ -260,13 +260,23 @@ export interface CustomCatalogItem {
   nameDe: string;
   w: number; // cm
   l: number; // cm
-  // Real height override -- only meaningful (and only ever set) for a
-  // built-in IKEA entry, where the actual product's height can meaningfully
-  // differ from its sourceKey's generic preset height. User-saved "My
-  // Catalog" entries never set this (the save dialog only ever exposes
-  // name/width/length/color, matching the existing Custom Item creator's own
-  // scope), so they simply inherit the source preset's height unchanged.
+  // Height, in cm. Set by the save dialog from whatever the item measured
+  // when it was saved, and by every built-in IKEA entry (where the real
+  // product's height differs from its sourceKey's generic preset).
+  //
+  // This used to be IKEA-only: the save dialog exposed name/width/length/
+  // color and nothing else, so a user who resized an item's HEIGHT and saved
+  // it got a catalog entry that silently inherited the source preset's
+  // height instead. In a planner whose whole point is 3D fit, height is not
+  // a lesser dimension than width and length.
   h?: number;
+  // Height above the floor, in cm. Same story as `h` -- a wall-mounted
+  // sconce saved at 180cm is a different object from one at 150cm, and
+  // "where it hangs" is part of what you saved.
+  //
+  // Absent means "no opinion": the entry falls back to its source preset's
+  // elevation, and failing that to the layer's default (see addPreset).
+  elevation?: number;
   color: string;
   layer?: ItemLayer;
   shape?: ItemShape;
@@ -293,6 +303,12 @@ export interface CatalogSaveDraft {
   name: string;
   w: number;
   l: number;
+  /** Seeded with the item's *effective* height and elevation -- the same
+   * two numbers the Inspector shows for it, resolved defaults and all --
+   * rather than its raw optional fields, so the dialog can't display a blank
+   * where the room clearly shows a value. */
+  h: number;
+  elevation: number;
   color: string;
   sourceKey?: string;
   layer?: ItemLayer;

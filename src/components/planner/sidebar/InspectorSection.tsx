@@ -535,6 +535,14 @@ export function InspectorSection({
                           name: selectedItem.name,
                           w: selectedItem.width,
                           l: selectedItem.length,
+                          // The same two numbers this Inspector is showing
+                          // for the item, resolved defaults and all -- an
+                          // item whose height is inherited from its preset
+                          // must not open the dialog with a blank field.
+                          h:
+                            selectedItem.height ??
+                            getDefaultHeight(selectedItem.icon, selectedItem.kind),
+                          elevation: resolveEffectiveElevation(selectedItem, items),
                           color: selectedItem.color,
                           sourceKey: selectedItem.icon,
                           layer: selectedItem.layer,
