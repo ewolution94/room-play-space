@@ -1056,6 +1056,46 @@ would have looked fixed and still come back wrong.
       44 cm item at 205 cm rather than reverting to the preset's numbers.
       722 tests (5 new), tsc clean, lint 18/19 (baseline).
 
+### Fixed: a resized kit model turned into a cube (2026-08-05)
+
+User: *"I changed the height [of a HEMNES Bed Queen] from the 'real' 66cm to
+112cm, it showed a cube in 3d instead. couldn't the model scale properly?"*
+Two independent defects, and it took both to produce that cube.
+
+- [x] **The rule conflated "big" with "distorted".** `resolveRenderMode`
+      checked each axis's absolute drift from the preset default against
+      [0.7, 1.5] and fell back to a box if any one was outside. But scaling
+      all three axes by 1.7 doesn't distort a mesh at all -- it's the same
+      bed, larger. What actually looks wrong is one axis stretched while
+      another isn't: the pinched-oval round table the fallback was written
+      for. Now it measures **disproportion** (`max(ratio)/min(ratio) < 2`),
+      so a uniform scale always renders and a single axis may stretch to
+      just under double. A 1.5x-wide/0.7x-deep table is 2.14 and still falls
+      back, so the case the guard exists for is untouched.
+- [x] **The drift was measured against the wrong yardstick.** An IKEA entry
+      and the generic preset it borrows its mesh from share an `icon`, so a
+      HEMNES Queen (167x213x**66**) was judged against `bed-double`
+      (160x200x**45**) -- putting it at **1.47x on height the moment it was
+      placed**, one hundredth under the old 1.5 cap, for a reason invisible
+      to the user. Any nudge upward tipped it over. Items now record the
+      size they came out of the catalog at (`Item.catalogDims`, optional,
+      set in `addPreset`, bounded in the import schema).
+- [x] **Items placed before this** carry no such record and it can't be
+      recovered (the icon is shared), so rather than measure them against a
+      yardstick known to be wrong for exactly the items this hurts, they get
+      the benefit of the doubt and render their model. A stretched model
+      still shows what the thing is; a box shows nothing.
+- [x] **Found while checking the blast radius**: two IKEA entries were
+      falling back to a box *at their own shipped size* for the same reason
+      -- **HEMNES Daybed** and **MARKUS Chair** now render their real models
+      without anyone touching them.
+- [x] Verified against the live scene graph (a screenshot can't tell a
+      stretched bed from a box): three beds side by side -- the reported
+      112cm case, an untouched 66cm control, and a legacy item with no
+      recorded size -- all render 7 real model meshes and **zero**
+      `BoxGeometry`, at measured heights of 112 / 66 / 112 cm. 724 tests
+      (5 new), tsc clean, lint 18/19 (baseline).
+
 ### Still open
 - [ ] Roof windows (*Dachfenster*) -- openings on a sloped wall remain unsupported entirely, now enforced on both the add and the edit path rather than just the add.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.

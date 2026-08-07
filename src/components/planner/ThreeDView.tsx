@@ -1523,7 +1523,20 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           const cachedTemplate = kitModelCache.get(kitModel.file);
           if (cachedTemplate) {
             const currentDims = { w: it.width, h: itHeight, l: it.length };
-            const defaultDims = { w: preset!.w, h: preset!.h ?? itHeight, l: preset!.l };
+            // The size this item was added at. An IKEA entry and the
+            // generic preset it borrows its mesh from share an `icon`, so
+            // the preset alone is the wrong yardstick for how far the user
+            // has actually resized it -- judged that way a HEMNES bed sat
+            // at 1.47x on height the moment it was placed.
+            //
+            // An item placed before catalogDims existed carries no record
+            // of its natural size, and it can't be recovered (the icon is
+            // shared). Rather than measure it against a yardstick known to
+            // be wrong for exactly the items this hurts, it gets the
+            // benefit of the doubt and renders its model: a stretched model
+            // still shows what the thing is, a box shows nothing. Anything
+            // placed since carries its size and gets the real check.
+            const defaultDims = it.catalogDims ?? currentDims;
             const mode = resolveRenderMode(currentDims, defaultDims);
             if (mode === "model") {
               const scaleVec = computeModelScale(currentDims, kitModel);

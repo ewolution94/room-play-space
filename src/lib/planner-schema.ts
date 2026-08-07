@@ -25,6 +25,15 @@ const itemSchema = z.object({
   elevation: z.number().optional(),
   layer: z.enum(["under", "main", "on-top", "wall"]).optional(),
   shape: z.enum(["rect", "circle"]).optional(),
+  // The size this item came out of the catalog at (see Item.catalogDims).
+  // Bounded like every other dimension on this user-supplied-file path.
+  catalogDims: z
+    .object({
+      w: z.number().min(1).max(5000),
+      h: z.number().min(1).max(5000),
+      l: z.number().min(1).max(5000),
+    })
+    .optional(),
 });
 
 const openingSchema = z.object({

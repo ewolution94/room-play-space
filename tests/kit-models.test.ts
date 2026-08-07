@@ -65,33 +65,44 @@ describe("resolveRenderMode", () => {
     assert.equal(resolveRenderMode({ w: 160, h: 70, l: 80 }, sofaDefault), "model");
   });
 
-  test("falls back to the box once any single axis drifts past the envelope", () => {
+  test("falls back to the box once one axis is stretched far out of step with the others", () => {
     // width blown out to 2x default, height/length unchanged
     assert.equal(resolveRenderMode({ w: 440, h: 80, l: 95 }, sofaDefault), "box");
     // squashed to a third of default height only
     assert.equal(resolveRenderMode({ w: 220, h: 25, l: 95 }, sofaDefault), "box");
   });
 
-  test("the envelope bounds themselves are inclusive", () => {
-    const atMin = {
-      w: sofaDefault.w * KIT_ENVELOPE_MIN,
-      h: sofaDefault.h * KIT_ENVELOPE_MIN,
-      l: sofaDefault.l * KIT_ENVELOPE_MIN,
-    };
-    const atMax = {
-      w: sofaDefault.w * KIT_ENVELOPE_MAX,
-      h: sofaDefault.h * KIT_ENVELOPE_MAX,
-      l: sofaDefault.l * KIT_ENVELOPE_MAX,
-    };
-    assert.equal(resolveRenderMode(atMin, sofaDefault), "model");
-    assert.equal(resolveRenderMode(atMax, sofaDefault), "model");
+  // The rule is about DISPROPORTION, not size: a mesh scaled evenly on all
+  // three axes is the same object, larger or smaller, and never looks
+  // distorted -- so it must never be dropped for a box.
+  test("a uniform scale is never distorted, at any size", () => {
+    for (const k of [0.25, 0.5, 2, 4, 10]) {
+      const scaled = { w: sofaDefault.w * k, h: sofaDefault.h * k, l: sofaDefault.l * k };
+      assert.equal(resolveRenderMode(scaled, sofaDefault), "model", `uniform ${k}x should render`);
+    }
   });
 
-  test("just outside the envelope on either side falls back to the box", () => {
-    const justBelow = { w: sofaDefault.w * (KIT_ENVELOPE_MIN - 0.01), h: 80, l: 95 };
-    const justAbove = { w: sofaDefault.w * (KIT_ENVELOPE_MAX + 0.01), h: 80, l: 95 };
-    assert.equal(resolveRenderMode(justBelow, sofaDefault), "box");
-    assert.equal(resolveRenderMode(justAbove, sofaDefault), "box");
+  // The bug this rule replaced: a HEMNES Bed (Queen) set to its real ~112cm
+  // headboard height rendered as a featureless cube. Two things caused it --
+  // the old rule measured each axis's absolute drift (so 1.7x on height
+  // alone was out), and the drift was measured against the GENERIC
+  // bed-double preset (160x200x45) rather than the HEMNES's own 167x213x66,
+  // which put it at 1.47x on height before the user touched anything.
+  test("a bed given a taller headboard still renders as the model", () => {
+    const hemnes = { w: 167, h: 66, l: 213 };
+    assert.equal(resolveRenderMode({ ...hemnes, h: 112 }, hemnes), "model");
+  });
+
+  test("but a genuinely disproportionate resize still falls back", () => {
+    // A round table pulled 1.5x wide and squashed to 0.7x deep: 2.14x
+    // disagreement between axes, the pinched-oval case the box exists for.
+    const table = { w: 100, h: 75, l: 100 };
+    assert.equal(resolveRenderMode({ w: 150, h: 75, l: 70 }, table), "box");
+  });
+
+  test("a degenerate zero/negative dimension falls back rather than dividing by it", () => {
+    assert.equal(resolveRenderMode({ w: 0, h: 80, l: 95 }, sofaDefault), "box");
+    assert.equal(resolveRenderMode({ w: 220, h: -5, l: 95 }, sofaDefault), "box");
   });
 
   test("a malformed zero-size default (never expected in real data) safely falls back to box instead of dividing by zero", () => {

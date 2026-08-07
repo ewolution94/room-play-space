@@ -94,6 +94,21 @@ export interface Item {
   // collidesWithOthers (lib/planner-math.ts) exempts a host/child pair from
   // colliding with each other in both directions.
   placedOnId?: string;
+  // The size this item was when it came out of the catalog, in cm.
+  //
+  // Only the *3D render-mode* decision uses it (resolveRenderMode in
+  // lib/kit-models.ts), which asks how far the item has been resized from
+  // its natural size before a stretched kit model would look wrong. That
+  // question needs the size THIS item was added at, and `icon` alone can't
+  // answer it: an IKEA "HEMNES Bed (Queen)" and the generic double bed
+  // share the icon `bed-double` but are 167x213x66 and 160x200x45
+  // respectively. Judged against the generic preset, a HEMNES sat at 1.47x
+  // on height the moment it was placed -- already at the edge of the old
+  // tolerance, for a reason invisible to the user.
+  //
+  // Optional: an item saved before this existed falls back to its preset's
+  // dimensions, exactly as everything did before.
+  catalogDims?: { w: number; h: number; l: number };
 }
 
 // Explicit surface-material hint for the 3D view (see ThreeDView.tsx's

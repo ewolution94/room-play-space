@@ -734,6 +734,14 @@ export function useRoomPlanner(
       icon: preset.key,
       layer,
       shape: preset.shape ?? "rect",
+      // What this item's natural size is, recorded now because `icon` alone
+      // can't recover it later: an IKEA entry and the generic preset it
+      // borrows its mesh from share a key. See Item.catalogDims.
+      catalogDims: {
+        w: preset.w,
+        h: preset.h ?? getDefaultHeight(preset.key),
+        l: preset.l,
+      },
       // An explicit elevation on the preset wins over the layer's default,
       // whatever the layer. Previously only "wall" consulted it, so a My
       // Catalog entry saved at a particular height came back sitting at its
