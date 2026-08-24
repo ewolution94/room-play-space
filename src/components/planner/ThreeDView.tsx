@@ -20,6 +20,7 @@ import {
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
 import { getFloorTexture } from "@/lib/floor-textures";
+import { mulberry32 } from "@/lib/floor-materials";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { SlidersHorizontal } from "lucide-react";
@@ -65,6 +66,20 @@ const kitGltfLoader = new GLTFLoader();
 // (see `sharedFromKitCache` below): a small, bounded, frequently-reused set
 // of (file's material x recolor) combinations, not one-off garbage.
 const tintedMaterialCache = new Map<string, THREE.Material>();
+
+/** Deterministic 32-bit string hash (FNV-1a) -- turns a cache/seed key like
+ * `"wood|#8b5e34"` into the numeric seed mulberry32 needs. Any stable
+ * function would do; FNV-1a is simple, fast, and has good enough
+ * distribution that two different (type, color) pairs essentially never
+ * land on visibly-similar noise. */
+function hashSeed(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
 
 function hasColorProp(m: THREE.Material): m is THREE.Material & { color: THREE.Color } {
   return "color" in m;
@@ -237,7 +252,11 @@ function subtractOpenSpans(
 // getMaterialParams below, not a drawn texture.
 type TextureType = "wood" | "fabric" | "leather" | "plant" | "rug" | "stone";
 
-function createProceduralTexture(type: TextureType, baseColor: string): THREE.Texture {
+function buildProceduralTexture(
+  type: TextureType,
+  baseColor: string,
+  rng: () => number,
+): THREE.Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;
@@ -255,7 +274,7 @@ function createProceduralTexture(type: TextureType, baseColor: string): THREE.Te
       ctx.beginPath();
       for (let y = 0; y <= 256; y += 8) {
         const wave = Math.sin(y * 0.03 + i * 0.05) * 5 + Math.cos(y * 0.01) * 2;
-        const x = i + wave + (Math.random() - 0.5) * 0.5;
+        const x = i + wave + (rng() - 0.5) * 0.5;
         if (y === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -279,20 +298,19 @@ function createProceduralTexture(type: TextureType, baseColor: string): THREE.Te
     // Speckled leafy structure
     ctx.fillStyle = darkenColor(baseColor, 0.15);
     for (let i = 0; i < 400; i++) {
-      const rx = Math.random() * 256;
-      const ry = Math.random() * 256;
-      const rSize = 3 + Math.random() * 8;
+      const rx = rng() * 256;
+      const ry = rng() * 256;
+      const rSize = 3 + rng() * 8;
       ctx.beginPath();
-      ctx.ellipse(rx, ry, rSize, rSize / 2, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.ellipse(rx, ry, rSize, rSize / 2, rng() * Math.PI, 0, Math.PI * 2);
       ctx.fill();
     }
   } else if (type === "rug") {
     // Dotted rug fibers
     for (let i = 0; i < 4000; i++) {
-      const rx = Math.random() * 256;
-      const ry = Math.random() * 256;
-      ctx.fillStyle =
-        Math.random() > 0.5 ? darkenColor(baseColor, 0.07) : lightenColor(baseColor, 0.07);
+      const rx = rng() * 256;
+      const ry = rng() * 256;
+      ctx.fillStyle = rng() > 0.5 ? darkenColor(baseColor, 0.07) : lightenColor(baseColor, 0.07);
       ctx.fillRect(rx, ry, 2, 2);
     }
   } else if (type === "leather") {
@@ -301,46 +319,37 @@ function createProceduralTexture(type: TextureType, baseColor: string): THREE.Te
     ctx.globalAlpha = 0.15;
     ctx.fillStyle = darkenColor(baseColor, 0.1);
     for (let i = 0; i < 90; i++) {
-      const rx = Math.random() * 256;
-      const ry = Math.random() * 256;
-      const rSize = 10 + Math.random() * 22;
+      const rx = rng() * 256;
+      const ry = rng() * 256;
+      const rSize = 10 + rng() * 22;
       ctx.beginPath();
-      ctx.ellipse(
-        rx,
-        ry,
-        rSize,
-        rSize * (0.6 + Math.random() * 0.4),
-        Math.random() * Math.PI,
-        0,
-        Math.PI * 2,
-      );
+      ctx.ellipse(rx, ry, rSize, rSize * (0.6 + rng() * 0.4), rng() * Math.PI, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.strokeStyle = darkenColor(baseColor, 0.2);
     ctx.lineWidth = 0.6;
     for (let i = 0; i < 140; i++) {
-      const rx = Math.random() * 256;
-      const ry = Math.random() * 256;
+      const rx = rng() * 256;
+      const ry = rng() * 256;
       ctx.beginPath();
       ctx.moveTo(rx, ry);
-      ctx.lineTo(rx + (Math.random() - 0.5) * 6, ry + (Math.random() - 0.5) * 6);
+      ctx.lineTo(rx + (rng() - 0.5) * 6, ry + (rng() - 0.5) * 6);
       ctx.stroke();
     }
   } else if (type === "stone") {
     // Marble-style veining -- a handful of long, thin, softly wandering
     // light/dark streaks over the base color.
     for (let i = 0; i < 6; i++) {
-      let x = Math.random() * 256;
-      let y = Math.random() * 256;
-      ctx.strokeStyle =
-        Math.random() > 0.5 ? lightenColor(baseColor, 0.25) : darkenColor(baseColor, 0.2);
-      ctx.lineWidth = 0.5 + Math.random() * 1.5;
+      let x = rng() * 256;
+      let y = rng() * 256;
+      ctx.strokeStyle = rng() > 0.5 ? lightenColor(baseColor, 0.25) : darkenColor(baseColor, 0.2);
+      ctx.lineWidth = 0.5 + rng() * 1.5;
       ctx.beginPath();
       ctx.moveTo(x, y);
       for (let seg = 0; seg < 8; seg++) {
-        x += (Math.random() - 0.5) * 60;
-        y += (Math.random() - 0.5) * 60;
+        x += (rng() - 0.5) * 60;
+        y += (rng() - 0.5) * 60;
         ctx.lineTo(x, y);
       }
       ctx.stroke();
@@ -351,6 +360,51 @@ function createProceduralTexture(type: TextureType, baseColor: string): THREE.Te
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   return texture;
+}
+
+// Keyed by `${type}|${baseColor}`, mirroring floor-textures.ts's
+// textureCache convention -- every item using the same (material type,
+// color) pair is visually identical anyway, so sharing one texture avoids
+// rebuilding (and re-randomizing) it per item, per rebuild. Never disposed,
+// same reasoning as tintedMaterialCache above: a small, bounded, session-
+// lifetime set, not one-off garbage -- and nothing in this component's
+// cleanup ever calls `.map.dispose()` on a material's texture (only
+// `material.dispose()`, which doesn't cascade to it), so caching introduces
+// no new disposal hazard.
+const proceduralTextureCache = new Map<string, THREE.Texture>();
+
+/**
+ * The item's SIDE material's texture (see the call site below) -- the
+ * (expensive, previously non-deterministic) canvas drawing is cached and
+ * seeded by `type`+`baseColor` alone, so it neither reshuffles on every 3D
+ * scene rebuild nor differs between two items of the same material and
+ * color. Deliberately not seeded by the item's id: two identical oak desks
+ * should share one grain pattern, not get two different ones (see
+ * mulberry32's doc comment in floor-materials.ts for why stable noise
+ * matters here at all).
+ *
+ * Returns a `.clone()` of the cached texture, NOT the cached instance
+ * itself -- the call site sets `.repeat` from the item's own width/length,
+ * which varies between items that otherwise share a cache key (a 160cm oak
+ * desk and a 40cm oak side table), so mutating the shared instance directly
+ * would make whichever item rendered last win for every other item on
+ * screen. `Texture.clone()` is cheap: the clone shares the same
+ * already-drawn canvas `.image` (no redraw), it just gets its own
+ * `.repeat`/`.offset`/GPU upload -- the same per-item Texture-object
+ * lifecycle this code always had, so the existing (never-explicit-dispose)
+ * handling of item textures is unchanged.
+ */
+function getProceduralTexture(type: TextureType, baseColor: string): THREE.Texture {
+  const key = `${type}|${baseColor}`;
+  let base = proceduralTextureCache.get(key);
+  if (!base) {
+    const rng = mulberry32(hashSeed(key));
+    base = buildProceduralTexture(type, baseColor, rng);
+    proceduralTextureCache.set(key, base);
+  }
+  const instance = base.clone();
+  instance.needsUpdate = true;
+  return instance;
 }
 
 /**
@@ -1711,7 +1765,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         });
 
         if (textureType) {
-          const tex = createProceduralTexture(textureType, it.color);
+          const tex = getProceduralTexture(textureType, it.color);
           sideMat.map = tex;
           tex.repeat.set(it.width / 40, it.length / 40);
         }
@@ -1754,6 +1808,15 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           ctx.fillStyle = it.color;
           ctx.fillRect(0, 0, canvasW, canvasH);
 
+          // Seeded the same way as the side texture's cache key above
+          // (type + color, not the item's id) so an unselected item's top
+          // face doesn't reshuffle its grain on every 3D rebuild, and two
+          // identical items show identical grain. Unlike the side texture,
+          // this canvas can't be cached/shared: it also bakes in the
+          // selection border and name/dims label below, which change per
+          // item and per selection.
+          const topRng = mulberry32(hashSeed(`${textureType}|${it.color}`));
+
           // Draw procedural details
           if (textureType === "wood") {
             ctx.strokeStyle = darkenColor(it.color, 0.12);
@@ -1788,55 +1851,55 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           } else if (textureType === "plant") {
             ctx.fillStyle = darkenColor(it.color, 0.15);
             for (let j = 0; j < 50; j++) {
-              const rx = Math.random() * canvasW;
-              const ry = Math.random() * canvasH;
-              const rSize = 3 + Math.random() * 8;
+              const rx = topRng() * canvasW;
+              const ry = topRng() * canvasH;
+              const rSize = 3 + topRng() * 8;
               ctx.beginPath();
-              ctx.ellipse(rx, ry, rSize, rSize / 2, Math.random() * Math.PI, 0, Math.PI * 2);
+              ctx.ellipse(rx, ry, rSize, rSize / 2, topRng() * Math.PI, 0, Math.PI * 2);
               ctx.fill();
             }
           } else if (textureType === "rug") {
             for (let j = 0; j < 2000; j++) {
-              const rx = Math.random() * canvasW;
-              const ry = Math.random() * canvasH;
+              const rx = topRng() * canvasW;
+              const ry = topRng() * canvasH;
               ctx.fillStyle =
-                Math.random() > 0.5 ? darkenColor(it.color, 0.07) : lightenColor(it.color, 0.07);
+                topRng() > 0.5 ? darkenColor(it.color, 0.07) : lightenColor(it.color, 0.07);
               ctx.fillRect(rx, ry, 2, 2);
             }
           } else if (textureType === "leather") {
             ctx.globalAlpha = 0.15;
             ctx.fillStyle = darkenColor(it.color, 0.1);
             for (let j = 0; j < 70; j++) {
-              const rx = Math.random() * canvasW;
-              const ry = Math.random() * canvasH;
-              const rSize = (8 + Math.random() * 18) * (Math.min(canvasW, canvasH) / 256);
+              const rx = topRng() * canvasW;
+              const ry = topRng() * canvasH;
+              const rSize = (8 + topRng() * 18) * (Math.min(canvasW, canvasH) / 256);
               ctx.beginPath();
-              ctx.ellipse(rx, ry, rSize, rSize * 0.75, Math.random() * Math.PI, 0, Math.PI * 2);
+              ctx.ellipse(rx, ry, rSize, rSize * 0.75, topRng() * Math.PI, 0, Math.PI * 2);
               ctx.fill();
             }
             ctx.globalAlpha = 1;
             ctx.strokeStyle = darkenColor(it.color, 0.2);
             ctx.lineWidth = 0.6;
             for (let j = 0; j < 100; j++) {
-              const rx = Math.random() * canvasW;
-              const ry = Math.random() * canvasH;
+              const rx = topRng() * canvasW;
+              const ry = topRng() * canvasH;
               ctx.beginPath();
               ctx.moveTo(rx, ry);
-              ctx.lineTo(rx + (Math.random() - 0.5) * 6, ry + (Math.random() - 0.5) * 6);
+              ctx.lineTo(rx + (topRng() - 0.5) * 6, ry + (topRng() - 0.5) * 6);
               ctx.stroke();
             }
           } else if (textureType === "stone") {
             for (let j = 0; j < 5; j++) {
-              let x = Math.random() * canvasW;
-              let y = Math.random() * canvasH;
+              let x = topRng() * canvasW;
+              let y = topRng() * canvasH;
               ctx.strokeStyle =
-                Math.random() > 0.5 ? lightenColor(it.color, 0.25) : darkenColor(it.color, 0.2);
-              ctx.lineWidth = 0.5 + Math.random() * 1.5;
+                topRng() > 0.5 ? lightenColor(it.color, 0.25) : darkenColor(it.color, 0.2);
+              ctx.lineWidth = 0.5 + topRng() * 1.5;
               ctx.beginPath();
               ctx.moveTo(x, y);
               for (let seg = 0; seg < 6; seg++) {
-                x += (Math.random() - 0.5) * (canvasW * 0.25);
-                y += (Math.random() - 0.5) * (canvasH * 0.25);
+                x += (topRng() - 0.5) * (canvasW * 0.25);
+                y += (topRng() - 0.5) * (canvasH * 0.25);
                 ctx.lineTo(x, y);
               }
               ctx.stroke();

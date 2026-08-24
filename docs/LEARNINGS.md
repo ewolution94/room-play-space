@@ -770,6 +770,19 @@ permanent debug hook for this; add `window.__scene = scene` next to
   element size instead. And offsets meant to be *visual* (a label's gap from
   its wall) belong in screen pixels, not SVG units — a viewBox-space offset
   shrinks with the scale until the label sits on top of the thing it labels.
+- **A cached `THREE.Texture` cannot have per-instance `.repeat`/`.offset`.**
+  Those live on the Texture object itself, not on the material or mesh that
+  references it, so if two items share one cached texture (e.g. keyed by
+  `${materialType}|${color}`) and each sets `.repeat` from its own
+  width/length, they fight over the same object — whichever item's material
+  gets built last in the loop wins for every other item on screen too. This
+  bit `getProceduralTexture` in `ThreeDView.tsx`: the fix caches the
+  expensive/nondeterministic part (the seeded canvas drawing) but hands each
+  caller a `.clone()` — cheap, since a clone shares the already-rendered
+  canvas `.image` and only gets its own GPU upload — so `.repeat` stays
+  correct per item. Any future per-(type,color) texture cache needs this same
+  split the moment a caller wants to set tiling/offset from the item's own
+  geometry.
 
 ## Reusing the whole rendering/collision pipeline for a "variant" catalog item
 

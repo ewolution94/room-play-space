@@ -15,10 +15,16 @@ import {
   rectCorners,
   pointInPolygon,
   rectilinearPolygonRects,
+  rectilinearPolygonSpanRects,
   rectilinearPolygonsOverlap,
 } from "@/lib/planner-math";
-import { buildLHallwayCorners, buildTHallwayCorners } from "@/lib/hallway-shapes";
-import type { Item } from "@/types/planner";
+import {
+  buildLHallwayCorners,
+  buildTHallwayCorners,
+  insetRectilinearPolygon,
+} from "@/lib/hallway-shapes";
+import { ROOM_SHAPE_TEMPLATES, buildTShapeCorners } from "@/lib/room-shapes";
+import type { Item, Point } from "@/types/planner";
 
 function makeItem(overrides: Partial<Item> = {}): Item {
   return {
@@ -393,30 +399,170 @@ describe("clampPos", () => {
     assert.equal(c.y, 80);
   });
 
-  test("for a polygon (L-shaped) room, clamps to the shape's bounding box (not the exact concave outline)", () => {
-    // A 6-corner L occupying x:[0,300], y:[0,300] with a notch cut out of
-    // the top-right region -- clampPos is documented to use the bounding
-    // box as an approximation, so a position inside the notch is still
-    // accepted rather than pushed out.
-    const lCorners = [
-      { x: 0, y: 0 },
-      { x: 120, y: 0 },
-      { x: 120, y: 180 },
-      { x: 300, y: 180 },
-      { x: 300, y: 300 },
-      { x: 0, y: 300 },
-    ];
-    const item = makeItem({ width: 20, length: 20 });
-    // Inside the notch (x:150-170, y:20-40) -- outside the physical L, but
-    // within its bounding box.
-    const c = clampPos(item, lCorners, 150, 20);
-    assert.equal(c.x, 150);
-    assert.equal(c.y, 20);
+  // --- polygon (shaped / hallway) rooms ------------------------------
+  //
+  // The bounding box of an L/T/U is bigger than its floor: the notch is
+  // inside the box without being floor. These assert an item can no longer
+  // be parked there. `onFloor` is the same question the app asks -- are all
+  // four corners of the item's rotated AABB inside the polygon inset by
+  // half a wall.
+  function onFloor(item: Item, corners: Point[], pos: { x: number; y: number }): boolean {
+    const inset = insetRectilinearPolygon(corners, 3);
+    const aabb = rotatedAABB(item.width, item.length, item.rotation);
+    const cx = pos.x + item.width / 2;
+    const cy = pos.y + item.length / 2;
+    const hw = aabb.w / 2 - 0.01;
+    const hh = aabb.h / 2 - 0.01;
+    return [
+      { x: cx - hw, y: cy - hh },
+      { x: cx + hw, y: cy - hh },
+      { x: cx + hw, y: cy + hh },
+      { x: cx - hw, y: cy + hh },
+    ].every((p) => pointInPolygon(p, inset));
+  }
 
-    // Still clamps against the bounding box's outer edges.
-    const clampedFar = clampPos(item, lCorners, 10000, 10000);
-    assert.equal(clampedFar.x, 300 - 3 - 20);
-    assert.equal(clampedFar.y, 300 - 3 - 20);
+  function templateCorners(key: string): Point[] {
+    const tpl = ROOM_SHAPE_TEMPLATES.find((t) => t.key === key);
+    assert.ok(tpl, `missing template ${key}`);
+    return tpl!.defaultCorners;
+  }
+
+  test("a rectangle room is unchanged by the polygon path -- every position, every rotation", () => {
+    // The fast path must stay byte-identical to the formula this function
+    // has always used, so nothing about the common case can regress.
+    const corners = roomCorners(300, 200);
+    for (const rotation of [0, 30, 45, 90, 217]) {
+      const item = makeItem({ width: 90, length: 50, rotation });
+      const aabb = rotatedAABB(item.width, item.length, item.rotation);
+      for (let x = -200; x <= 400; x += 37) {
+        for (let y = -200; y <= 300; y += 29) {
+          const c = clampPos(item, corners, x, y);
+          const cx = Math.max(3 + aabb.w / 2, Math.min(297 - aabb.w / 2, x + item.width / 2));
+          const cy = Math.max(3 + aabb.h / 2, Math.min(197 - aabb.h / 2, y + item.length / 2));
+          assert.equal(c.x, cx - item.width / 2);
+          assert.equal(c.y, cy - item.length / 2);
+        }
+      }
+    }
+  });
+
+  test("an L-shaped room pushes an item out of the notch, sliding it along the notch wall", () => {
+    // The template L is 400x350 with the notch cut from the top-right --
+    // x:[240,400], y:[0,140] is inside the bounding box but is not floor.
+    const corners = templateCorners("l");
+    const item = makeItem({ width: 40, length: 40 });
+    const c = clampPos(item, corners, 300, 20);
+    assert.ok(onFloor(item, corners, c));
+    // Nearest floor is the left arm's inner wall (240 - 3 wall - 40 item),
+    // at the y the drag asked for -- it slides rather than jumping.
+    assert.equal(c.x, 197);
+    assert.equal(c.y, 20);
+  });
+
+  test("a U-shaped room pushes an item out of its notch", () => {
+    // Template U: 400x350 with a 134x105 bite out of the middle of the
+    // bottom wall (a chimney breast). The item is dropped inside the bite.
+    const corners = templateCorners("u");
+    const item = makeItem({ width: 40, length: 40 });
+    const c = clampPos(item, corners, 150, 300);
+    assert.ok(onFloor(item, corners, c));
+    // Nearest floor is the left leg beside the notch, at the requested y.
+    assert.equal(c.x, 90);
+    assert.equal(c.y, 300);
+  });
+
+  test("an item wider than any single grid cell still clamps into the arm it fits in", () => {
+    // A T-room's bar is sliced into three ~133cm cells by the stem's walls,
+    // so a 150cm sofa fits in no *cell* of a bar it plainly fits in. Without
+    // rectilinearPolygonSpanRects this fell back to the bounding box and the
+    // sofa stayed in the dead corner beside the stem.
+    const corners = templateCorners("t");
+    const item = makeItem({ width: 150, length: 60 });
+    assert.ok(rectilinearPolygonRects(corners).every((r) => r.width < 150));
+    const c = clampPos(item, corners, 10, 250);
+    assert.ok(onFloor(item, corners, c));
+    assert.equal(c.x, 10); // x was already fine
+    assert.equal(c.y, 129); // lifted up into the bar (189 - 60)
+  });
+
+  test("an item that fits nowhere falls back to the old bounding-box result rather than refusing to move", () => {
+    const corners = templateCorners("l");
+    const item = makeItem({ width: 500, length: 500 });
+    const c = clampPos(item, corners, 0, 0);
+    // Exactly what the pre-polygon function returned for an oversized item:
+    // centred in the bounding box's usable area.
+    assert.equal(c.x, 3 + (397 - 3) / 2 - 250);
+    assert.equal(c.y, 3 + (347 - 3) / 2 - 250);
+  });
+
+  test("an item already on floor passes through untouched, including one spanning two arms", () => {
+    const corners = templateCorners("l");
+    // 300cm long, lying across the full width of the L's bottom leg -- it
+    // fits in no single arm of the shape above it, but every corner is on
+    // floor, so the position is accepted as asked for.
+    const item = makeItem({ width: 300, length: 40 });
+    const c = clampPos(item, corners, 50, 250);
+    assert.equal(c.x, 50);
+    assert.equal(c.y, 250);
+    assert.ok(onFloor(item, corners, c));
+  });
+
+  test("documented permissiveness: an item large enough to bridge a notch corner-to-corner is accepted", () => {
+    // The containment rule is "all four corners on floor", not "fits inside
+    // one rectangle", which is what lets the spanning case above work. The
+    // price is this: something wide enough to reach floor on both sides of
+    // the U's notch is accepted with its middle over the gap. Nothing in the
+    // catalog is that shape relative to a real notch -- asserted so the
+    // trade-off stays deliberate rather than becoming a surprise.
+    const corners = templateCorners("u");
+    const item = makeItem({ width: 380, length: 120 });
+    const c = clampPos(item, corners, 10, 200);
+    assert.equal(c.x, 10);
+    assert.equal(c.y, 200);
+  });
+});
+
+describe("rectilinearPolygonSpanRects", () => {
+  test("a plain rectangle is a single rectangle -- itself", () => {
+    const rects = rectilinearPolygonSpanRects(roomCorners(300, 200));
+    assert.equal(rects.length, 1);
+    assert.deepEqual(rects[0], { x: 0, y: 0, width: 300, height: 200 });
+  });
+
+  test("a T-shape yields the whole bar and the whole stem, not the cells they are cut into", () => {
+    const rects = rectilinearPolygonSpanRects(buildTShapeCorners(400, 350, 134, 192));
+    // The bar: full width, down to where the shoulders cut in.
+    assert.ok(rects.some((r) => r.x === 0 && r.y === 0 && r.width === 400 && r.height === 192));
+    // The stem: full height of the room, at the stem's own width.
+    assert.ok(rects.some((r) => r.x === 133 && r.y === 0 && r.width === 134 && r.height === 350));
+    // Only maximal ones -- no rectangle is contained in another.
+    for (const a of rects) {
+      for (const b of rects) {
+        if (a === b) continue;
+        const contained =
+          b.x <= a.x &&
+          b.y <= a.y &&
+          b.x + b.width >= a.x + a.width &&
+          b.y + b.height >= a.y + a.height;
+        assert.ok(!contained);
+      }
+    }
+  });
+
+  test("every returned rectangle is genuinely inside the polygon", () => {
+    const corners = buildLHallwayCorners(120, 300, 300, false).corners;
+    for (const r of rectilinearPolygonSpanRects(corners)) {
+      const eps = 0.001;
+      for (const p of [
+        { x: r.x + eps, y: r.y + eps },
+        { x: r.x + r.width - eps, y: r.y + eps },
+        { x: r.x + r.width - eps, y: r.y + r.height - eps },
+        { x: r.x + eps, y: r.y + r.height - eps },
+        { x: r.x + r.width / 2, y: r.y + r.height / 2 },
+      ]) {
+        assert.ok(pointInPolygon(p, corners), `${JSON.stringify(p)} outside`);
+      }
+    }
   });
 });
 

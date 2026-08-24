@@ -22,6 +22,8 @@ import {
   homeDisplayName,
 } from "@/lib/homes";
 import { ExportImportDialog } from "@/components/planner/ExportImportDialog";
+import { MeasurementsDialog } from "@/components/planner/MeasurementsDialog";
+import { measureHome } from "@/lib/measurements";
 import { buildExportFilename } from "@/lib/export-filename";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +47,7 @@ import {
   FileStack,
   MoreHorizontal,
   Plus,
+  Ruler,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
@@ -336,6 +339,7 @@ function HomeOverview() {
   // replaced.
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [measurementsOpen, setMeasurementsOpen] = useState(false);
   const floorScopes = [
     { id: "current", label: lang === "de" ? "Aktuelles Geschoss" : "Current floor" },
     { id: "all", label: lang === "de" ? "Alle Geschosse" : "All floors" },
@@ -779,6 +783,10 @@ function HomeOverview() {
                   </DropdownMenuTrigger>
                 </HoverTooltip>
                 <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={() => setMeasurementsOpen(true)}>
+                    <Ruler className="mr-2 h-4 w-4" />
+                    {t.measurements}
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => changeLanguage(lang === "en" ? "de" : "en")}>
                     <Languages className="mr-2 h-4 w-4" />
                     {lang === "en" ? "Deutsch" : "English"}
@@ -846,6 +854,15 @@ function HomeOverview() {
               ? "Falls diese Datei gespeicherte Katalog-Elemente enthält, werden neue zu Meinem Katalog hinzugefügt."
               : "If this file includes saved catalog items, any new ones are added to My Catalog.",
         }}
+      />
+
+      <MeasurementsDialog
+        t={t}
+        open={measurementsOpen}
+        onOpenChange={setMeasurementsOpen}
+        scope="home"
+        filenameBase={homeLabel}
+        rooms={measureHome({ id: homeId, name: homeName, floors }, lang)}
       />
 
       {/* A home always starts with one ground floor and the switcher won't

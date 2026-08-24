@@ -1096,6 +1096,78 @@ Two independent defects, and it took both to produce that cube.
       `BoxGeometry`, at measured heights of 112 / 66 / 112 cm. 724 tests
       (5 new), tsc clean, lint 18/19 (baseline).
 
+### Fixed: the three tasks planned in HANDOVER.md (2026-08-21)
+
+HANDOVER.md is now deleted per its own instructions; this is the durable
+record. All three were grounded in code that already existed, as the
+handover said.
+
+- [x] **Point-in-polygon furniture clamping.** `clampPos`
+      (`planner-math.ts`) keeps the exact old bounding-box formula as a
+      fast path for every 4-corner room (asserted byte-identical against
+      the pre-fix formula for every rotation/position, not just spot
+      checked). For a polygon room (L/T/U), it now insets the polygon by
+      half the wall thickness and accepts a position if the item's rotated
+      AABB has all four corners on that inset floor -- deliberately a
+      "corners on floor" test rather than "fits inside one decomposed
+      rectangle", so an item spanning two arms of an L legitimately places.
+      Otherwise it clamps into the nearest-fitting rectangle from a new
+      `rectilinearPolygonSpanRects` (merges adjacent grid cells into
+      *maximal* rectangles, so a 150cm sofa fits into a T-room's bar even
+      though the stem's walls slice that bar into ~133cm cells), falling
+      back to the old bounding-box result if the item fits nowhere at all
+      -- a drag that silently does nothing reads as a broken app. 9 new
+      tests (byte-identical rectangle behavior, L/U-notch ejection,
+      cross-cell spanning, the fits-nowhere fallback, and the documented
+      corner-test permissiveness); 733 tests total, tsc clean, lint at
+      baseline (18/19 in `src/`).
+- [x] **Measurements / shopping-list export.** New `lib/measurements.ts`
+      (`measureItems`/`measureRoom`/`measureHome`), pure and DOM-free,
+      groups items by name + dimensions rounded to whole cm (matching the
+      Elements list's own display precision) and reuses
+      `item.height ?? getDefaultHeight(...)` -- the same fallback the
+      canvas, Elements list, 3D view and slope check already use, so this
+      is a fifth reading of "how tall is this" that cannot disagree with
+      the other four. New `MeasurementsDialog` (on-screen table, copy as
+      text, download CSV) reachable from the room editor's More menu (this
+      room) and the home page's More menu (every room across every floor,
+      headed by room name, floor-qualified only when a home has more than
+      one floor -- so two same-named rooms on different floors can't get
+      silently merged). Caught and fixed a real bug while verifying in the
+      browser: the copy button had no try/catch around
+      `navigator.clipboard.writeText`, so a denied clipboard permission
+      failed silently (an uncaught promise rejection, no feedback) instead
+      of telling the user it didn't work -- now shows an error toast.
+      11 new tests; 744 tests total.
+- [x] **Unseeded texture noise.** Both generators in `ThreeDView.tsx` (the
+      256x256 side texture and the inline aspect-sized top-face one) now
+      draw from `mulberry32` seeded by `type`+`color` -- a small FNV-1a
+      `hashSeed` turns that string key into the numeric seed mulberry32
+      needs -- instead of `Math.random()`, so grain no longer reshuffles on
+      a rebuild and two identical items share one pattern. The side texture
+      is cached by `${type}|${color}` (never disposed, same precedent as
+      `tintedMaterialCache`: a small, bounded, session-lifetime set, and
+      nothing in this file's cleanup ever calls `.map.dispose()` on a
+      material's texture anyway). One thing the handover didn't flag:
+      the call site sets `.repeat` from the item's own width/length, which
+      varies between items that share a cache key (a 160cm oak desk and a
+      40cm oak side table) -- mutating the shared texture's `.repeat`
+      directly would have made whichever item rendered last win for every
+      other item on screen. Fixed by returning a `.clone()` of the cached
+      texture (cheap: shares the already-drawn canvas image, no redraw) so
+      `.repeat` stays per-item while the expensive/nondeterministic canvas
+      drawing itself is genuinely shared. Verified against the live scene
+      graph, not a screenshot (per LEARNINGS): patched the page's
+      `HTMLCanvasElement.prototype.getContext` to prove zero new 256x256
+      canvases get drawn across a full scene rebuild triggered by an
+      unrelated state change (toggling name labels) -- every item's side
+      texture came from the cache, so there was no `Math.random()` call
+      left to reshuffle anything. tsc clean, lint at baseline; no unit test
+      added (no helper in this file has ever had one -- see
+      `darkenColor`/`lightenColor`/`subtractOpenSpans` -- the codebase's
+      convention is browser/scene-graph verification for this file, lib
+      unit tests for `lib/*.ts`).
+
 ### Still open
 - [ ] Roof windows (*Dachfenster*) -- openings on a sloped wall remain unsupported entirely, now enforced on both the add and the edit path rather than just the add.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.
