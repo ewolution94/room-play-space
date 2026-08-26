@@ -1,16 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 export type Theme = "light" | "dark";
 
-export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === "undefined") return "light";
-    const saved = window.localStorage.getItem("planner-theme");
-    if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
+// The SSR pass has no window, so the initial render always yields "light"
+// -- read the real preference in a layout effect (before paint) instead of
+// in the useState initializer, so the client's first render matches the
+// server's and hydration doesn't fail with a mismatch.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-  useEffect(() => {
+function readStoredTheme(): Theme {
+  const saved = window.localStorage.getItem("planner-theme");
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+export function useTheme() {
+  const [theme, setTheme] = useState<Theme>("light");
+
+  useIsomorphicLayoutEffect(() => {
+    setTheme(readStoredTheme());
+  }, []);
+
+  useIsomorphicLayoutEffect(() => {
     const root = window.document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
@@ -22,7 +33,6 @@ export function useTheme() {
 
   // Listen to system theme changes if no manual preference is stored
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const listener = (e: MediaQueryListEvent) => {
       const saved = window.localStorage.getItem("planner-theme");
