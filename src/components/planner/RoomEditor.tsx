@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
 import { useSettings } from "@/hooks/use-settings";
@@ -51,6 +52,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
   const isSingle = source === "single";
   const navigate = useNavigate();
   const { theme, toggleTheme, isDark } = useTheme();
+  const { isMobileViewOnly } = useMobileViewOnly();
   const planner = useRoomPlanner(roomId, source, homeId);
   const { t, resetMode, setResetMode, confirmReset } = planner;
   const { collapsed: sidebarCollapsed, toggle: toggleSidebarCollapsed } = useSidebarCollapsed();
@@ -196,6 +198,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
         theme={theme}
         toggleTheme={toggleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
+        viewOnly={isMobileViewOnly}
       />
 
       <SettingsDialog
@@ -250,59 +253,65 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
 
       <div
         className={
-          sidebarCollapsed
-            ? "grid w-full gap-4 px-4 py-4 lg:grid-cols-[64px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
-            : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+          isMobileViewOnly
+            ? "flex flex-1 min-h-0 w-full flex-col p-2"
+            : sidebarCollapsed
+              ? "grid w-full gap-4 px-4 py-4 lg:grid-cols-[64px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+              : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
         }
       >
-        {/* Left column: Unified Tabbed Sidebar */}
-        <Sidebar
-          t={planner.t}
-          lang={planner.lang}
-          items={planner.items}
-          openings={planner.openings}
-          selectedIds={planner.selectedIds}
-          setSelectedIds={planner.setSelectedIds}
-          nName={planner.nName}
-          setNName={planner.setNName}
-          nW={planner.nW}
-          setNW={planner.setNW}
-          nL={planner.nL}
-          setNL={planner.setNL}
-          nColor={planner.nColor}
-          setNColor={planner.setNColor}
-          nLayer={planner.nLayer}
-          setNLayer={planner.setNLayer}
-          nShape={planner.nShape}
-          setNShape={planner.setNShape}
-          oKind={planner.oKind}
-          oLeaves={planner.oLeaves}
-          setOLeaves={planner.setOLeaves}
-          setOKind={planner.setOKind}
-          oWall={planner.oWall}
-          setOWall={planner.setOWall}
-          oPos={planner.oPos}
-          setOPos={planner.setOPos}
-          oWidth={planner.oWidth}
-          setOWidth={planner.setOWidth}
-          roomW={planner.roomW}
-          roomL={planner.roomL}
-          addPreset={planner.addPreset}
-          addCustomBox={planner.addCustomBox}
-          addOpening={planner.addOpening}
-          removeOpening={planner.removeOpening}
-          removeItem={planner.removeItem}
-          threeDActive={planner.threeDActive}
-          corners={planner.corners}
-          selectedOpeningId={planner.selectedOpeningId}
-          setSelectedOpeningId={planner.setSelectedOpeningId}
-          openWalls={planner.openWalls}
-          slopeIssues={planner.slopeIssues}
-          customCatalog={customCatalog}
-          openSaveDialog={openSaveDialog}
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={toggleSidebarCollapsed}
-        />
+        {/* Left column: Unified Tabbed Sidebar -- hidden entirely in mobile
+            view-only mode (see useMobileViewOnly), same as MultiRoomSidebar
+            in home.$homeId.index.tsx. */}
+        {!isMobileViewOnly && (
+          <Sidebar
+            t={planner.t}
+            lang={planner.lang}
+            items={planner.items}
+            openings={planner.openings}
+            selectedIds={planner.selectedIds}
+            setSelectedIds={planner.setSelectedIds}
+            nName={planner.nName}
+            setNName={planner.setNName}
+            nW={planner.nW}
+            setNW={planner.setNW}
+            nL={planner.nL}
+            setNL={planner.setNL}
+            nColor={planner.nColor}
+            setNColor={planner.setNColor}
+            nLayer={planner.nLayer}
+            setNLayer={planner.setNLayer}
+            nShape={planner.nShape}
+            setNShape={planner.setNShape}
+            oKind={planner.oKind}
+            oLeaves={planner.oLeaves}
+            setOLeaves={planner.setOLeaves}
+            setOKind={planner.setOKind}
+            oWall={planner.oWall}
+            setOWall={planner.setOWall}
+            oPos={planner.oPos}
+            setOPos={planner.setOPos}
+            oWidth={planner.oWidth}
+            setOWidth={planner.setOWidth}
+            roomW={planner.roomW}
+            roomL={planner.roomL}
+            addPreset={planner.addPreset}
+            addCustomBox={planner.addCustomBox}
+            addOpening={planner.addOpening}
+            removeOpening={planner.removeOpening}
+            removeItem={planner.removeItem}
+            threeDActive={planner.threeDActive}
+            corners={planner.corners}
+            selectedOpeningId={planner.selectedOpeningId}
+            setSelectedOpeningId={planner.setSelectedOpeningId}
+            openWalls={planner.openWalls}
+            slopeIssues={planner.slopeIssues}
+            customCatalog={customCatalog}
+            openSaveDialog={openSaveDialog}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebarCollapsed}
+          />
+        )}
 
         {/* Right column: Drawing Stage */}
         <CanvasArea

@@ -12,12 +12,14 @@ import {
 } from "@/lib/homes";
 import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-catalog";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { ExportImportDialog } from "@/components/planner/ExportImportDialog";
 import { TOUR_KEY } from "@/hooks/use-room-planner";
 import {
   CREATE_OPTION_LIST_CLASS,
   CreateOptionButton,
 } from "@/components/dashboard/CreateOptionButton";
+import { MobileCreateBlockedDialog } from "@/components/dashboard/MobileCreateBlockedDialog";
 import type { Home, Lang } from "@/types/planner";
 import { FilePlus2, Sparkles, Upload } from "lucide-react";
 
@@ -42,6 +44,8 @@ interface CreateHomeFlowProps {
 export function CreateHomeFlow({ lang }: CreateHomeFlowProps) {
   const navigate = useNavigate();
   const [importOpen, setImportOpen] = useState(false);
+  const { isMobileViewOnly } = useMobileViewOnly();
+  const [mobileBlockedOpen, setMobileBlockedOpen] = useState(false);
   // Only here to receive a catalog bundled into an imported file -- the
   // dashboard has no catalog UI of its own.
   const customCatalog = useCustomCatalog();
@@ -134,8 +138,14 @@ export function CreateHomeFlow({ lang }: CreateHomeFlowProps) {
         description={
           lang === "de" ? "Leeres Erdgeschoss, Räume später" : "Empty ground floor, rooms later"
         }
-        onClick={createEmpty}
+        onClick={isMobileViewOnly ? () => setMobileBlockedOpen(true) : createEmpty}
       />
+      {/* Left open on mobile, unlike its two siblings here: it drops you
+          into an already-furnished floor plan to look at, the same "from
+          example" exception the single-room card makes -- "from scratch"
+          would instead strand a mobile visitor on an editable-only, empty
+          floor with no sidebar to add anything to it (see RoomEditor.tsx's
+          own mobile view-only treatment). */}
       <CreateOptionButton
         icon={Sparkles}
         title={lang === "de" ? "Aus Beispiel" : "From example"}
@@ -150,7 +160,13 @@ export function CreateHomeFlow({ lang }: CreateHomeFlowProps) {
         icon={Upload}
         title={lang === "de" ? "Aus Datei" : "From a file"}
         description={lang === "de" ? "Exportiertes Zuhause importieren" : "Import an exported home"}
-        onClick={() => setImportOpen(true)}
+        onClick={isMobileViewOnly ? () => setMobileBlockedOpen(true) : () => setImportOpen(true)}
+      />
+
+      <MobileCreateBlockedDialog
+        lang={lang}
+        open={mobileBlockedOpen}
+        onOpenChange={setMobileBlockedOpen}
       />
 
       <ExportImportDialog
