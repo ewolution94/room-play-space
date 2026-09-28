@@ -21,6 +21,10 @@ export const customCatalogItemSchema = z.object({
   w: z.number().min(1).max(5000),
   l: z.number().min(1).max(5000),
   h: z.number().min(0.1).max(500).optional(),
+  // Bounded like every other user-supplied dimension on this path -- the
+  // catalog has its own JSON import, so these numbers are not guaranteed to
+  // have come from the save dialog.
+  elevation: z.number().min(0).max(500).optional(),
   color: z.string().regex(COLOR_REGEX, "Invalid color format"),
   layer: z.enum(["under", "main", "on-top", "wall"]).optional(),
   shape: z.enum(["rect", "circle"]).optional(),
@@ -99,7 +103,12 @@ export function customCatalogItemToPreset(item: CustomCatalogItem): Preset {
     layer: base?.layer ?? item.layer,
     shape: base?.shape ?? item.shape,
     material: base?.material,
-    elevation: base?.elevation,
+    // The saved entry wins over its source preset, the same way `h` above
+    // does: the whole point of saving a customised copy is that its own
+    // measurements outrank the generic ones it started from. Falling back to
+    // the base keeps every entry that predates elevation being saved
+    // behaving exactly as it did.
+    elevation: item.elevation ?? base?.elevation,
     kitModel: base?.kitModel,
     proceduralModel: base?.proceduralModel,
     isLightSource: base?.isLightSource,

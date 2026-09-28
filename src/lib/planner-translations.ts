@@ -121,6 +121,19 @@ export const STRINGS = {
     // hover, and on a plan you're reading at a glance. Translated because
     // the initials follow the words: Länge/Breite/Höhe -> L×B×H.
     dimsAxes: "L×W×H",
+    measurements: "Measurements",
+    measurementsTitle: "Measurements",
+    measurementsDescriptionRoom: "Every item in this room, grouped by name and size.",
+    measurementsDescriptionHome:
+      "Every item across every room in this home, grouped by name and size.",
+    measurementsEmpty: "Nothing placed yet.",
+    measurementsCopy: "Copy as text",
+    measurementsCopied: "Copied to clipboard",
+    measurementsCopyFailed: "Couldn't copy to clipboard",
+    measurementsDownloadCsv: "Download CSV",
+    measurementsColName: "Name",
+    measurementsColDims: "L × W × H (cm)",
+    measurementsColCount: "Count",
     openingOnSlopedWall: "Doors and windows aren't supported on a sloped wall.",
     // An opening is a hole in a wall, so one that doesn't fit can't be
     // built -- unlike furniture, which only warns. The numbers are in the
@@ -284,6 +297,19 @@ export const STRINGS = {
     roomHeight: "Wandhöhe (cm)",
     dimsLWH: "Länge × Breite × Höhe (cm)",
     dimsAxes: "L×B×H",
+    measurements: "Maße",
+    measurementsTitle: "Maße",
+    measurementsDescriptionRoom: "Alle Gegenstände in diesem Raum, gruppiert nach Name und Größe.",
+    measurementsDescriptionHome:
+      "Alle Gegenstände in jedem Raum dieses Zuhauses, gruppiert nach Name und Größe.",
+    measurementsEmpty: "Noch nichts platziert.",
+    measurementsCopy: "Als Text kopieren",
+    measurementsCopied: "In die Zwischenablage kopiert",
+    measurementsCopyFailed: "Konnte nicht in die Zwischenablage kopiert werden",
+    measurementsDownloadCsv: "CSV herunterladen",
+    measurementsColName: "Name",
+    measurementsColDims: "L × B × H (cm)",
+    measurementsColCount: "Anzahl",
     openingOnSlopedWall: "Türen und Fenster werden an einer Schräge nicht unterstützt.",
     openingTooTall: (what: string, needed: number, available: number) =>
       `${what} braucht ${needed} cm Wandhöhe — diese Wände sind ${available} cm hoch. Erhöhe zuerst die Wandhöhe.`,

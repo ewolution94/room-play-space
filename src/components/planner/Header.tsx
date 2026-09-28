@@ -22,11 +22,14 @@ import {
   Moon,
   LayoutDashboard,
   Settings,
+  Ruler,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
 import { Link } from "@tanstack/react-router";
 import { ExportImportDialog } from "./ExportImportDialog";
+import { MeasurementsDialog } from "./MeasurementsDialog";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
+import { measureItems } from "@/lib/measurements";
 
 export function Header({
   t,
@@ -52,6 +55,7 @@ export function Header({
 }: HeaderProps) {
   const [exportOpen, setExportOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
+  const [measurementsOpen, setMeasurementsOpen] = React.useState(false);
   const roomScopes = [{ id: "room", label: lang === "de" ? "Dieser Raum" : "This room" }];
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -228,6 +232,10 @@ export function Header({
                   <Settings className="mr-2 h-4 w-4" />
                   {lang === "de" ? "Einstellungen" : "Settings"}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setMeasurementsOpen(true)}>
+                  <Ruler className="mr-2 h-4 w-4" />
+                  {t.measurements}
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/dashboard">
                     <LayoutDashboard className="mr-2 h-4 w-4" />
@@ -307,6 +315,15 @@ export function Header({
               ? "Falls diese Datei gespeicherte Katalog-Elemente enthält, werden neue zu Meinem Katalog hinzugefügt."
               : "If this file includes saved catalog items, any new ones are added to My Catalog.",
         }}
+      />
+
+      <MeasurementsDialog
+        t={t}
+        open={measurementsOpen}
+        onOpenChange={setMeasurementsOpen}
+        scope="room"
+        filenameBase={lang === "de" ? "Masse" : "measurements"}
+        rooms={[{ roomId: "room", roomName: t.roomLabel, rows: measureItems(items) }]}
       />
     </header>
   );

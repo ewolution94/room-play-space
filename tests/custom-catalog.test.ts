@@ -90,6 +90,27 @@ describe("customCatalogArraySchema", () => {
   test("accepts an empty array", () => {
     assert.deepEqual(customCatalogArraySchema.parse([]), []);
   });
+
+  test("carries height and elevation through, and keeps them optional", () => {
+    const [withBoth] = customCatalogArraySchema.parse([makeItem({ h: 88, elevation: 150 })]);
+    assert.equal(withBoth.h, 88);
+    assert.equal(withBoth.elevation, 150);
+    // Absent is the shape of every entry saved before these were stored.
+    const [without] = customCatalogArraySchema.parse([makeItem({})]);
+    assert.equal(without.h, undefined);
+    assert.equal(without.elevation, undefined);
+  });
+
+  test("bounds elevation like every other user-supplied dimension", () => {
+    // This is a user-supplied-file path (My Catalog has its own JSON
+    // import), so an absurd or negative value must not reach the renderer.
+    assert.equal(customCatalogArraySchema.safeParse([makeItem({ elevation: -5 })]).success, false);
+    assert.equal(
+      customCatalogArraySchema.safeParse([makeItem({ elevation: 9999 })]).success,
+      false,
+    );
+    assert.equal(customCatalogArraySchema.safeParse([makeItem({ elevation: 0 })]).success, true);
+  });
 });
 
 describe("loadCustomCatalog / saveCustomCatalog", () => {
@@ -183,6 +204,33 @@ describe("customCatalogItemToPreset", () => {
     const item = makeItem({ sourceKey: "bed-double" });
     const preset = customCatalogItemToPreset(item);
     assert.equal(preset.h, PRESET_BY_KEY["bed-double"].h);
+  });
+
+  // The bug this pair exists for: the save dialog only ever captured
+  // name/width/length/color, so a user who measured an item's HEIGHT (or
+  // hung it at a particular height) got a catalog entry that silently
+  // inherited the source preset's numbers instead. In a planner whose point
+  // is 3D fit, those are not lesser dimensions.
+  test("elevation precedence: the item's own elevation wins over the base preset's", () => {
+    const base = PRESET_BY_KEY["wall-sconce"];
+    const item = makeItem({ sourceKey: "wall-sconce", elevation: 205 });
+    const preset = customCatalogItemToPreset(item);
+    assert.equal(preset.elevation, 205);
+    assert.notEqual(preset.elevation, base.elevation, "the saved height must outrank the preset's");
+  });
+
+  test("elevation falls back to the base preset's when the item doesn't specify its own", () => {
+    // Every entry saved before elevation was stored looks exactly like this.
+    const item = makeItem({ sourceKey: "wall-sconce" });
+    const preset = customCatalogItemToPreset(item);
+    assert.equal(preset.elevation, PRESET_BY_KEY["wall-sconce"].elevation);
+  });
+
+  test("a keyless custom item carries both of its own measurements through", () => {
+    const item = makeItem({ h: 42, elevation: 120 });
+    const preset = customCatalogItemToPreset(item);
+    assert.equal(preset.h, 42);
+    assert.equal(preset.elevation, 120);
   });
 
   test("preserves the chair-office 'kind: chair' special case (use-room-planner.ts's addPreset keys off preset.key + preset.iconUrl)", () => {

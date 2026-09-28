@@ -57,6 +57,27 @@ export const KIT_ENVELOPE_MIN = 0.7;
 export const KIT_ENVELOPE_MAX = 1.5;
 
 /**
+ * How far the three axes are allowed to *disagree* with each other before
+ * the model is dropped for a box: `max(ratio) / min(ratio)`.
+ *
+ * This replaced a rule that judged each axis's absolute drift from the
+ * preset default independently, which conflated "big" with "distorted".
+ * Scaling all three axes by 1.7 does not distort a mesh at all -- it is the
+ * same bed, larger -- yet the old rule rejected it, and a user who set a
+ * HEMNES bed to its real 112cm headboard height got a featureless cube.
+ * What actually looks wrong is one axis stretched while another isn't: the
+ * round table pinched into an oval, the lamp pole squashed fat. That is
+ * disproportion, and it is what this measures.
+ *
+ * The bound is exclusive -- one axis may drift up to, but not including,
+ * twice as far as another. That keeps the cases the fallback exists for (a
+ * 1.5x wide, 0.7x deep table is 2.14; a sofa stretched to double width with
+ * unchanged depth is exactly 2.0) while comfortably allowing the 1.7x that
+ * a real HEMNES headboard needs.
+ */
+export const KIT_MAX_DISPROPORTION = 2;
+
+/**
  * glTF is authored in meters; every other coordinate/dimension in this app
  * (room size, wall height, item width/length/height) is in centimeters.
  * `KitModel.minX/maxX/...` are already stored pre-converted to cm (see
@@ -88,25 +109,25 @@ export function nativeSize(model: KitModel): Dimensions3D {
 }
 
 /**
- * Decides whether a placed item's current dimensions are close enough to
- * its preset's default size to still render the real Kenney model, or
- * whether it's drifted far enough that stretching the model would look
- * visibly distorted (a round table pinched oval, a lamp pole squashed
- * fat, ...) and the flat box is the safer choice.
+ * Decides whether a placed item's current dimensions can still be rendered
+ * with the real Kenney model, or whether stretching it to fit would look
+ * visibly distorted (a round table pinched oval, a lamp pole squashed fat)
+ * and the flat box is the safer choice.
  *
  * `current` and `defaultDims` are both in cm, same w/h/l shape as an Item's
- * width/height/length. Every ratio (not just one axis) must fall inside
- * [KIT_ENVELOPE_MIN, KIT_ENVELOPE_MAX] for the model to still be used --
- * one wildly-off axis is enough to fall back, even if the other two are
- * unchanged.
+ * width/height/length. The test is **disproportion between the axes**, not
+ * each axis's absolute drift: a mesh scaled evenly on all three axes is not
+ * distorted at any size, so only disagreement between them can make it
+ * look wrong. See KIT_MAX_DISPROPORTION for what that fixed.
  */
 export function resolveRenderMode(
   current: Dimensions3D,
   defaultDims: Dimensions3D,
 ): "model" | "box" {
   if (defaultDims.w <= 0 || defaultDims.h <= 0 || defaultDims.l <= 0) return "box";
+  if (current.w <= 0 || current.h <= 0 || current.l <= 0) return "box";
   const ratios = [current.w / defaultDims.w, current.h / defaultDims.h, current.l / defaultDims.l];
-  return ratios.every((r) => r >= KIT_ENVELOPE_MIN && r <= KIT_ENVELOPE_MAX) ? "model" : "box";
+  return Math.max(...ratios) / Math.min(...ratios) < KIT_MAX_DISPROPORTION ? "model" : "box";
 }
 
 /**

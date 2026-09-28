@@ -1,4 +1,5 @@
 import type { Item, Point } from "@/types/planner";
+import { insetRectilinearPolygon } from "@/lib/hallway-shapes";
 
 export function rotatedAABB(w: number, l: number, deg: number) {
   const r = (deg * Math.PI) / 180;
@@ -7,7 +8,17 @@ export function rotatedAABB(w: number, l: number, deg: number) {
   return { w: w * c + l * s, h: w * s + l * c };
 }
 
-export function clampPos(item: Item, corners: Point[], x: number, y: number) {
+/** Half the 6cm wall thickness. The usable floor is the room's polygon
+ * inset by this much on every side -- the same number `clampPos` has always
+ * used, named because the polygon path below needs it too. */
+const WALL_HALF_THICKNESS = 3;
+
+/**
+ * The bounding-box clamp, unchanged: the fast path for ordinary 4-corner
+ * rooms and the last-resort fallback for a polygon room where the item fits
+ * nowhere (see `clampPos`).
+ */
+function clampToBoundingBox(item: Item, corners: Point[], x: number, y: number) {
   const aabb = rotatedAABB(item.width, item.length, item.rotation);
   const cx = x + item.width / 2;
   const cy = y + item.length / 2;
@@ -15,14 +26,8 @@ export function clampPos(item: Item, corners: Point[], x: number, y: number) {
   // Interior usable area is the polygon's own bounding box, inset by half
   // the wall thickness on every side. For a plain axis-aligned rectangle
   // this is identical to the old corners[0]/[1]/[2]/[3]-indexed formula (the
-  // min/max of all 4 corners equals those specific pairs for a rectangle);
-  // for a polygon room (an L/T-shaped hallway) it's a deliberate
-  // simplification -- furniture is clamped to the shape's bounding box
-  // rather than hugging the exact concave outline, so it's possible to
-  // (rarely) place something in the "notch" that's technically outside the
-  // floor. Full point-in-polygon clamping was scoped out in favor of this
-  // approximation.
-  const halfThick = 3; // 3cm offset to account for half of the 6cm wall thickness
+  // min/max of all 4 corners equals those specific pairs for a rectangle).
+  const halfThick = WALL_HALF_THICKNESS;
   const xs = corners.map((c) => c.x);
   const ys = corners.map((c) => c.y);
   const leftBound = Math.min(...xs) + halfThick;
@@ -41,6 +46,89 @@ export function clampPos(item: Item, corners: Point[], x: number, y: number) {
   const ncx = aabb.w > w ? leftBound + w / 2 : Math.max(minCx, Math.min(maxCx, cx));
   const ncy = aabb.h > l ? topBound + l / 2 : Math.max(minCy, Math.min(maxCy, cy));
   return { x: ncx - item.width / 2, y: ncy - item.length / 2 };
+}
+
+/** The four corners of an item's rotated AABB, pulled 0.01cm inward before
+ * testing. An item resting exactly flush against a wall puts its corners
+ * exactly on the inset polygon's edge, where ray casting is entitled to
+ * answer either way (see `pointInPolygon`); 0.01cm is far below anything
+ * the app can express and makes flush placement answer "inside" every
+ * time. */
+function aabbInsidePolygon(
+  cx: number,
+  cy: number,
+  aabb: { w: number; h: number },
+  poly: Point[],
+): boolean {
+  const eps = 0.01;
+  const hw = Math.max(0, aabb.w / 2 - eps);
+  const hh = Math.max(0, aabb.h / 2 - eps);
+  return (
+    pointInPolygon({ x: cx - hw, y: cy - hh }, poly) &&
+    pointInPolygon({ x: cx + hw, y: cy - hh }, poly) &&
+    pointInPolygon({ x: cx + hw, y: cy + hh }, poly) &&
+    pointInPolygon({ x: cx - hw, y: cy + hh }, poly)
+  );
+}
+
+/**
+ * Clamps an item's top-left position so the item stays on the room's floor.
+ *
+ * A plain rectangle (`corners.length === 4` -- every room that isn't a
+ * shaped room or a hallway) takes the bounding-box path and nothing else,
+ * so the common case provably cannot regress.
+ *
+ * For a polygon room the bounding box is larger than the floor: an L/T/U's
+ * notch lies inside the box without being floor, which is how a sofa could
+ * be dragged into thin air. The rule for those:
+ *
+ * 1. If the item's rotated AABB lies entirely inside the inset polygon (all
+ *    four corners test interior), accept the position as-is. Asking "is the
+ *    item on floor" rather than "does the item fit inside one rectangle of
+ *    a decomposition" is what lets a sofa legitimately span both arms of
+ *    an L.
+ * 2. Otherwise clamp into whichever floor rectangle the item fits in that
+ *    leaves it nearest the requested point, so a drag into the notch slides
+ *    along the notch's edge instead of stopping dead.
+ * 3. If it fits in no rectangle at all, fall back to the bounding-box
+ *    result. A drag that silently does nothing reads as a broken app, and
+ *    that fallback is exactly the behaviour this function had for years.
+ *
+ * Step 1 is marginally permissive by construction -- an item big enough to
+ * bridge a notch with all four corners on floor and its middle over the gap
+ * is accepted. Nothing in the catalog is that shape relative to a real
+ * notch, whereas a strict fits-in-one-rectangle rule refuses ordinary
+ * placements that are genuinely fine, which is the more visible wrong
+ * answer.
+ */
+export function clampPos(item: Item, corners: Point[], x: number, y: number) {
+  const boxed = clampToBoundingBox(item, corners, x, y);
+  if (corners.length === 4) return boxed;
+
+  const floor = insetRectilinearPolygon(corners, WALL_HALF_THICKNESS);
+  const aabb = rotatedAABB(item.width, item.length, item.rotation);
+  const boxedCx = boxed.x + item.width / 2;
+  const boxedCy = boxed.y + item.length / 2;
+  if (aabbInsidePolygon(boxedCx, boxedCy, aabb, floor)) return boxed;
+
+  const wantCx = x + item.width / 2;
+  const wantCy = y + item.length / 2;
+  let best: { x: number; y: number } | null = null;
+  let bestDist = Infinity;
+  for (const r of rectilinearPolygonSpanRects(floor)) {
+    // Tolerance, not slack: inset corners are floating-point, so an item
+    // exactly as wide as its arm must not be rejected by a 1e-13 shortfall.
+    if (aabb.w > r.width + 1e-9 || aabb.h > r.height + 1e-9) continue;
+    const cx = Math.max(r.x + aabb.w / 2, Math.min(r.x + r.width - aabb.w / 2, wantCx));
+    const cy = Math.max(r.y + aabb.h / 2, Math.min(r.y + r.height - aabb.h / 2, wantCy));
+    const dist = (cx - wantCx) ** 2 + (cy - wantCy) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = { x: cx, y: cy };
+    }
+  }
+  if (!best) return boxed;
+  return { x: best.x - item.width / 2, y: best.y - item.length / 2 };
 }
 
 export function obbCorners(item: {
@@ -213,6 +301,82 @@ export function rectilinearPolygonRects(
     }
   }
   return rects;
+}
+
+/**
+ * Every *maximal* axis-aligned rectangle that fits entirely inside a
+ * rectilinear polygon, built from the same corner-coordinate grid as
+ * `rectilinearPolygonRects` above.
+ *
+ * The difference matters for furniture. That function returns the polygon's
+ * grid *cells*, and a cell is routinely much smaller than the floor it
+ * belongs to: a T-shaped room's 400cm-wide bar is sliced into three ~133cm
+ * cells by the stem's two side walls, so a 150cm sofa fits in no cell of a
+ * bar it obviously fits in. A run of adjacent cells is a valid rectangle
+ * iff every cell in the run is interior, which recovers the bar as one
+ * 400cm rectangle.
+ *
+ * Rectangles contained in another are dropped: a subset can never be the
+ * nearest fit for anything its container isn't, and the maximal set is the
+ * one a caller can reason about. Grids here are at most ~4x4 corners, so
+ * the brute-force enumeration is a few dozen checks -- cheap enough to run
+ * per pointer-move.
+ */
+export function rectilinearPolygonSpanRects(
+  poly: Point[],
+): { x: number; y: number; width: number; height: number }[] {
+  const xs = Array.from(new Set(poly.map((p) => p.x))).sort((a, b) => a - b);
+  const ys = Array.from(new Set(poly.map((p) => p.y))).sort((a, b) => a - b);
+  const nx = xs.length - 1;
+  const ny = ys.length - 1;
+  const interior: boolean[][] = [];
+  for (let i = 0; i < nx; i++) {
+    interior.push([]);
+    for (let j = 0; j < ny; j++) {
+      const midX = (xs[i] + xs[i + 1]) / 2;
+      const midY = (ys[j] + ys[j + 1]) / 2;
+      interior[i].push(pointInPolygon({ x: midX, y: midY }, poly));
+    }
+  }
+
+  const rects: { x: number; y: number; width: number; height: number }[] = [];
+  for (let i1 = 0; i1 < nx; i1++) {
+    for (let i2 = i1; i2 < nx; i2++) {
+      for (let j1 = 0; j1 < ny; j1++) {
+        for (let j2 = j1; j2 < ny; j2++) {
+          let solid = true;
+          for (let i = i1; i <= i2 && solid; i++) {
+            for (let j = j1; j <= j2; j++) {
+              if (!interior[i][j]) {
+                solid = false;
+                break;
+              }
+            }
+          }
+          if (solid) {
+            rects.push({
+              x: xs[i1],
+              y: ys[j1],
+              width: xs[i2 + 1] - xs[i1],
+              height: ys[j2 + 1] - ys[j1],
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return rects.filter(
+    (r, idx) =>
+      !rects.some(
+        (o, k) =>
+          k !== idx &&
+          o.x <= r.x &&
+          o.y <= r.y &&
+          o.x + o.width >= r.x + r.width &&
+          o.y + o.height >= r.y + r.height,
+      ),
+  );
 }
 
 /**

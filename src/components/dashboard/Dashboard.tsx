@@ -6,6 +6,7 @@ import { findHomeIdForRoom, loadHomes } from "@/lib/homes";
 import { loadSingleRooms } from "@/lib/single-rooms";
 import { buildHomeOfficeRoom } from "@/lib/room-templates";
 import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
+import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { TOUR_KEY } from "@/hooks/use-room-planner";
 import type { Lang, PlannerSettings } from "@/types/planner";
 import { CreateSingleRoomFlow } from "@/components/dashboard/CreateSingleRoomFlow";
@@ -19,6 +20,7 @@ import { SingleRoomsList } from "@/components/dashboard/SingleRoomsList";
 import { HomesList } from "@/components/dashboard/HomesList";
 import { IkeaRoomWizard } from "@/components/room-creation/IkeaRoomWizard";
 import { SettingsDialog } from "@/components/planner/SettingsDialog";
+import { MobileCreateBlockedDialog } from "@/components/dashboard/MobileCreateBlockedDialog";
 import type { Theme } from "@/hooks/use-theme";
 import { DoorOpen, Home as HomeIcon, Moon, Settings, Sparkles, Sun, Wand2 } from "lucide-react";
 
@@ -33,9 +35,11 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
   const lang: Lang = settings.lang;
   const createSingleRoom = useCreateSingleRoom();
   const navigate = useNavigate();
+  const { isMobileViewOnly } = useMobileViewOnly();
   const [scratchRoomOpen, setScratchRoomOpen] = useState(false);
   const [ikeaWizardOpen, setIkeaWizardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mobileBlockedOpen, setMobileBlockedOpen] = useState(false);
 
   /**
    * The tour explains the room editor, so it can only run inside a room --
@@ -157,7 +161,11 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
                     ? "Leerer Raum, Größe selbst wählen"
                     : "Empty room, you set the size"
                 }
-                onClick={() => setScratchRoomOpen(true)}
+                onClick={
+                  isMobileViewOnly
+                    ? () => setMobileBlockedOpen(true)
+                    : () => setScratchRoomOpen(true)
+                }
               />
               {/* No picker in between -- this builds the app's one example
                   room (the hand-tuned home office) and opens it. See
@@ -178,7 +186,11 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
                 description={
                   lang === "de" ? "Form wählen, Wände ziehen" : "Pick a shape, drag the walls"
                 }
-                onClick={() => setIkeaWizardOpen(true)}
+                onClick={
+                  isMobileViewOnly
+                    ? () => setMobileBlockedOpen(true)
+                    : () => setIkeaWizardOpen(true)
+                }
               />
             </CardContent>
           </Card>
@@ -257,7 +269,12 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
         updateSettings={updateSettings}
         theme={theme}
         toggleTheme={toggleTheme}
-        onTakeTour={hasAnyRoom ? startTour : undefined}
+        onTakeTour={hasAnyRoom && !isMobileViewOnly ? startTour : undefined}
+      />
+      <MobileCreateBlockedDialog
+        lang={lang}
+        open={mobileBlockedOpen}
+        onOpenChange={setMobileBlockedOpen}
       />
     </div>
   );
