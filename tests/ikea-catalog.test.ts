@@ -58,7 +58,10 @@ describe("IKEA_CATALOG data integrity", () => {
   test("every entry's sourceKey (when set) resolves to a real preset", () => {
     for (const e of IKEA_CATALOG) {
       if (e.sourceKey !== undefined) {
-        assert.ok(PRESET_BY_KEY[e.sourceKey], `${e.id} references unknown sourceKey "${e.sourceKey}"`);
+        assert.ok(
+          PRESET_BY_KEY[e.sourceKey],
+          `${e.id} references unknown sourceKey "${e.sourceKey}"`,
+        );
       }
     }
   });
@@ -82,7 +85,10 @@ describe("IKEA_CATALOG data integrity", () => {
   });
 
   test("covers a meaningful spread of common IKEA furniture (at least 15 products)", () => {
-    assert.ok(IKEA_CATALOG.length >= 15, `expected at least 15 IKEA products, got ${IKEA_CATALOG.length}`);
+    assert.ok(
+      IKEA_CATALOG.length >= 15,
+      `expected at least 15 IKEA products, got ${IKEA_CATALOG.length}`,
+    );
   });
 
   test("every entry validates against the shared CustomCatalogItem schema (My Catalog / IKEA consistency)", () => {

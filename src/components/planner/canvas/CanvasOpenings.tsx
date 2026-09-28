@@ -243,7 +243,9 @@ export function CanvasOpenings({
           const up = (ev: PointerEvent) => {
             try {
               target.releasePointerCapture(ev.pointerId);
-            } catch (err) {}
+            } catch {
+              // Only throws once the pointer is no longer active -- no capture left to release.
+            }
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
           };

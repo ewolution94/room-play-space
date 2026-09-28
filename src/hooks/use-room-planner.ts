@@ -239,7 +239,7 @@ export function useRoomPlanner(
   // should never be treated as a touching neighbor here. A "single" room
   // has no siblings at all, by definition: it isn't part of any floor plan,
   // so nothing can touch it.
-  const getInitialRoomData = (): { room: any; siblings: RoomLayout[] } => {
+  const getInitialRoomData = (): { room: RoomLayout | null; siblings: RoomLayout[] } => {
     if (typeof window === "undefined" || !roomId) return { room: null, siblings: [] };
     if (source === "single") return { room: findSingleRoom(roomId), siblings: [] };
     const home = homeId ? findHome(homeId) : null;
@@ -1305,7 +1305,9 @@ export function useRoomPlanner(
     if (panDragRef.current) {
       try {
         (e.currentTarget as Element).releasePointerCapture(e.pointerId);
-      } catch {}
+      } catch {
+        // Only throws once the pointer is no longer active -- no capture left to release.
+      }
       setIsPanning(false);
       panDragRef.current = null;
       return;

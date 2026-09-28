@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Package, Search, Square, X } from "lucide-react";
 import type { Preset } from "@/types/planner";
+import type { TranslationStrings } from "@/lib/planner-translations";
 import { PRESET_ICON } from "@/lib/planner-presets";
 import { buildCatalogByLayer } from "@/lib/custom-catalog";
 import { CatalogTile } from "./CatalogTile";
@@ -32,7 +33,7 @@ function filterCategorized(
 }
 
 interface CatalogSectionProps {
-  t: any;
+  t: TranslationStrings;
   lang: string;
   threeDActive: boolean;
   addPreset: (preset: Preset) => void;
@@ -48,7 +49,7 @@ function CatalogGrid({
   addPreset,
   isFiltering,
 }: {
-  t: any;
+  t: TranslationStrings;
   lang: string;
   threeDActive: boolean;
   categorized: Record<string, Preset[]>;

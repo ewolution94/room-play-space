@@ -25,8 +25,9 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
+import type { TranslationStrings } from "@/lib/planner-translations";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
-import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
+import { NAMED_WALLS, wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import { InspectorGroup } from "@/components/planner/sidebar/InspectorGroup";
 import { useInspectorGroups } from "@/hooks/use-inspector-groups";
 import type { WallSlopeMap } from "@/lib/wall-slopes";
@@ -49,7 +50,7 @@ const OPENING_SWATCHES = [
 ];
 
 interface InspectorSectionProps {
-  t: any;
+  t: TranslationStrings;
   lang: string;
   threeDActive: boolean;
   selectedItem: Item | null;
@@ -1045,7 +1046,7 @@ export function InspectorSection({
                     {Array.from({ length: corners.length }, (_, i) => i).map((i) => {
                       const key = wallColorKey(i, corners.length);
                       const currentColor = wallColors?.[key] || "#f1f5f9";
-                      const label = corners.length === 4 ? t[key] || key : wallLabel(i, t, lang);
+                      const label = wallLabel(corners.length === 4 ? NAMED_WALLS[i] : i, t, lang);
                       return (
                         <div
                           key={key}

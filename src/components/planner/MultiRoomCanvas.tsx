@@ -440,7 +440,9 @@ export function MultiRoomCanvas({
 
     try {
       target.setPointerCapture(e.pointerId);
-    } catch {}
+    } catch {
+      // Capture is optional here: move/up listen on window, so the drag works without it.
+    }
 
     panel.style.transition = "none";
     document.body.style.cursor = "grabbing";
@@ -488,7 +490,9 @@ export function MultiRoomCanvas({
     const up = (ev: PointerEvent) => {
       try {
         target.releasePointerCapture(ev.pointerId);
-      } catch {}
+      } catch {
+        // Only throws once the pointer is no longer active -- no capture left to release.
+      }
       window.removeEventListener("pointermove", move, { capture: true });
       window.removeEventListener("pointerup", up, { capture: true });
       window.removeEventListener("pointercancel", up, { capture: true });
@@ -574,7 +578,9 @@ export function MultiRoomCanvas({
       setMarqueeRect(null);
       try {
         (e.currentTarget as Element).releasePointerCapture(e.pointerId);
-      } catch {}
+      } catch {
+        // Only throws once the pointer is no longer active -- no capture left to release.
+      }
       return;
     }
 
@@ -583,7 +589,9 @@ export function MultiRoomCanvas({
       if (container) {
         try {
           container.releasePointerCapture(e.pointerId);
-        } catch {}
+        } catch {
+          // Only throws once the pointer is no longer active -- no capture left to release.
+        }
       }
       setIsPanning(false);
     }
@@ -753,7 +761,9 @@ export function MultiRoomCanvas({
     if (activeDragIds.size > 0) {
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {}
+      } catch {
+        // Only throws once the pointer is no longer active -- no capture left to release.
+      }
       setActiveDragIds(new Set());
     }
     dragRef.current = null;

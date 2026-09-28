@@ -1,4 +1,4 @@
-import type { Point } from "@/types/planner";
+import type { Opening, Point } from "@/types/planner";
 
 // Geometry helpers for arbitrary N-corner room polygons, plus corner
 // templates for the built-in hallway shapes (straight / L / T). Rectangular
@@ -188,7 +188,11 @@ export function wallColorKey(index: number, cornersLen: number): string {
  * wall index, since TranslationStrings only has "top"/"right"/"bottom"/
  * "left" keys.
  */
-export function wallLabel(wall: string | number, t: Record<string, string>, lang: string): string {
+export function wallLabel(
+  wall: Opening["wall"],
+  t: Partial<Record<(typeof NAMED_WALLS)[number], string>>,
+  lang: string,
+): string {
   if (typeof wall === "number") return lang === "de" ? `Wand ${wall + 1}` : `Wall ${wall + 1}`;
   return t[wall] || wall;
 }

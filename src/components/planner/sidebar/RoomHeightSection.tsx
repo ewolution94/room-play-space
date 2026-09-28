@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { NumberField } from "@/components/ui/number-field";
-import { wallColorKey, wallLabel } from "@/lib/hallway-shapes";
+import { NAMED_WALLS, wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import {
   DEFAULT_CEILING_HEIGHT,
   STANDING_HEIGHT,
@@ -21,14 +21,11 @@ import {
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
 import type { Opening, Point } from "@/types/planner";
+import type { TranslationStrings } from "@/lib/planner-translations";
 import { ArrowUpFromLine, Plus, TriangleRight, X } from "lucide-react";
 
 interface RoomHeightSectionProps {
-  // Loosely typed to match InspectorSection's own `t: any` / `lang: string`
-  // and wallLabel()'s `Record<string, string>` signature -- the wall-key
-  // lookup below (`t[key]`) needs an index signature that
-  // TranslationStrings deliberately doesn't have.
-  t: Record<string, string>;
+  t: TranslationStrings;
   lang: string;
   corners: Point[];
   ceilingHeight: number;
@@ -131,7 +128,7 @@ export function RoomHeightSection({
         <div className="space-y-1.5">
           {Array.from({ length: corners.length }, (_, i) => i).map((i) => {
             const key = wallColorKey(i, corners.length);
-            const label = corners.length === 4 ? t[key] || key : wallLabel(i, t, lang);
+            const label = wallLabel(corners.length === 4 ? NAMED_WALLS[i] : i, t, lang);
             const slope = wallSlopes[key];
 
             if (!slope) {

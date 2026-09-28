@@ -13,12 +13,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { Opening, OpeningKind, Point } from "@/types/planner";
+import type { TranslationStrings } from "@/lib/planner-translations";
 import { defaultOpeningWidth, openingWidthPresets } from "@/lib/openings";
 import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
 
 interface OpeningsDialogProps {
-  t: any;
+  t: TranslationStrings;
   lang: string;
   threeDActive: boolean;
   open: boolean;

@@ -235,7 +235,9 @@ export function CanvasArea({
 
       try {
         target.setPointerCapture(e.pointerId);
-      } catch {}
+      } catch {
+        // Capture is optional here: move/up listen on window, so the drag works without it.
+      }
 
       // Disable CSS transitions during drag and apply global grabbing styles
       panel.style.transition = "none";
@@ -282,7 +284,9 @@ export function CanvasArea({
       const up = (ev: PointerEvent) => {
         try {
           target.releasePointerCapture(ev.pointerId);
-        } catch {}
+        } catch {
+          // Only throws once the pointer is no longer active -- no capture left to release.
+        }
         window.removeEventListener("pointermove", move, { capture: true });
         window.removeEventListener("pointerup", up, { capture: true });
         window.removeEventListener("pointercancel", up, { capture: true });
@@ -362,7 +366,9 @@ export function CanvasArea({
     const up = (ev: PointerEvent) => {
       try {
         target.releasePointerCapture(ev.pointerId);
-      } catch (err) {}
+      } catch {
+        // Only throws once the pointer is no longer active -- no capture left to release.
+      }
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       clampOpeningsToWalls();

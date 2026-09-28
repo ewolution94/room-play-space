@@ -351,9 +351,7 @@ describe("collidesWithOthers", () => {
 
     test("the exemption also holds in the other direction -- checking the host's own candidate against its already-placed child", () => {
       const hostCandidate = makeItem({ id: "table", x: 0, y: 0, layer: "main" });
-      const others = [
-        makeItem({ id: "box", x: 0, y: 0, layer: "main", placedOnId: "table" }),
-      ];
+      const others = [makeItem({ id: "box", x: 0, y: 0, layer: "main", placedOnId: "table" })];
       assert.equal(collidesWithOthers(hostCandidate, others, undefined, true), false);
     });
 

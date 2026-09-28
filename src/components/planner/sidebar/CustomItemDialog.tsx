@@ -14,10 +14,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { ItemLayer, ItemShape } from "@/types/planner";
+import type { TranslationStrings } from "@/lib/planner-translations";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface CustomItemDialogProps {
-  t: any;
+  t: TranslationStrings;
   lang: string;
   threeDActive: boolean;
   open: boolean;

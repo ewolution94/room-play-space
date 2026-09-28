@@ -335,7 +335,7 @@ export const STRINGS = {
 } as const;
 
 export type DeepWritable<T> = {
-  -readonly [P in keyof T]: T[P] extends Function
+  -readonly [P in keyof T]: T[P] extends (...args: never[]) => unknown
     ? T[P]
     : T[P] extends object
       ? DeepWritable<T[P]>

@@ -4,13 +4,14 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import type { Item, Opening } from "@/types/planner";
+import type { TranslationStrings } from "@/lib/planner-translations";
 import { wallLabel } from "@/lib/hallway-shapes";
 import { getDefaultHeight } from "@/lib/planner-presets";
 import { openingKindLabel } from "@/lib/openings";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface ElementsListSectionProps {
-  t: any;
+  t: TranslationStrings;
   lang: string;
   threeDActive: boolean;
   items: Item[];

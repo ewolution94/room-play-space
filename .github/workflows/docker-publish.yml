@@ -10,7 +10,55 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # ⚠️ The gate. A red suite must publish nothing, because `:latest` is what the
+  # NAS pulls and Watchtower recreates the container within ~5 minutes of a
+  # push, unattended. Before this, a push to `release` went straight to
+  # production with nothing checked.
+  #
+  # Lint and tests run here; the build deliberately doesn't. It is already
+  # gated: it happens inside the image build below, so a broken build fails the
+  # publish on its own. Running `vite build` a second time under npm would be
+  # slower and would prove less than the real one under bun.
+  #
+  # Lint gates on errors only. ESLint exits 0 on warnings, and the ones still
+  # reported (`react-refresh/only-export-components`,
+  # `react-hooks/exhaustive-deps`) are known and accepted — so a new warning
+  # will not block a deploy, but a new error, formatting included, will.
+  verify:
+    name: Lint & tests
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # The suite runs under Node, not bun: it reads the .ts test files
+          # directly via `--experimental-strip-types`. 24 rather than 22
+          # because type stripping is no longer experimental there, and it is
+          # the neighbour of the 26 these 717 tests were actually run on —
+          # 22.6's strip-only mode is the one with sharp edges (no enums,
+          # namespaces or parameter properties). This code uses none of those,
+          # so 22 would very likely work too; 24 means not relying on that.
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
   build-and-push:
+    needs: verify
     runs-on: ubuntu-latest
 
     permissions:
