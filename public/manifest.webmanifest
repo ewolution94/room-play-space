@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "PLANUM — floor planner",
+  "short_name": "PLANUM",
+  "description": "Plan real rooms, sloped attic ceilings included, and see what actually fits, in 2D and 3D.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020618",
+  "theme_color": "#020618",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

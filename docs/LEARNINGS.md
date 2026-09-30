@@ -811,3 +811,34 @@ height instead of silently inheriting it. The general pattern — build a
 `Preset`-shaped adapter rather than forking the add/render logic — is worth
 reaching for again any time a new "variant of an existing catalog item"
 feature comes up.
+
+## The offline shell: one page for every route, and the whole app precached
+
+`public/sw.js` follows Clinch's service worker (network-first navigations,
+cache-first fingerprinted files), with two differences that both come from
+TanStack Start rendering every route on the server.
+
+- **The offline document is `/`, served for every URL.** There is no single
+  app-shell page, but there doesn't need to be: when the root route's HTML is
+  served at another URL, the client router sees that the last dehydrated match
+  isn't the one the URL asks for and switches to SPA mode, loading that route
+  in the browser instead of hydrating it (`isSpaMode` in router-core's
+  `ssr-client.js`). `/` renders nothing of its own (it's the redirect gate), so
+  there's nothing for React to mismatch. Verified offline for `/`,
+  `/dashboard`, `/room/$id` and `/home/$id/room/$id`.
+- **The worker precaches from the build's own list, not from the HTML.**
+  Clinch reads the files to cache out of its shell. Here that caches only the
+  entry chunks, because each page names only its own route's chunks: after one
+  visit, offline, the dashboard opened and a room showed "This page didn't
+  load". `vite.config.ts` (`precacheList`) now writes `precache.json`, every
+  file under `assets/` plus the Kenney models, and the worker keeps its cache
+  equal to that list: on install, and again on every full page load online,
+  because `sw.js` itself rarely changes and install alone would stop at the
+  first deploy's files. Re-checked: first visit, server stopped, a never-opened
+  room opens in 2D and 3D with its furniture; after a simulated deploy, the
+  next online load swaps the cache to the new files and drops the old ones.
+
+The room page logs React error #418 (a hydration mismatch) on every load,
+online and without the worker too: it was there before the worker and is not
+caused by it.
+

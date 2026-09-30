@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -11,6 +12,7 @@ import {
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { THEME_COLOR } from "@/hooks/use-theme";
 
 function NotFoundComponent() {
   return (
@@ -75,6 +77,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "PLANUM" },
+      // Home-screen install (public/manifest.webmanifest, public/sw.js). No
+      // status-bar style on purpose: left at the default, iOS colours the bar
+      // from theme-color, which the inline script below and useTheme keep in
+      // step with the light and dark themes.
+      { name: "theme-color", content: THEME_COLOR.light },
+      { name: "apple-mobile-web-app-title", content: "PLANUM" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
       {
         name: "description",
         content:
@@ -115,6 +125,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         type: "image/svg+xml",
         href: "/logo.svg",
       },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -139,6 +151,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
             } else {
               document.documentElement.classList.remove('dark');
             }
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', isDark ? '${THEME_COLOR.dark}' : '${THEME_COLOR.light}');
           } catch (e) {}
         `,
           }}
@@ -154,6 +168,22 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // The offline shell -- see public/sw.js for what it does and doesn't cache.
+  // Production only, and deliberately: a service worker in front of the dev
+  // server caches the very modules Vite is trying to hot-replace. Registered
+  // after `load` so it competes with nothing on the first paint, which is the
+  // paint this exists to make faster on every visit after it.
+  useEffect(() => {
+    if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
+    const register = () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {
+        // An unavailable worker costs the offline shell and nothing else.
+      });
+    };
+    if (document.readyState === "complete") register();
+    else window.addEventListener("load", register, { once: true });
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

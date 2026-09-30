@@ -2,6 +2,12 @@ import { useEffect, useLayoutEffect, useState } from "react";
 
 export type Theme = "light" | "dark";
 
+/**
+ * Each theme's --background as hex, for theme-color: the browser chrome
+ * around the page and, installed to a home screen, the status bar.
+ */
+export const THEME_COLOR: Record<Theme, string> = { light: "#ffffff", dark: "#020618" };
+
 // The SSR pass has no window, so the initial render always yields "light"
 // -- read the real preference in a layout effect (before paint) instead of
 // in the useState initializer, so the client's first render matches the
@@ -28,6 +34,7 @@ export function useTheme() {
     } else {
       root.classList.remove("dark");
     }
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOR[theme]);
     window.localStorage.setItem("planner-theme", theme);
   }, [theme]);
 

@@ -1,4 +1,13 @@
-import { defineConfig, loadEnv, mergeConfig, type ConfigEnv, type UserConfig } from "vite";
+import { readdirSync } from "node:fs";
+import { join, sep } from "node:path";
+import {
+  defineConfig,
+  loadEnv,
+  mergeConfig,
+  type ConfigEnv,
+  type Plugin,
+  type UserConfig,
+} from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import viteReact from "@vitejs/plugin-react";
@@ -16,6 +25,32 @@ import { devServerFnErrorLogger, devSsrErrorLogger } from "./vite-dev-error-plug
 // server (confirmed via profiling to measurably slow down every HMR update
 // for no benefit outside Lovable's own sandboxed file system). Vite's own
 // default watcher behavior (no debounce) applies here instead.
+// Every file the client build emits under assets/, plus the 3D models, written
+// to dist/client/precache.json for the offline shell (public/sw.js). The
+// worker can't know this build's fingerprinted names, and a page only names
+// its own route's chunks, so without this list a room that was never opened
+// online can't be opened offline either. The models come from public/, which
+// isn't part of the bundle, so they're listed from disk.
+function precacheList(): Plugin {
+  return {
+    name: "planum-precache-list",
+    applyToEnvironment: (environment) => environment.name === "client",
+    generateBundle(_options, bundle) {
+      const assets = Object.keys(bundle).filter(
+        (file) => file.startsWith("assets/") && !file.endsWith(".map"),
+      );
+      const models = readdirSync(join(process.cwd(), "public/models"), {
+        recursive: true,
+        encoding: "utf8",
+      })
+        .filter((file) => file.endsWith(".glb"))
+        .map((file) => `models/${file}`);
+      const files = [...assets, ...models].map((file) => `/${file.split(sep).join("/")}`).sort();
+      this.emitFile({ type: "asset", fileName: "precache.json", source: JSON.stringify(files) });
+    },
+  };
+}
+
 export default defineConfig(async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
   // Cloudflare Worker build output -- only needed for `vite build` (the dev
   // server runs plain Node, not workerd). wrangler.jsonc's `main` alone
@@ -47,6 +82,7 @@ export default defineConfig(async ({ command, mode }: ConfigEnv): Promise<UserCo
       server: { entry: "server" },
     }),
     viteReact(),
+    precacheList(),
   ];
 
   // Vite already exposes VITE_-prefixed env vars via import.meta.env

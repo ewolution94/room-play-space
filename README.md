@@ -63,6 +63,10 @@ browser.
   both names for every item.
 - **Undo/redo, multi-select marquee, collision checking** — collision is on
   by default and can be switched off per session when you need to cheat.
+- **Installs to a home screen, and works without a connection** — a web
+  manifest, icons and a service worker. Since the plans live in the browser
+  anyway, the whole app (3D view and furniture models included) is cached,
+  so it opens full-screen like an app and keeps working offline.
 
 ## Getting started
 
@@ -113,6 +117,10 @@ up rather than lost. Migration is non-destructive — see `src/lib/homes.ts`.
 
 Every room, floor and home can be exported to JSON and imported back, which
 is the intended way to move between browsers or devices.
+
+The offline copy of the app itself sits in the browser's Cache Storage
+(`planum-shell-v1`, `planum-assets-v1`), not in `localStorage`: clearing
+it costs nothing but the offline start. See `public/sw.js`.
 
 ## Tech stack
 
