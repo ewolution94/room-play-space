@@ -1,0 +1,46 @@
+@layer ewo {
+/* Each project's own colour, lifted from its mark (the landing's table).
+   The light values are deepened for contrast on paper. The landing, Fermata,
+   Cantina and Census are monochrome on purpose.
+
+   Two ways in:
+   - the palette, --ewo-project-<name> and --ewo-project-<name>-2, for a page
+     that already has its own hook (the landing's and Census's data-slug);
+   - data-ewo-project="<name>" on any ancestor, which points --ewo-accent at
+     that project, so every component under it picks the colour up. */
+
+:root {
+  --ewo-project-clinch:    light-dark(#d9540f, #ff8a3d);
+  --ewo-project-clinch-2:  light-dark(#b98100, #ffc53d);
+  --ewo-project-planum:    light-dark(#0379ad, #38bdf8);
+  --ewo-project-planum-2:  light-dark(#0d7f75, #2dd4bf);
+  --ewo-project-axioma:    light-dark(#4b2ff0, #8b74ff);
+  --ewo-project-axioma-2:  light-dark(#0591ad, #0dccf2);
+  --ewo-project-pulse:     light-dark(#0a7ea4, #5ad1ff);
+  --ewo-project-pulse-2:   light-dark(#08875c, #34d399);
+  --ewo-project-harbor:    light-dark(#0b8f7a, #33e6c8);
+  --ewo-project-harbor-2:  light-dark(#b76b00, #ffb545);
+  --ewo-project-mulpur:    light-dark(#b36b00, #f5a524);
+  --ewo-project-mulpur-2:  light-dark(#52525b, #d4d4d8);
+  --ewo-project-fermata:   light-dark(#27272a, #ecebe8);
+  --ewo-project-fermata-2: light-dark(#52525b, #b4b4bb);
+  /* Cantina's mark is green on the landing; the app itself is monochrome. */
+  --ewo-project-cantina:   light-dark(#2f7d4f, #6fd39a);
+  --ewo-project-cantina-2: light-dark(#5f7a12, #c2dc6a);
+}
+
+[data-ewo-project='clinch']  { --ewo-accent: var(--ewo-project-clinch);  --ewo-accent-2: var(--ewo-project-clinch-2); }
+[data-ewo-project='planum']  { --ewo-accent: var(--ewo-project-planum);  --ewo-accent-2: var(--ewo-project-planum-2); }
+[data-ewo-project='axioma']  { --ewo-accent: var(--ewo-project-axioma);  --ewo-accent-2: var(--ewo-project-axioma-2); }
+[data-ewo-project='pulse']   { --ewo-accent: var(--ewo-project-pulse);   --ewo-accent-2: var(--ewo-project-pulse-2); }
+[data-ewo-project='harbor']  { --ewo-accent: var(--ewo-project-harbor);  --ewo-accent-2: var(--ewo-project-harbor-2); }
+[data-ewo-project='mulpur']  { --ewo-accent: var(--ewo-project-mulpur);  --ewo-accent-2: var(--ewo-project-mulpur-2); }
+[data-ewo-project='fermata'] { --ewo-accent: var(--ewo-project-fermata); --ewo-accent-2: var(--ewo-project-fermata-2); }
+[data-ewo-project='cantina'],
+[data-ewo-project='census'],
+[data-ewo-project='landing'] { --ewo-accent: var(--ewo-fg-2); --ewo-accent-2: var(--ewo-fg); }
+
+/* Accent ink: dark text on the bright dark-theme accents, light on the
+   deepened light-theme ones. */
+[data-ewo-project] { --ewo-accent-ink: light-dark(#fbfaf8, #09090b); }
+}

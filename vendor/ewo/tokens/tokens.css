@@ -1,0 +1,151 @@
+@property --ewo-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #a3a3aa;
+}
+
+@layer ewo {
+/* ==========================================================================
+   @ewo/tokens — the shared design vocabulary.
+
+   Layer 0 of every approach in Folio: custom properties only, no selectors
+   that style anything. Web components read them through the shadow boundary
+   (custom properties inherit), the React and Svelte twins read them from
+   plain CSS, and the vanilla landing can import this file as it is.
+
+   Distilled from what the projects already share:
+   - landing + Census: the Geist/paper ramp, light-dark(), monochrome accent
+   - Fermata + Cantina: fills, radii, springs, the invert pair
+   - Pulse + Harbor + Clinch: the status colours (ok / warn / bad / unknown)
+
+   Everything is prefixed --ewo- so an app can adopt the tokens next to its
+   own (--bg, --color-abyss, …) and alias them one at a time.
+
+   Theme: `color-scheme` on :root picks the side of every light-dark().
+   It follows the system unless [data-theme] pins one, the same contract the
+   landing, Census, Pulse and Cantina use (localStorage key `ewo:theme`).
+   ========================================================================== */
+
+
+:root {
+  color-scheme: light dark;
+
+  /* --- Surfaces (back to front) ------------------------------------------ */
+  --ewo-bg:        light-dark(#f5f4f1, #09090b);
+  --ewo-bg-sunk:   light-dark(#eeede8, #0d0d0f);
+  --ewo-bg-raised: light-dark(#fbfaf8, #111113);
+  --ewo-panel:     light-dark(rgb(255 255 255 / 0.78), rgb(24 24 27 / 0.72));
+
+  /* --- Ink ----------------------------------------------------------------
+     fg-3 clears 4.5:1 on --ewo-bg in both themes (the landing's measurement),
+     so it is the floor for small text. fg-4 is for decoration only. */
+  --ewo-fg:   light-dark(#131315, #f2f1ee);
+  --ewo-fg-2: light-dark(#56565c, #a3a3aa);
+  --ewo-fg-3: light-dark(#6a6a70, #86868f);
+  --ewo-fg-4: light-dark(#a1a1a8, #55555c);
+
+  /* --- Lines and washes (translucent ink, so they sit on any surface) ---- */
+  --ewo-line:        light-dark(rgb(19 19 21 / 0.12), rgb(242 241 238 / 0.10));
+  --ewo-line-2:      light-dark(rgb(19 19 21 / 0.06), rgb(242 241 238 / 0.055));
+  --ewo-line-strong: light-dark(rgb(19 19 21 / 0.2), rgb(242 241 238 / 0.18));
+  --ewo-fill:        light-dark(rgb(19 19 21 / 0.035), rgb(242 241 238 / 0.035));
+  --ewo-fill-2:      light-dark(rgb(19 19 21 / 0.06), rgb(242 241 238 / 0.065));
+  --ewo-fill-3:      light-dark(rgb(19 19 21 / 0.1), rgb(242 241 238 / 0.1));
+
+  /* The "selected" pair: a solid chip in the opposite of the page. */
+  --ewo-invert:     var(--ewo-fg);
+  --ewo-invert-ink: var(--ewo-bg);
+
+  /* --- Accent -------------------------------------------------------------
+     Monochrome by default. A project (or a photo, or a video) supplies the
+     colour: set --ewo-accent on any ancestor. Registered as <color>, so it
+     tweens when it changes. One consequence: a registered colour resolves
+     light-dark() where it is declared, so a subtree that switches
+     color-scheme should re-declare the accent too. */
+  --ewo-accent:     var(--ewo-fg-2);
+  --ewo-accent-2:   var(--ewo-fg);
+  --ewo-accent-ink: var(--ewo-bg);
+
+  /* --- Status -------------------------------------------------------------
+     Pulse's and Harbor's semantics, with the light values deepened to clear
+     4.5:1 as small text on paper (Pulse's measurement). */
+  --ewo-ok:      light-dark(#067a52, #35d488);
+  --ewo-warn:    light-dark(#9a5a00, #ffb545);
+  --ewo-bad:     light-dark(#c42a3f, #ff5c72);
+  --ewo-info:    light-dark(#0a7ea4, #5ad1ff);
+  --ewo-unknown: light-dark(#6a6a70, #86868f);
+
+  /* --- Depth ---------------------------------------------------------------- */
+  --ewo-shadow-color: light-dark(rgb(40 36 30 / 0.14), rgb(0 0 0 / 0.55));
+  --ewo-shadow:
+    0 30px 70px -30px var(--ewo-shadow-color),
+    0 2px 8px -2px light-dark(rgb(40 36 30 / 0.08), rgb(0 0 0 / 0.3));
+  --ewo-highlight: inset 0 1px 0 light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.05));
+  --ewo-dot: light-dark(rgb(19 19 21 / 0.1), rgb(242 241 238 / 0.075));
+
+  /* --- Type ----------------------------------------------------------------- */
+  --ewo-sans:  'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ewo-mono:  'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --ewo-serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+
+  --ewo-text-2xs: 0.6875rem;  /* 11px — mono labels, tick captions */
+  --ewo-text-xs:  0.75rem;    /* 12px */
+  --ewo-text-sm:  0.8125rem;  /* 13px — controls */
+  --ewo-text-md:  0.875rem;   /* 14px — body in dense UI */
+  --ewo-text-lg:  1rem;
+  --ewo-text-xl:  1.25rem;
+  --ewo-text-2xl: 1.75rem;
+  --ewo-text-display: clamp(2rem, 1.2rem + 3.2vw, 3.75rem);
+
+  /* --- Space (4px grid) ------------------------------------------------------ */
+  --ewo-space-1: 0.25rem;
+  --ewo-space-2: 0.5rem;
+  --ewo-space-3: 0.75rem;
+  --ewo-space-4: 1rem;
+  --ewo-space-5: 1.5rem;
+  --ewo-space-6: 2rem;
+  --ewo-space-7: 3rem;
+  --ewo-space-8: 4rem;
+
+  /* --- Shape ------------------------------------------------------------------ */
+  --ewo-r-xs: 6px;
+  --ewo-r-sm: 10px;
+  --ewo-r-md: 14px;
+  --ewo-r-lg: 20px;
+  --ewo-r-xl: 28px;
+  --ewo-r-pill: 999px;
+
+  /* --- Motion ------------------------------------------------------------------ */
+  --ewo-ease:        cubic-bezier(0.22, 1, 0.36, 1);
+  --ewo-ease-io:     cubic-bezier(0.65, 0, 0.35, 1);
+  --ewo-ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ewo-spring: linear(0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1);
+  --ewo-dur-1: 120ms;
+  --ewo-dur-2: 200ms;
+  --ewo-dur-3: 320ms;
+
+  /* --- Layout ------------------------------------------------------------------ */
+  --ewo-gutter: clamp(1rem, 4.5vw, 4rem);
+  --ewo-maxw: 84rem;
+  --ewo-bar-h: 3.5rem;
+  --ewo-focus: 2px solid var(--ewo-fg-2);
+
+  /* light-dark() only takes colours. For the few numeric differences between
+     themes, --ewo-light is 1 on a light page and 0 on a dark one. */
+  --ewo-light: 0;
+}
+
+:root[data-theme='light'] { color-scheme: light; --ewo-light: 1; }
+:root[data-theme='dark']  { color-scheme: dark; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) { --ewo-light: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ewo-dur-1: 0ms;
+    --ewo-dur-2: 0ms;
+    --ewo-dur-3: 0ms;
+  }
+}
+}

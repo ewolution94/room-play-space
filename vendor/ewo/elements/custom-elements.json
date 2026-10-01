@@ -1,0 +1,1625 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "badge.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A status pill: a dot that can pulse, a tone, a label.",
+          "name": "EwoBadge",
+          "cssParts": [
+            {
+              "name": "dot"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The label.",
+              "name": ""
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#internals",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML",
+              "default": "`<span class=\"dot\" part=\"dot\"></span><slot></slot>`"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "live",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Announce changes politely (role=status)."
+            },
+            {
+              "type": {
+                "text": "'neutral' | 'ok' | 'warn' | 'bad' | 'info' | 'unknown' | 'accent'"
+              },
+              "name": "tone"
+            },
+            {
+              "type": {
+                "text": "'outline' | 'soft' | 'plain'"
+              },
+              "name": "variant"
+            },
+            {
+              "type": {
+                "text": "'md' | 'sm'"
+              },
+              "name": "size"
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "A ring breathes out of the dot (off under reduced motion).",
+              "name": "pulse"
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Text only.",
+              "name": "nodot"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-badge",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoBadge",
+          "declaration": {
+            "name": "EwoBadge",
+            "module": "badge.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "empty.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The \"nothing here yet\" panel, or a centred error card.",
+          "name": "EwoEmpty",
+          "cssParts": [
+            {
+              "name": "mark"
+            },
+            {
+              "name": "heading"
+            },
+            {
+              "name": "body"
+            },
+            {
+              "name": "actions"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The body text.",
+              "name": ""
+            },
+            {
+              "description": "An icon or a project mark.",
+              "name": "mark"
+            },
+            {
+              "description": "Buttons or links.",
+              "name": "actions"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#heading",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLHeadingElement"
+              },
+              "default": "this.root.querySelector('h2')!"
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML",
+              "default": "` <div class=\"mark\" part=\"mark\"><slot name=\"mark\"></slot></div> <h2 part=\"heading\"></h2> <div class=\"body\" part=\"body\"><slot></slot></div> <div class=\"actions\" part=\"actions\"><slot name=\"actions\"></slot></div>`"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "heading",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "type": {
+                "text": "'dashed' | 'solid'"
+              },
+              "name": "variant"
+            },
+            {
+              "type": {
+                "text": "'neutral' | 'bad' | 'accent'"
+              },
+              "description": "Colour of the mark.",
+              "name": "tone"
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Harbor's orbit rings behind the mark.",
+              "name": "rings"
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "name": "compact"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-empty",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoEmpty",
+          "declaration": {
+            "name": "EwoEmpty",
+            "module": "empty.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "halftone.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "An image redrawn as halftone dots in the page's ink.",
+          "name": "EwoHalftone",
+          "cssProperties": [
+            {
+              "description": "Aspect ratio of the box.",
+              "name": "--ewo-halftone-ratio",
+              "default": "4 / 3"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#internals",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "#canvas",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "#ctx",
+              "privacy": "private",
+              "default": "this.#canvas.getContext('2d')!"
+            },
+            {
+              "kind": "field",
+              "name": "#image",
+              "privacy": "private",
+              "type": {
+                "text": "ImageBitmap | HTMLImageElement | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#grid",
+              "privacy": "private",
+              "type": {
+                "text": "Grid | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#ink",
+              "privacy": "private",
+              "type": {
+                "text": "[number, number, number]"
+              },
+              "default": "[242, 241, 238]"
+            },
+            {
+              "kind": "field",
+              "name": "#light",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#w",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#h",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#lensAt",
+              "privacy": "private",
+              "type": {
+                "text": "{ x: number; y: number } | null"
+              },
+              "default": "null",
+              "description": "Where the lens is, kept after the pointer leaves so it can ease out there."
+            },
+            {
+              "kind": "field",
+              "name": "#inside",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#lensAmount",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#rippleStart",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#frame",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#resize",
+              "privacy": "private",
+              "default": "new ResizeObserver(() => this.#layout())"
+            },
+            {
+              "kind": "field",
+              "name": "#offTheme",
+              "privacy": "private",
+              "type": {
+                "text": "(() => void) | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "method",
+              "name": "replay",
+              "description": "Replays the entrance ripple."
+            },
+            {
+              "kind": "method",
+              "name": "#loadImage",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#readTheme",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#layout",
+              "privacy": "private",
+              "description": "Samples the image onto a grid of cells sized to the element."
+            },
+            {
+              "kind": "method",
+              "name": "#onPointer",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "PointerEvent"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#tick",
+              "privacy": "private",
+              "description": "Runs frames only while the ripple plays or the lens eases in or out."
+            },
+            {
+              "kind": "method",
+              "name": "#draw",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "role",
+              "type": {
+                "text": "string"
+              },
+              "default": "'img'"
+            }
+          ],
+          "events": [
+            {
+              "name": "load"
+            },
+            {
+              "name": "error"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "src",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "cell",
+              "type": {
+                "text": "number"
+              },
+              "description": "Dot pitch in CSS px (default 4.6, the portrait's)."
+            },
+            {
+              "name": "color",
+              "type": {
+                "text": "'ink' | 'photo'"
+              },
+              "description": "`photo` keeps some of the image's colour."
+            },
+            {
+              "name": "alt",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "fit",
+              "type": {
+                "text": "'cover' | 'contain'"
+              }
+            },
+            {
+              "name": "origin",
+              "type": {
+                "text": "string"
+              },
+              "description": "Ripple origin as \"u v\" fractions (default \"0.5 0.4\")."
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Dots swell and part under the pointer.",
+              "name": "lens"
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Entrance ripple from `origin`.",
+              "name": "ripple"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-halftone",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoHalftone",
+          "declaration": {
+            "name": "EwoHalftone",
+            "module": "halftone.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "segmented.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A pill radio group with one sliding indicator.",
+          "name": "EwoSegmented",
+          "cssParts": [
+            {
+              "description": "The pill.",
+              "name": "track"
+            },
+            {
+              "description": "The sliding highlight.",
+              "name": "indicator"
+            },
+            {
+              "description": "Each choice; the chosen one also has `selected`.",
+              "name": "option"
+            }
+          ],
+          "slots": [
+            {
+              "description": "`<option value>` elements, one per choice.",
+              "name": ""
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "formAssociated",
+              "type": {
+                "text": "boolean"
+              },
+              "static": true,
+              "default": "true"
+            },
+            {
+              "kind": "field",
+              "name": "#internals",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "#options",
+              "privacy": "private",
+              "type": {
+                "text": "SegmentedOption[] | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#track",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "#observer",
+              "privacy": "private",
+              "default": "new MutationObserver(() => this.#render())"
+            },
+            {
+              "kind": "field",
+              "name": "value",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "options",
+              "type": {
+                "text": "SegmentedOption[]"
+              },
+              "description": "The choices. Set it from JS, or leave it and write <option> children."
+            },
+            {
+              "kind": "field",
+              "name": "label"
+            },
+            {
+              "kind": "field",
+              "name": "disabled"
+            },
+            {
+              "kind": "method",
+              "name": "formResetCallback"
+            },
+            {
+              "kind": "method",
+              "name": "#choose",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "value",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "focus",
+                  "type": {
+                    "text": "boolean"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#onKey",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "KeyboardEvent"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#render",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "className",
+              "type": {
+                "text": "string"
+              },
+              "default": "'track'"
+            },
+            {
+              "kind": "field",
+              "name": "role",
+              "type": {
+                "text": "string"
+              },
+              "default": "'radiogroup'"
+            }
+          ],
+          "events": [
+            {
+              "description": "`detail: { value }` after the user picks another option.",
+              "name": "change"
+            },
+            {
+              "description": "Same, fired first.",
+              "name": "input"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "value",
+              "type": {
+                "text": "string"
+              },
+              "description": "The chosen option's value (defaults to the first)."
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "description": "Accessible name of the group."
+            },
+            {
+              "name": "disabled",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "type": {
+                "text": "string"
+              },
+              "description": "Form field name.",
+              "name": "name"
+            },
+            {
+              "type": {
+                "text": "'md' | 'sm'"
+              },
+              "description": "`sm` is the mono pill of the landing's EN/DE switch.",
+              "name": "size"
+            },
+            {
+              "type": {
+                "text": "'neutral' | 'invert' | 'accent'"
+              },
+              "description": "Colour of the indicator.",
+              "name": "tone"
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Fill the container's width.",
+              "name": "stretch"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-segmented",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoSegmented",
+          "declaration": {
+            "name": "EwoSegmented",
+            "module": "segmented.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "sheet.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A modal: a bottom sheet on phones, a centred card from 720px.",
+          "name": "EwoSheet",
+          "cssParts": [
+            {
+              "name": "dialog"
+            },
+            {
+              "name": "header"
+            },
+            {
+              "name": "body"
+            },
+            {
+              "name": "footer"
+            },
+            {
+              "name": "close"
+            },
+            {
+              "name": "grip"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The content (scrolls).",
+              "name": ""
+            },
+            {
+              "name": "heading"
+            },
+            {
+              "name": "footer"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#dialog",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLDialogElement"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "#closing",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#startY",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#drag",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "open"
+            },
+            {
+              "kind": "method",
+              "name": "show"
+            },
+            {
+              "kind": "method",
+              "name": "close"
+            },
+            {
+              "kind": "method",
+              "name": "#requestClose",
+              "privacy": "private",
+              "description": "Asks to close: a listener can keep it open by cancelling the event."
+            },
+            {
+              "kind": "method",
+              "name": "#sync",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#finish",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML",
+              "default": "` <dialog part=\"dialog\" tabindex=\"-1\" autofocus> <div class=\"grip\" part=\"grip\" aria-hidden=\"true\"><span></span></div> <header part=\"header\"> <div class=\"heading\"><slot name=\"heading\"></slot></div> <button class=\"close\" part=\"close\" type=\"button\" aria-label=\"Close\"> <svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M4 4l8 8M12 4l-8 8\"/></svg> </button> </header> <div class=\"body\" part=\"body\"><slot></slot></div> <footer part=\"footer\"><slot name=\"footer\"></slot></footer> </dialog>`"
+            }
+          ],
+          "events": [
+            {
+              "description": "Cancelable: Escape, backdrop, close button or drag asked to close.",
+              "name": "cancel"
+            },
+            {
+              "description": "After it has closed.",
+              "name": "close"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "open",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "description": "Accessible name of the dialog."
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "720px instead of 480px on desktop.",
+              "name": "wide"
+            },
+            {
+              "type": {
+                "text": "'center' | 'top'"
+              },
+              "description": "`top` anchors it high (a search palette).",
+              "name": "placement"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-sheet",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoSheet",
+          "declaration": {
+            "name": "EwoSheet",
+            "module": "sheet.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "skeleton.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A placeholder block or lines of text, with a sheen.",
+          "name": "EwoSkeleton",
+          "cssParts": [
+            {
+              "name": "block"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "method",
+              "name": "#render",
+              "privacy": "private"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "width",
+              "type": {
+                "text": "string"
+              },
+              "description": "Any CSS length (default 100%)."
+            },
+            {
+              "name": "height",
+              "type": {
+                "text": "string"
+              },
+              "description": "Any CSS length (default 0.875rem)."
+            },
+            {
+              "name": "radius",
+              "type": {
+                "text": "'none' | 'xs' | 'sm' | 'md' | 'lg' | 'pill' | 'circle'"
+              }
+            },
+            {
+              "name": "lines",
+              "type": {
+                "text": "number"
+              },
+              "description": "Render this many text lines instead of one block."
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-skeleton",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoSkeleton",
+          "declaration": {
+            "name": "EwoSkeleton",
+            "module": "skeleton.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "switch.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A switch, optionally as a settings row with a label and a hint.",
+          "name": "EwoSwitch",
+          "cssParts": [
+            {
+              "name": "track"
+            },
+            {
+              "name": "knob"
+            },
+            {
+              "name": "label"
+            }
+          ],
+          "slots": [
+            {
+              "description": "The label.",
+              "name": ""
+            },
+            {
+              "description": "A second, quieter line under the label.",
+              "name": "hint"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "formAssociated",
+              "type": {
+                "text": "boolean"
+              },
+              "static": true,
+              "default": "true"
+            },
+            {
+              "kind": "field",
+              "name": "#internals",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "checked"
+            },
+            {
+              "kind": "field",
+              "name": "disabled"
+            },
+            {
+              "kind": "field",
+              "name": "value"
+            },
+            {
+              "kind": "method",
+              "name": "formResetCallback"
+            },
+            {
+              "kind": "method",
+              "name": "#toggle",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#sync",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML",
+              "default": "` <span class=\"text\" part=\"text\"> <span class=\"label\" part=\"label\"><slot></slot></span> <slot name=\"hint\"></slot> </span> <span class=\"track\" part=\"track\"><span class=\"knob\" part=\"knob\"></span></span>`"
+            },
+            {
+              "kind": "field",
+              "name": "role",
+              "type": {
+                "text": "string"
+              },
+              "default": "'switch'"
+            }
+          ],
+          "events": [
+            {
+              "description": "`detail: { checked }` after the user toggles it.",
+              "name": "change"
+            },
+            {
+              "description": "Same, fired first.",
+              "name": "input"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "checked",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "name": "disabled",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "name": "value",
+              "type": {
+                "text": "string"
+              },
+              "description": "Submitted when on (default `on`)."
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Label left, switch right, across the full width.",
+              "name": "row"
+            },
+            {
+              "type": {
+                "text": "'neutral' | 'accent'"
+              },
+              "description": "Colour of the track when on.",
+              "name": "tone"
+            },
+            {
+              "type": {
+                "text": "string"
+              },
+              "description": "Form field name.",
+              "name": "name"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-switch",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoSwitch",
+          "declaration": {
+            "name": "EwoSwitch",
+            "module": "switch.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "theme-toggle.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "storedTheme",
+          "return": {
+            "type": {
+              "text": "ThemeChoice"
+            }
+          },
+          "description": "The stored choice, or 'system'."
+        },
+        {
+          "kind": "function",
+          "name": "setTheme",
+          "parameters": [
+            {
+              "name": "choice",
+              "type": {
+                "text": "ThemeChoice"
+              }
+            }
+          ],
+          "description": "Applies a choice to the page, stores it and syncs theme-color."
+        },
+        {
+          "kind": "function",
+          "name": "restoreTheme",
+          "description": "What the pre-paint script in <head> does (inline it as a classic script)."
+        },
+        {
+          "kind": "class",
+          "description": "The sun/moon button, on the `ewo:theme` contract.",
+          "name": "EwoThemeToggle",
+          "cssProperties": [
+            {
+              "name": "--ewo-theme-toggle-size",
+              "default": "36px"
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "button"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#button",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLButtonElement"
+              },
+              "default": "this.root.querySelector('button')!"
+            },
+            {
+              "kind": "field",
+              "name": "#off",
+              "privacy": "private",
+              "type": {
+                "text": "(() => void) | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#onStorage",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#next",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#sync",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML",
+              "default": "`<button type=\"button\" part=\"button\">${ICON}</button>`"
+            }
+          ],
+          "events": [
+            {
+              "description": "`detail: { theme }` after a click.",
+              "name": "change"
+            }
+          ],
+          "attributes": [
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "system → light → dark instead of light ↔ dark.",
+              "name": "cycle"
+            },
+            {
+              "type": {
+                "text": "string"
+              },
+              "description": "Accessible label for \"switch to light\".",
+              "name": "label-light"
+            },
+            {
+              "type": {
+                "text": "string"
+              },
+              "description": "Accessible label for \"switch to dark\".",
+              "name": "label-dark"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-theme-toggle",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "storedTheme",
+          "declaration": {
+            "name": "storedTheme",
+            "module": "theme-toggle.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "setTheme",
+          "declaration": {
+            "name": "setTheme",
+            "module": "theme-toggle.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "restoreTheme",
+          "declaration": {
+            "name": "restoreTheme",
+            "module": "theme-toggle.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "EwoThemeToggle",
+          "declaration": {
+            "name": "EwoThemeToggle",
+            "module": "theme-toggle.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "ticks.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A row of state ticks with a readout line: Pulse's uptime bar.",
+          "name": "EwoTicks",
+          "cssProperties": [
+            {
+              "description": "Height of the ticks.",
+              "name": "--ewo-ticks-h",
+              "default": "32px"
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "bar"
+            },
+            {
+              "name": "caption"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#ticks",
+              "privacy": "private",
+              "type": {
+                "text": "Tick[] | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#active",
+              "privacy": "private",
+              "type": {
+                "text": "number | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#bar",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLDivElement"
+              },
+              "default": "this.root.querySelector('.bar')!"
+            },
+            {
+              "kind": "field",
+              "name": "#a",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLSpanElement"
+              },
+              "default": "this.root.querySelector('.a')!"
+            },
+            {
+              "kind": "field",
+              "name": "#b",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLSpanElement"
+              },
+              "default": "this.root.querySelector('.b')!"
+            },
+            {
+              "kind": "field",
+              "name": "ticks",
+              "type": {
+                "text": "Tick[]"
+              },
+              "description": "Per-tick `{ label, state, detail }`; wins over `states`."
+            },
+            {
+              "kind": "method",
+              "name": "#setActive",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "index",
+                  "type": {
+                    "text": "number | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#render",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#paint",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML",
+              "default": "` <div class=\"bar\" part=\"bar\" role=\"slider\" tabindex=\"0\" aria-valuemin=\"1\"></div> <div class=\"caption\" part=\"caption\" aria-hidden=\"true\"><span class=\"a\"></span><span class=\"b\"></span></div>`"
+            }
+          ],
+          "events": [
+            {
+              "description": "`detail: { index, tick }` when another tick is pointed at.",
+              "name": "ewo-tick"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "states",
+              "type": {
+                "text": "string"
+              },
+              "description": "Space-separated states: ok, warn, bad, unknown, none."
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "description": "Accessible name of the slider."
+            },
+            {
+              "name": "start",
+              "type": {
+                "text": "string"
+              },
+              "description": "Caption at the left end while nothing is pointed at."
+            },
+            {
+              "name": "end",
+              "type": {
+                "text": "string"
+              },
+              "description": "Caption at the right end."
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-ticks",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoTicks",
+          "declaration": {
+            "name": "EwoTicks",
+            "module": "ticks.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "toaster.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The region toasts appear in. Usually created for you by `toast()`.",
+          "name": "EwoToaster",
+          "cssParts": [
+            {
+              "name": "stack"
+            },
+            {
+              "name": "toast"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#stack",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLDivElement"
+              },
+              "default": "this.root.querySelector('.stack')!"
+            },
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "() => void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "message",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "{ tone = 'neutral', duration = 2800, action }",
+                  "default": "{}",
+                  "type": {
+                    "text": "ToastOptions"
+                  }
+                }
+              ],
+              "description": "Shows a toast; returns a function that dismisses it early."
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML",
+              "default": "`<div class=\"stack\" part=\"stack\" role=\"status\" aria-live=\"polite\"></div>`"
+            }
+          ],
+          "attributes": [
+            {
+              "type": {
+                "text": "'bottom' | 'top'"
+              },
+              "name": "position"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-toaster",
+          "customElement": true
+        },
+        {
+          "kind": "function",
+          "name": "toast",
+          "return": {
+            "type": {
+              "text": "() => void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "message",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "options",
+              "optional": true,
+              "type": {
+                "text": "ToastOptions"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoToaster",
+          "declaration": {
+            "name": "EwoToaster",
+            "module": "toaster.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "toast",
+          "declaration": {
+            "name": "toast",
+            "module": "toaster.js"
+          }
+        }
+      ]
+    }
+  ]
+}

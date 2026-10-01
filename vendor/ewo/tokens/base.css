@@ -1,0 +1,30 @@
+@layer ewo {
+/* An optional page base on the tokens: what the landing, Census and the
+   Svelte apps each repeat at the top of their stylesheet. Import it in a new
+   app; leave it out when adopting the tokens into an existing one. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  background: var(--ewo-bg);
+}
+
+body {
+  margin: 0;
+  background: var(--ewo-bg);
+  color: var(--ewo-fg);
+  font-family: var(--ewo-sans);
+  font-size: var(--ewo-text-md);
+  line-height: 1.5;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: color-mix(in oklab, var(--ewo-accent) 35%, transparent); }
+:focus-visible { outline: var(--ewo-focus); outline-offset: 3px; }
+
+.ewo-mono { font-family: var(--ewo-mono); font-variant-numeric: tabular-nums; }
+.ewo-serif { font-family: var(--ewo-serif); }
+}

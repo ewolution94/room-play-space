@@ -1,3 +1,6 @@
+/* The shared tokens (--ewo-*, from Folio, vendored by its `npm run vendor`), in
+   their own first layer; this file sets the ones it differs in. */
+@import "../vendor/ewo/tokens/tokens.css";
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -63,9 +66,9 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
+  --ewo-bg: oklch(1 0 0);
+  --ewo-fg: oklch(0.129 0.042 264.695);
+  --ewo-bg-raised: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.129 0.042 264.695);
@@ -74,12 +77,12 @@
   --secondary: oklch(0.95 0.02 195);
   --secondary-foreground: oklch(0.35 0.12 195);
   --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
+  --ewo-fg-2: oklch(0.554 0.046 257.417);
   --accent: oklch(0.93 0.03 195);
   --accent-foreground: oklch(0.35 0.12 195);
-  --destructive: oklch(0.577 0.245 27.325);
+  --ewo-bad: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
+  --ewo-line: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.65 0.12 200);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -95,12 +98,25 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+
+  /* This app's names for the shared tokens (vendor/ewo/tokens/tokens.css). */
+  --background: var(--ewo-bg);
+  --foreground: var(--ewo-fg);
+  --card: var(--ewo-bg-raised);
+  --muted-foreground: var(--ewo-fg-2);
+  --border: var(--ewo-line);
+  --destructive: var(--ewo-bad);
+  /* No color-scheme of its own (the theme is the .dark class): keep the
+     browser default rather than the shared tokens' light dark. */
+  color-scheme: normal;
+  --ewo-accent: var(--primary);
+  --ewo-accent-ink: var(--primary-foreground);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
+  --ewo-bg: oklch(0.129 0.042 264.695);
+  --ewo-fg: oklch(0.984 0.003 247.858);
+  --ewo-bg-raised: oklch(0.208 0.042 265.755);
   --card-foreground: oklch(0.984 0.003 247.858);
   --popover: oklch(0.208 0.042 265.755);
   --popover-foreground: oklch(0.984 0.003 247.858);
@@ -109,12 +125,12 @@
   --secondary: oklch(0.22 0.05 195);
   --secondary-foreground: oklch(0.75 0.14 195);
   --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
+  --ewo-fg-2: oklch(0.704 0.04 256.788);
   --accent: oklch(0.22 0.05 195);
   --accent-foreground: oklch(0.75 0.14 195);
-  --destructive: oklch(0.704 0.191 22.216);
+  --ewo-bad: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
+  --ewo-line: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.55 0.1 195);
   --chart-1: oklch(0.488 0.243 264.376);
