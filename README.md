@@ -77,7 +77,7 @@ npm run dev
 
 | Command                             | What it does                                    |
 | ----------------------------------- | ----------------------------------------------- |
-| `npm run dev`                       | Vite dev server.                                 |
+| `npm run dev`                       | Vite dev server on port 8080.                    |
 | `npm run build`                     | Production build.                                |
 | `npm test`                          | Test suite — `node:test`, no framework dependency.|
 | `npm run lint`                      | ESLint.                                          |
@@ -124,7 +124,8 @@ it costs nothing but the offline start. See `public/sw.js`.
 
 ## Tech stack
 
-- **App**: TanStack Start + TanStack Router, React 19, TypeScript, Vite 7.
+- **App**: TanStack Start + TanStack Router + TanStack Query, React 19,
+  TypeScript, Vite 7.
 - **3D**: Three.js, with `.glb` kit models plus procedural geometry.
 - **UI**: Tailwind CSS v4, Radix primitives (shadcn-style), lucide-react,
   sonner.
@@ -138,6 +139,7 @@ room-play-space/
 ├── brand/                  standalone brand assets (logo, favicon, banner)
 ├── src/
 │   ├── routes/             dashboard, /room/$roomId, /home/$homeId/room/$roomId…
+│   │                       (routeTree.gen.ts is generated; rooms.* redirect old links)
 │   ├── components/
 │   │   ├── dashboard/      Dashboard, HomesList, SingleRoomsList, create flows
 │   │   ├── planner/
@@ -160,10 +162,15 @@ room-play-space/
 │   │   └── planner-translations.ts  EN/DE strings
 │   ├── hooks/use-room-planner.ts    the planner state machine
 │   └── types/planner.ts
-├── tests/                  26 test files covering the geometry and
-│                           persistence libs
+├── tests/                  node:test files covering the lib modules (geometry,
+│                           persistence, catalogs); no UI or drag tests
 ├── docs/LEARNINGS.md       the geometry/rendering write-up — read before
 │                           touching planner-math, hallway-shapes, ThreeDView
+├── docs/*-PROPOSAL.md      the design write-ups for homes and sloped walls
+├── public/models/          the .glb models the app loads; the raw Kenney kit
+│                           they came from isn't in git (/resources/ is ignored)
+├── todo.md, AUDIT.md       changelog + backlog ("Still open" near the end);
+│                           the July 2026 codebase audit
 ├── entry.js                Bun.serve shim for self-hosting (see below)
 └── Dockerfile
 ```
@@ -175,13 +182,20 @@ produces a Worker bundle, and `entry.js` serves it with `Bun.serve` instead
 of `workerd` — consumer NAS CPUs often lack the instruction sets `workerd`
 needs, so the default preview server crashes on them.
 
+`wrangler.jsonc` looks like leftover Cloudflare template config, but it is
+what makes that plugin write the server bundle as `dist/server/index.js`, the
+file `entry.js` imports. Without it `vite build` still succeeds, writes
+`dist/server/server.js` instead, and the container can't start.
+
 ```bash
 docker build -t planum . && docker run -d -p 3000:3000 --name planum planum
 ```
 
-Pushes to the `release` branch also build a multi-arch image and publish it
-to `ghcr.io/ewolution94/room-play-space:latest`, which is what the Portainer
-stack on the NAS pulls.
+Work happens on `release`; `main` is parked. Every push to `release` runs
+lint and the tests first (`.github/workflows/docker-publish.yml`), and only
+if both pass does it build a multi-arch image and publish it to
+`ghcr.io/ewolution94/room-play-space:latest`, which is what the Portainer
+stack on the NAS pulls. A push to `release` is a production deploy.
 
 `NAS_DEPLOYMENT.md` documents the whole arrangement, including the SSR
 error-interception shim that stops TanStack Start from swallowing loader
@@ -198,6 +212,9 @@ stack traces into a generic `{"unhandled":true}` JSON payload.
 - **Furniture clamps to the room's bounding box**, not to the exact concave
   outline of an L- or T-shaped room, so it's possible to place something in
   the notch. A deliberate simplification; see the comment in `planner-math.ts`.
-- **Mobile is view-only** for multi-room overviews — you can look, pan and
-  zoom, but editing a floor plan on a phone isn't a thing PLANUM pretends to
-  do well.
+- **Mobile is view-only.** Below 1024px wide (`use-mobile-view-only.tsx`),
+  the room editor and the floor overview let you look, pan and zoom but not
+  edit, and the dashboard's create flows that need precise input (a room from
+  scratch, the wizard, a new home, a file import) explain why instead of
+  opening. "From example" still works. Editing a floor plan on a phone isn't
+  a thing PLANUM pretends to do well.
