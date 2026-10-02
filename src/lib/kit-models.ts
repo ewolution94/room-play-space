@@ -37,26 +37,6 @@ import type { KitModel } from "@/types/planner";
  */
 
 /**
- * How far a placed item's current width/length/height is allowed to drift
- * from its preset's own default size before ThreeDView.tsx gives up on the
- * Kenney model and falls back to the flat box.
- *
- * Why the comparison is against the preset's DEFAULT size and not the kit
- * model's raw native bounding box: every kitModel mapping already applies
- * *some* fixed stretch to go from the model's native size to the preset's
- * shipped default (e.g. "sofa" scales loungeDesignSofa.glb by roughly 2x on
- * every axis to reach 220x95x80cm) -- that stretch was chosen by hand and
- * eyeballed to still look acceptable (see the mapping table + reasoning
- * left in planner-presets.ts's history). It's fixed and never changes. The
- * only *new* risk is a user then dragging that same item's own inspector
- * sliders further away from the default -- that's what this envelope
- * guards against, independent of however much native-to-default stretch a
- * given mapping already involved.
- */
-export const KIT_ENVELOPE_MIN = 0.7;
-export const KIT_ENVELOPE_MAX = 1.5;
-
-/**
  * How far the three axes are allowed to *disagree* with each other before
  * the model is dropped for a box: `max(ratio) / min(ratio)`.
  *
@@ -119,6 +99,13 @@ export function nativeSize(model: KitModel): Dimensions3D {
  * each axis's absolute drift: a mesh scaled evenly on all three axes is not
  * distorted at any size, so only disagreement between them can make it
  * look wrong. See KIT_MAX_DISPROPORTION for what that fixed.
+ *
+ * `defaultDims` is the size the item was placed at (ThreeDView passes
+ * `Item.catalogDims`), not the kit model's native bounding box: the stretch
+ * from native size to a catalog size is picked by hand per mapping (e.g.
+ * "sofa" scales loungeDesignSofa.glb by roughly 2x on every axis to reach
+ * 220x95x80cm) and never changes, so only the user's own resize afterwards
+ * is new risk.
  */
 export function resolveRenderMode(
   current: Dimensions3D,

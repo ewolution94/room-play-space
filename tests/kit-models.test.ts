@@ -5,13 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import {
-  nativeSize,
-  resolveRenderMode,
-  computeModelScale,
-  KIT_ENVELOPE_MIN,
-  KIT_ENVELOPE_MAX,
-} from "@/lib/kit-models";
+import { nativeSize, resolveRenderMode, computeModelScale } from "@/lib/kit-models";
 import { PRESETS } from "@/lib/planner-presets";
 import type { KitModel } from "@/types/planner";
 

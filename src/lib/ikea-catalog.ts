@@ -25,27 +25,28 @@ import type { CustomCatalogItem } from "@/types/planner";
  * `sourceKey` maps each product to whichever existing Preset
  * (planner-presets.ts) is the closest real-world silhouette match, so its
  * kitModel/proceduralModel/material carry over via customCatalogItemToPreset.
- * Where a product's real dimensions drift too far from that preset's own
- * default size (see kit-models.ts's KIT_ENVELOPE_MIN/MAX, roughly 0.7x-1.5x
- * per axis), a kitModel-backed sourceKey falls back to a plain box
- * automatically -- fine for beds/tables/seating below, whose sourceKeys are
- * all real Kenney kitModels close enough in proportion to stay in-envelope.
- * Shelving/storage/wardrobes are different: those product lines span too
- * wide a size range for any single kitModel's envelope (a 42cm KALLAX 1x2 up
- * to a 150cm PAX), so they're routed at proceduralModel-backed presets
- * instead (`cube-shelf`/`ladder-bookcase`/`door-wardrobe`/`leg-cabinet`,
- * planner-presets.ts) -- those read each item's own current w/h/l live and
- * always render an exactly-fitting shape (open cube grid, open shelf boards,
- * hinged door leaves), with no envelope to fall out of. Bed heights below
- * deliberately
- * use each product's FOOTBOARD height (or, for NEIDEN's already-low-profile
- * headboard, its headboard height) rather than a tall headboard's height --
- * the built-in "bed-double"/"bed-single" presets themselves only model a
- * plain low frame (h: 45), with no tall-headboard geometry to compare
- * against, so a MALM/HEMNES entry using its ~100-120cm headboard height
- * would both blow the kit-model envelope AND make an IKEA bed read as
- * bizarrely taller than this app's own generic bed for a reason that's a
- * measurement-convention mismatch, not a real product difference.
+ * A kitModel mesh is stretched per axis to the product's real dimensions,
+ * and nothing at runtime checks that stretch: ThreeDView judges a placed
+ * item against the size it was added at (Item.catalogDims), so only a later,
+ * disproportionate resize falls back to a box (kit-models.ts's
+ * resolveRenderMode). Mapping a product only onto a kitModel it's close to
+ * in shape is therefore this file's job. Beds/tables/seating below all are:
+ * each stays under KIT_MAX_DISPROPORTION relative to its preset's default
+ * (the HEMNES daybed, at 1.85, is the closest). Shelving/storage/wardrobes
+ * are different: those product lines span too wide a size range for any
+ * single kitModel (a 42cm KALLAX 1x2 up to a 150cm PAX), so they're routed
+ * at proceduralModel-backed presets instead (`cube-shelf`/`ladder-bookcase`/
+ * `door-wardrobe`/`leg-cabinet`, planner-presets.ts) -- those read each
+ * item's own current w/h/l live and always render an exactly-fitting shape
+ * (open cube grid, open shelf boards, hinged door leaves), with nothing to
+ * stretch. Bed heights below deliberately use each product's FOOTBOARD
+ * height (or, for NEIDEN's already-low-profile headboard, its headboard
+ * height) rather than a tall headboard's height -- the built-in
+ * "bed-double"/"bed-single" presets themselves only model a plain low frame
+ * (h: 45), with no tall-headboard geometry to compare against, so a
+ * MALM/HEMNES entry using its ~100-120cm headboard height would make an IKEA
+ * bed read as bizarrely taller than this app's own generic bed for a reason
+ * that's a measurement-convention mismatch, not a real product difference.
  *
  * nameEn/nameDe are deliberately terse ("MALM Bed (Single)", not "MALM Bed
  * Frame, High (Single/Twin)") to match the rest of the catalog's naming
