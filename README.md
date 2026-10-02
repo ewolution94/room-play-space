@@ -209,9 +209,9 @@ stack traces into a generic `{"unhandled":true}` JSON payload.
   they don't snap to grid lines, walls or each other. It's on the backlog in
   `todo.md`.
 - **No PDF blueprint or shareable-link export** — also backlog, not built.
-- **Furniture clamps to the room's bounding box**, not to the exact concave
-  outline of an L- or T-shaped room, so it's possible to place something in
-  the notch. A deliberate simplification; see the comment in `planner-math.ts`.
+- **L/T/U rooms clamp slightly permissively.** Furniture is kept out of the
+  notch, but an item big enough to bridge it corner to corner is accepted. A
+  deliberate trade-off; see the comment on `clampPos` in `planner-math.ts`.
 - **Mobile is view-only.** Below 1024px wide (`use-mobile-view-only.tsx`),
   the room editor and the floor overview let you look, pan and zoom but not
   edit, and the dashboard's create flows that need precise input (a room from

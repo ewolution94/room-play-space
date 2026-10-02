@@ -462,10 +462,9 @@ export function findFreeSpot(
   collisionEnabled = true,
 ): { x: number; y: number } | null {
   const step = 10;
-  // Bounding box of the room's own polygon -- see clampPos above for why
-  // this is behavior-identical to the old 4-indexed-corner formula for a
-  // plain rectangle, and an intentional bounding-box approximation for a
-  // polygon (hallway) room.
+  // Scans the bounding box of the room's own polygon (for a plain rectangle,
+  // the same range as the old 4-indexed-corner formula); every candidate goes
+  // through clampPos, which keeps it on a polygon room's real floor.
   const xs = corners.map((c) => c.x);
   const ys = corners.map((c) => c.y);
   const leftBound = Math.min(...xs);

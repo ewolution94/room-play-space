@@ -118,20 +118,23 @@ to collide against a true N-gon (e.g. the exact concave outline of an L-shaped
 hallway, not its bounding box), the axis loop has to run over _all_ of both
 polygons' edges, not just 4.
 
-### Why polygon rooms use a bounding-box approximation, on purpose
+### Polygon rooms: clamping into the real floor (a bounding box until 2026-08)
 
-Hallway rooms (see "Polygon rooms" below) have a genuinely concave outline, but
-`clampPos` and `findFreeSpot` in `planner-math.ts` both clamp furniture to the
-room polygon's **bounding box**, not its exact shape. For a plain rectangle this
-is exact (a rectangle's bounding box _is_ the rectangle). For an L or T shape,
-it means it's technically possible to drag an item into the notch — the empty
-corner that isn't actually part of the hallway's floor. This was a deliberate
-scope decision, not an oversight: real point-in-polygon clamping (projecting a
-clamped position back onto the nearest point _inside_ a concave polygon) is
-meaningfully harder, and hallways are narrow enough in practice that the notch
-case rarely comes up. If it ever needs fixing, `insetRectilinearPolygon` (see
-below) already contains the per-corner inward/outward normal math that a real
-fix would build on.
+Hallway and L/T/U rooms (see "Polygon rooms" below) have a genuinely concave
+outline. Until August 2026, `clampPos` and `findFreeSpot` in `planner-math.ts`
+clamped furniture to the room polygon's **bounding box**, so an item could be
+dragged into the notch — the empty corner that isn't part of the floor. That
+was a deliberate scope decision at the time.
+
+`c1df61a` replaced it, building on `insetRectilinearPolygon` as this section
+had predicted: `clampPos` now keeps an item on the floor inset by half the wall
+thickness, and slides a drag into the notch along the notch's edge. It falls
+back to the bounding-box result only when the item fits in no part of the
+floor at all, and it is slightly permissive by construction (an item big
+enough to bridge a notch corner to corner is accepted); its doc comment has the
+reasoning. `findFreeSpot` still scans the bounding box, but every candidate
+goes through `clampPos`, so it lands on the real floor too. A plain rectangle
+is unaffected: its bounding box _is_ the room.
 
 ### Swept collision resolution (no tunneling)
 
