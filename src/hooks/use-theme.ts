@@ -21,13 +21,19 @@ function readStoredTheme(): Theme {
 }
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>("light");
+  // `null` until the stored preference has been read. Applying the SSR default
+  // before that would save "light" over the user's choice whenever the
+  // component mounts twice before its first re-render: the update from the
+  // first mount is dropped, and the second mount reads the "light" the first
+  // one just wrote (seen in dev, opening a room from the dashboard).
+  const [theme, setTheme] = useState<Theme | null>(null);
 
   useIsomorphicLayoutEffect(() => {
     setTheme(readStoredTheme());
   }, []);
 
   useIsomorphicLayoutEffect(() => {
+    if (theme === null) return;
     const root = window.document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
@@ -51,10 +57,12 @@ export function useTheme() {
     return () => media.removeEventListener("change", listener);
   }, []);
 
+  const current = theme ?? "light";
   return {
-    theme,
-    setTheme,
-    isDark: theme === "dark",
-    toggleTheme: () => setTheme((prev) => (prev === "dark" ? "light" : "dark")),
+    theme: current,
+    setTheme: (next: Theme) => setTheme(next),
+    isDark: current === "dark",
+    toggleTheme: () =>
+      setTheme((prev) => ((prev ?? readStoredTheme()) === "dark" ? "light" : "dark")),
   };
 }
