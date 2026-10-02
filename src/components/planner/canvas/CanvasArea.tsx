@@ -1,12 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, Suspense, lazy } from "react";
 import { Link } from "@tanstack/react-router";
 import type { CanvasAreaProps } from "@/types/planner";
-import {
-  wallSegments,
-  resolveWallSegment,
-  wallColorKey,
-  wallOutwardNormal,
-} from "@/lib/hallway-shapes";
+import { wallSegments, wallColorKey, wallOutwardNormal } from "@/lib/hallway-shapes";
 import { closedSubIntervals } from "@/lib/room-adjacency";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import type { RoomInstance3D } from "../ThreeDView";
@@ -91,7 +86,6 @@ export function CanvasArea({
   threeDActive,
   setThreeDActive,
   corners,
-  setCorners,
   wallColors,
   setWallColors,
   selectedOpeningId,
@@ -118,12 +112,6 @@ export function CanvasArea({
   openSaveDialog,
 }: CanvasAreaProps) {
   const [showGrid2D, setShowGrid2D] = useState(true);
-  // Corner-drag ("Enable Corner Dragging") is disabled from the UI for now
-  // -- it caused confusion and could break the app in some ways -- but the
-  // underlying drag logic and rendering below are kept intact for later.
-  // See todo.md for the note. Hard-coded off with no setter exposed, since
-  // there's no checkbox left to toggle it.
-  const [enableCornerDrag] = useState(false);
   const [showWallIds, setShowWallIds] = useState(false);
   // Whether the room's flooring pattern renders in 2D/3D, or the room
   // falls back to its plain background -- on by default, off is an escape
@@ -331,67 +319,6 @@ export function CanvasArea({
     scaleCm = 500;
   }
   const scalePx = scaleCm * scale;
-
-  // Drag handler for room corners
-  const onCornerPointerDown = (e: React.PointerEvent, idx: number) => {
-    if (!enableCornerDrag) return;
-    e.stopPropagation();
-    e.preventDefault();
-    const target = e.currentTarget;
-    target.setPointerCapture(e.pointerId);
-    pushHistory();
-    const startMouseX = e.clientX;
-    const startMouseY = e.clientY;
-    const startCornerX = corners[idx].x;
-    const startCornerY = corners[idx].y;
-
-    const move = (ev: PointerEvent) => {
-      const dx = (ev.clientX - startMouseX) / scale;
-      const dy = (ev.clientY - startMouseY) / scale;
-
-      let newX = Math.round(startCornerX + dx);
-      let newY = Math.round(startCornerY + dy);
-
-      // Allow negative coordinates to enable dragging left/top walls outward
-      newX = Math.max(-2000, Math.min(4000, newX));
-      newY = Math.max(-2000, Math.min(4000, newY));
-
-      setCorners((prev) => {
-        const next = [...prev];
-        next[idx] = { x: newX, y: newY };
-        return next;
-      });
-    };
-
-    const up = (ev: PointerEvent) => {
-      try {
-        target.releasePointerCapture(ev.pointerId);
-      } catch {
-        // Only throws once the pointer is no longer active -- no capture left to release.
-      }
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      clampOpeningsToWalls();
-    };
-
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
-
-  // Clamps openings so they don't overflow resized walls
-  const clampOpeningsToWalls = () => {
-    setOpenings((prev) =>
-      prev.map((o) => {
-        const seg = resolveWallSegment(corners, o.wall);
-        if (!seg) return o;
-        const wallLength = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
-        const maxPos = Math.max(0, wallLength - o.width);
-        const clampedPos = Math.min(maxPos, Math.max(0, o.position));
-        if (clampedPos === o.position) return o;
-        return { ...o, position: clampedPos };
-      }),
-    );
-  };
 
   // flex-1 min-h-0 apply unconditionally below (not just lg:) so this
   // <main> fills its parent's height in the mobile flex-column wrapper too
@@ -732,29 +659,6 @@ export function CanvasArea({
                   roomPxW={roomPxW}
                   roomPxL={roomPxL}
                 />
-
-                {/* Draggable Corner Handles */}
-                {enableCornerDrag &&
-                  !isMobileViewOnly &&
-                  corners.map((c, idx) => (
-                    <HoverTooltip
-                      key={idx}
-                      content={lang === "de" ? "Wandecke anpassen" : "Adjust corner"}
-                    >
-                      <div
-                        onPointerDown={(e) => onCornerPointerDown(e, idx)}
-                        className="absolute w-3.5 h-3.5 -ml-[7px] -mt-[7px] rounded-full border border-primary bg-background shadow-md hover:scale-125 cursor-move active:bg-primary transition-[transform,background-color] duration-150 flex items-center justify-center group"
-                        style={{
-                          left: cm(c.x),
-                          top: cm(c.y),
-                          touchAction: "none",
-                          zIndex: 20,
-                        }}
-                      >
-                        <span className="w-1 h-1 rounded-full bg-primary group-active:bg-background group-hover:bg-primary/80 transition-colors" />
-                      </div>
-                    </HoverTooltip>
-                  ))}
               </div>
 
               {/* Replaces pinch-to-zoom on mobile (removed -- see

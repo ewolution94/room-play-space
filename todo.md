@@ -107,9 +107,9 @@ Full content-audit pass over the built-in (non-IKEA) catalog, cross-referenced a
 - [x] New `laundry`/`garage`/`gym`/`pets` category translations (en+de) in `planner-translations.ts`.
 - [x] Verified: 474/474 tests pass (was 455), tsc clean, lint clean (one pre-existing, unrelated `Function`-type warning in `planner-translations.ts` untouched by this batch). Browser-verified a representative sample (Treadmill, Cat tree, Fire pit, Dryer) in a real room -- correct dimensions confirmed via the Inspector for all four, and the Fire pit/Treadmill visually confirmed in 3D (rim+bowl+flame; deck+console+display, exactly as designed).
 
-## Known Disabled Features (kept in code, not exposed in UI)
+## Removed Features (recoverable from git history)
 
-- **Corner Dragging** (single-room 2D canvas): the "Enable Corner Dragging" checkbox has been removed from the 2D View Options panel because it caused confusion and could break the app in some ways. The underlying implementation is still in `src/components/planner/canvas/CanvasArea.tsx` (`enableCornerDrag` state, `onCornerPointerDown`, the draggable corner-handle rendering, and `clampOpeningsToWalls`) -- it's just permanently off (`const [enableCornerDrag] = useState(false)`), with no UI control to turn it back on. Revisit this once it's more robust, then reintroduce the checkbox.
+- **Corner Dragging** (single-room 2D canvas): the "Enable Corner Dragging" checkbox was removed from the 2D View Options panel because it caused confusion and could break the app in some ways. The code behind it stayed in `CanvasArea.tsx`, hard-coded off, until it was deleted on 2026-10-02 (`git log -S enableCornerDrag` finds the last version). If it ever comes back, two latent bugs were in it: its pointerup handler clamped openings against the *pre*-drag corners (a stale closure over `corners`), and it never handled `pointercancel`. It was unconstrained per-vertex dragging; the wizard's constrained wall-dragging (`dragWallEdge`) is the better starting point, with the caveat in docs/LEARNINGS.md.
 
 ## From the codebase audit (July 2026) — see AUDIT.md for full reasoning on each
 

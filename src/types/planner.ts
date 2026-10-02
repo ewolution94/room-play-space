@@ -722,7 +722,6 @@ export interface CanvasAreaProps {
   threeDActive: boolean;
   setThreeDActive: React.Dispatch<React.SetStateAction<boolean>>;
   corners: Point[];
-  setCorners: React.Dispatch<React.SetStateAction<Point[]>>;
   wallColors: Record<string, string>;
   setWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedOpeningId: string | null;

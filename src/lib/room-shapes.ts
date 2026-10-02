@@ -244,8 +244,8 @@ export function allWallsAboveMinimum(corners: Point[]): boolean {
  * endpoints move together (never a single free corner) while every other
  * wall keeps its own direction unchanged -- "constrained whole-wall
  * parallel translation," not the old free-form per-vertex dragging
- * (CanvasArea.tsx's disabled onCornerPointerDown) that let a single corner
- * move anywhere and could self-intersect the room.
+ * (CanvasArea.tsx's onCornerPointerDown, disabled and then deleted) that let
+ * a single corner move anywhere and could self-intersect the room.
  *
  * Only the component of `dragDelta` along the wall's own outward normal is
  * used -- dragging is "push/pull this wall in or out," not "slide it

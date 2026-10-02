@@ -519,12 +519,12 @@ whole drag if it would invert a neighbour or shrink the bounding box below
 intersection math produces values like `501.60711669921875`, which surfaced as
 15-digit dimension labels. That rounding is a fix, not a style choice.
 
-Note this is *not* the old `enableCornerDrag` code in `CanvasArea.tsx` (still
-hardcoded off) — that is genuinely unconstrained per-vertex dragging with no
-guards. The wizard has its own small, isolated canvas with no
-furniture/collision/opening-clamping concerns, so don't assume `dragWallEdge`
-can be dropped into the real editor as-is; "reshape a room that's already
-furnished" is a materially harder problem.
+Note this is *not* the old `enableCornerDrag` code from `CanvasArea.tsx`
+(hard-coded off for months, deleted 2026-10-02) — that was unconstrained
+per-vertex dragging with no guards. The wizard has its own small, isolated
+canvas with no furniture/collision/opening-clamping concerns, so don't assume
+`dragWallEdge` can be dropped into the real editor as-is; "reshape a room
+that's already furnished" is a materially harder problem.
 
 ## Persisted state: "empty" and "never saved" are different things
 

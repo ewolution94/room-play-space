@@ -360,7 +360,6 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
           threeDActive={planner.threeDActive}
           setThreeDActive={planner.setThreeDActive}
           corners={planner.corners}
-          setCorners={planner.setCorners}
           wallColors={planner.wallColors}
           setWallColors={planner.setWallColors}
           flooring={planner.flooring}
