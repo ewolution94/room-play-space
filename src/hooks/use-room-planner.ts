@@ -25,6 +25,7 @@ import {
   collidesWithOthers,
   findFreeSpot,
   computeOnTopElevation,
+  rotateWithinRoom,
 } from "@/lib/planner-math";
 import { importSchema, formatZodError } from "@/lib/planner-schema";
 import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/lib/planner-presets";
@@ -1291,16 +1292,12 @@ export function useRoomPlanner(
         const angle =
           (Math.atan2(e.clientY - d.centerClientY, e.clientX - d.centerClientX) * 180) / Math.PI;
         const delta = angle - d.startAngle;
-        const next = (((d.startRotation + delta) % 360) + 360) % 360;
         setItems((prev) =>
-          prev.map((i) => {
-            if (i.id !== d.id) return i;
-            const merged = { ...i, rotation: next };
-            const c = clampPos(merged, corners, merged.x, merged.y);
-            const candidate = { ...merged, x: c.x, y: c.y };
-            if (collidesWithOthers(candidate, prev)) return i;
-            return candidate;
-          }),
+          prev.map((i) =>
+            i.id === d.id
+              ? rotateWithinRoom(i, d.startRotation + delta, corners, prev, collisionEnabled)
+              : i,
+          ),
         );
       }
       return;
@@ -1451,14 +1448,11 @@ export function useRoomPlanner(
         const dir = e.shiftKey ? -15 : 15;
         pushHistory();
         setItems((prev) =>
-          prev.map((i) => {
-            if (!ids.has(i.id)) return i;
-            const merged = { ...i, rotation: (((i.rotation + dir) % 360) + 360) % 360 };
-            const c = clampPos(merged, corners, merged.x, merged.y);
-            const candidate = { ...merged, x: c.x, y: c.y };
-            if (collidesWithOthers(candidate, prev, ids, collisionEnabled)) return i;
-            return candidate;
-          }),
+          prev.map((i) =>
+            ids.has(i.id)
+              ? rotateWithinRoom(i, i.rotation + dir, corners, prev, collisionEnabled, ids)
+              : i,
+          ),
         );
         return;
       }

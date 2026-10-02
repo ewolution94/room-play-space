@@ -433,6 +433,28 @@ export function collidesWithOthers(
   );
 }
 
+/**
+ * `item` turned to `rotation` degrees (normalised to 0-360) and clamped back
+ * into the room, or `item` itself, unchanged, if the turned item would
+ * collide. Shared by the rotate handle and the R key so the two can't drift
+ * apart: the handle's own copy of this once dropped `collisionEnabled`, so it
+ * kept blocking with collision switched off while the R key didn't. That's
+ * also why `collisionEnabled` has no default here.
+ */
+export function rotateWithinRoom(
+  item: Item,
+  rotation: number,
+  corners: Point[],
+  others: Item[],
+  collisionEnabled: boolean,
+  ignoreIds?: Set<string>,
+): Item {
+  const turned = { ...item, rotation: ((rotation % 360) + 360) % 360 };
+  const c = clampPos(turned, corners, turned.x, turned.y);
+  const candidate = { ...turned, x: c.x, y: c.y };
+  return collidesWithOthers(candidate, others, ignoreIds, collisionEnabled) ? item : candidate;
+}
+
 export function findFreeSpot(
   item: Item,
   others: Item[],

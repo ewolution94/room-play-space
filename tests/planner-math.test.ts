@@ -7,6 +7,7 @@ import {
   obbOverlap,
   obbOverlapDepth,
   collidesWithOthers,
+  rotateWithinRoom,
   findFreeSpot,
   readableText,
   resolveSweptMove,
@@ -372,6 +373,46 @@ describe("collidesWithOthers", () => {
       const others = [makeItem({ id: "table", x: 0, y: 0, layer: "main" })];
       assert.equal(collidesWithOthers(candidate, others, undefined, true), true);
     });
+  });
+});
+
+describe("rotateWithinRoom", () => {
+  // A 55cm chair with a side table 6cm to its right. Turned 45 degrees, the
+  // chair's corner reaches 38.9cm from its centre instead of 27.5cm, so it
+  // pokes 5.4cm into the table; turned 10 degrees, it still clears it.
+  const room = roomCorners(500, 400);
+  const chair = makeItem({ id: "chair", x: 100, y: 100, width: 55, length: 55 });
+  const table = makeItem({ id: "table", x: 161, y: 105, width: 45, length: 45 });
+  const items = [chair, table];
+
+  test("turns the item, normalising the angle to 0-360", () => {
+    assert.equal(rotateWithinRoom(chair, 370, room, [chair], true).rotation, 10);
+    assert.equal(rotateWithinRoom(chair, -15, room, [chair], true).rotation, 345);
+  });
+
+  test("refuses a turn into a neighbour while collision is on, returning the item unchanged", () => {
+    assert.equal(rotateWithinRoom(chair, 45, room, items, true), chair);
+  });
+
+  test("allows the same turn with collision off (the rotate handle used to ignore the toggle)", () => {
+    assert.equal(rotateWithinRoom(chair, 45, room, items, false).rotation, 45);
+  });
+
+  test("a turn that clears the neighbour goes through with collision on", () => {
+    assert.equal(rotateWithinRoom(chair, 10, room, items, true).rotation, 10);
+  });
+
+  test("items in ignoreIds don't block (the R key turns a whole selection together)", () => {
+    const selection = new Set(["chair", "table"]);
+    assert.equal(rotateWithinRoom(chair, 45, room, items, true, selection).rotation, 45);
+  });
+
+  test("clamps the turned item back inside the room", () => {
+    const shelf = makeItem({ id: "shelf", x: 5, y: 5, width: 200, length: 20 });
+    const turned = rotateWithinRoom(shelf, 90, room, [shelf], true);
+    assert.equal(turned.rotation, 90);
+    const top = turned.y + turned.length / 2 - rotatedAABB(turned.width, turned.length, 90).h / 2;
+    assert.ok(top >= 3 - 1e-9, `turned footprint starts at y=${top}, inside the 3cm wall inset`);
   });
 });
 
