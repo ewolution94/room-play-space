@@ -41,3 +41,22 @@ export const ROOM_SWATCHES = [
   { name: "Cool Gray", value: "#6b7280" },
   { name: "Terracotta", value: "#b45309" },
 ];
+
+/**
+ * Wall paints for the material comparison (CompareMaterialsDialog.tsx): the light, muted shades
+ * walls actually get painted, plus one dark accent. A different job again from SWATCHES (pieces
+ * of furniture) and ROOM_SWATCHES (telling rooms apart); the inspector's colour picker still
+ * takes any colour.
+ */
+export const WALL_SWATCHES = [
+  { nameEn: "Pure White", nameDe: "Reinweiß", value: "#f7f7f4" },
+  { nameEn: "Warm White", nameDe: "Warmweiß", value: "#f2ece0" },
+  { nameEn: "Greige", nameDe: "Greige", value: "#d8d0c4" },
+  { nameEn: "Light Gray", nameDe: "Hellgrau", value: "#d5d8dc" },
+  { nameEn: "Sage", nameDe: "Salbei", value: "#b6c3ad" },
+  { nameEn: "Dusty Blue", nameDe: "Taubenblau", value: "#a9b9c8" },
+  { nameEn: "Blush", nameDe: "Altrosa", value: "#e3c6bf" },
+  { nameEn: "Ochre", nameDe: "Ocker", value: "#d6ad66" },
+  { nameEn: "Terracotta", nameDe: "Terrakotta", value: "#c07a5c" },
+  { nameEn: "Anthracite", nameDe: "Anthrazit", value: "#4b4f55" },
+];

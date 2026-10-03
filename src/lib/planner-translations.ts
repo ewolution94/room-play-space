@@ -119,6 +119,15 @@ export const STRINGS = {
     blueprintOpenings: "Doors & windows",
     blueprintCeiling: "Ceiling",
     blueprintNoItems: "No furniture placed.",
+    // The material comparison (CompareMaterialsDialog.tsx).
+    compareSideBySide: "Compare side by side…",
+    compareTitle: "Compare materials",
+    compareBody: "Your room with each option. Pick one to use it; “As it was” takes you back.",
+    compareFloorTab: "Flooring",
+    compareWallsTab: "Wall colors",
+    compareBefore: "As it was",
+    compareWallsNote:
+      "A paint goes on every wall. The walls are drawn thicker than they are, so the color shows.",
     openingOutOfBounds: "Doesn't fit on that wall — check position and width.",
     openingOverlap: "Overlaps another door or window on that wall.",
     exported: "Exported planner state",
@@ -324,6 +333,15 @@ export const STRINGS = {
     blueprintOpenings: "Türen & Fenster",
     blueprintCeiling: "Decke",
     blueprintNoItems: "Keine Möbel platziert.",
+    compareSideBySide: "Nebeneinander vergleichen…",
+    compareTitle: "Materialien vergleichen",
+    compareBody:
+      "Dein Raum mit jeder Option. Wähle eine aus, um sie zu übernehmen; „Wie vorher“ stellt den alten Stand wieder her.",
+    compareFloorTab: "Bodenbelag",
+    compareWallsTab: "Wandfarben",
+    compareBefore: "Wie vorher",
+    compareWallsNote:
+      "Eine Farbe gilt für alle Wände. Die Wände sind dicker gezeichnet, als sie sind, damit die Farbe zu sehen ist.",
     openingOutOfBounds: "Passt nicht auf diese Wand — Position und Breite prüfen.",
     openingOverlap: "Überschneidet eine andere Tür oder ein Fenster an dieser Wand.",
     exported: "Planerstand exportiert",

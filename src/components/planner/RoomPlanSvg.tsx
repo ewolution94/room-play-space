@@ -1,6 +1,15 @@
-import React from "react";
-import type { Item, Opening, Point } from "@/types/planner";
-import { polygonBoundingBox, resolveWallSegment } from "@/lib/hallway-shapes";
+import React, { useId } from "react";
+import type { Item, Opening, Point, RoomFlooring } from "@/types/planner";
+import {
+  polygonBoundingBox,
+  resolveWallSegment,
+  wallColorKey,
+  wallSegments,
+} from "@/lib/hallway-shapes";
+import { resolveFlooring } from "@/lib/floor-materials";
+import { FloorPatternDef } from "@/lib/floor-pattern-svg";
+import { DEFAULT_WALL_COLOR } from "@/lib/material-compare";
+import { inwardNormal } from "@/lib/wall-slopes";
 import { openingClearance } from "@/lib/clearance";
 import { isSwingingOpening } from "@/lib/openings";
 import { readableText } from "@/lib/planner-math";
@@ -16,18 +25,28 @@ interface RoomPlanSvgProps {
   title: string;
   /** Overall width and length along the outside, and a 1 m scale bar: for the printed blueprint. */
   dimensions?: boolean;
+  /** The floor in the room's material (lib/floor-pattern-svg.tsx) instead of a plain tone. */
+  flooring?: RoomFlooring;
+  /**
+   * Each wall in its own colour, keyed like RoomLayout.wallColors: the material comparison's
+   * view. The walls become a band around the outside, thick enough to judge a colour by at
+   * thumbnail size; on the outside so it never covers the floor or the furniture.
+   */
+  wallColors?: Record<string, string>;
 }
 
 const WALL_CM = 6;
 const PAD_CM = 30;
 /** Room for the dimension labels and the scale bar when `dimensions` is on. */
 const DIMENSION_PAD_CM = 70;
+const RIM = "#334155";
 
 /**
  * A static, top-down drawing of one room in room centimetres (the viewBox), for the share-link
- * preview and the printable blueprint: walls, doors and windows cut into them, a door's swing
- * (the same quarter circle the clearance warnings use, lib/clearance.ts) and the furniture in its
- * own colours. Deliberately simpler than the editor's canvas: nothing here is interactive.
+ * preview, the printable blueprint and the material comparison: walls, doors and windows cut
+ * into them, a door's swing (the same quarter circle the clearance warnings use,
+ * lib/clearance.ts) and the furniture in its own colours. Deliberately simpler than the editor's
+ * canvas: nothing here is interactive.
  */
 export function RoomPlanSvg({
   corners,
@@ -37,18 +56,79 @@ export function RoomPlanSvg({
   className,
   title,
   dimensions,
+  flooring,
+  wallColors,
 }: RoomPlanSvgProps) {
+  const patternId = `plan-floor-${useId().replace(/[^\w-]/g, "")}`;
   const bb = polygonBoundingBox(corners);
-  const pad = dimensions ? DIMENSION_PAD_CM : PAD_CM;
+  // Painted walls: a band of `paint` with a thin `rim` outside it.
+  const paint = wallColors ? Math.max(WALL_CM, Math.max(bb.width, bb.height) / 16) : 0;
+  const rim = paint / 8;
+  const pad = dimensions ? DIMENSION_PAD_CM : Math.max(PAD_CM, paint + rim + 10);
   const viewBox = `${bb.minX - pad} ${bb.minY - pad} ${bb.width + 2 * pad} ${bb.height + 2 * pad}`;
   const textSize = Math.max(10, Math.min(bb.width, bb.height) / 28);
   const points = corners.map((c) => `${c.x},${c.y}`).join(" ");
   const ordered = [...items].sort((a, b) => layerRank(a) - layerRank(b));
+  const floorTone = flooring ? resolveFlooring(flooring).color : "var(--plan-floor, #f8fafc)";
+  // Where the wall's body lies across its line: centred on it, or (painted) all outside it.
+  const wallBody = wallColors ? paint + rim : WALL_CM;
+  const wallCentre = wallColors ? wallBody / 2 : 0;
+  const cuts = openings.flatMap((o) => {
+    const seg = resolveWallSegment(corners, o.wall);
+    if (!seg) return [];
+    const len = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
+    if (len === 0) return [];
+    const ux = (seg.b.x - seg.a.x) / len;
+    const uy = (seg.b.y - seg.a.y) / len;
+    const into = inwardNormal(corners, seg.a, seg.b);
+    // A point `along` the wall from its start, `out` beyond its line.
+    const at = (along: number, out: number) => ({
+      x: seg.a.x + ux * along - into.x * out,
+      y: seg.a.y + uy * along - into.y * out,
+    });
+    const p0 = at(o.position, wallCentre);
+    const p1 = at(o.position + o.width, wallCentre);
+    const swing = isSwingingOpening(o.kind) ? openingClearance(o, corners) : null;
+    return [{ o, p0, p1, swing }];
+  });
 
   return (
     <svg viewBox={viewBox} className={className} role="img" aria-label={title}>
       <title>{title}</title>
-      <polygon points={points} fill="var(--plan-floor, #f8fafc)" stroke="none" />
+      {flooring && (
+        <defs>
+          <FloorPatternDef flooring={flooring} cm={(v) => v} patternId={patternId} />
+        </defs>
+      )}
+      {wallColors &&
+        // Twice as wide as the band, centred on the wall line: the floor, drawn next, covers the
+        // inner half. Every rim before any paint, so a corner's rim never cuts into the
+        // neighbouring wall's paint.
+        (["rim", "paint"] as const).map((layer) => (
+          <g key={layer} strokeLinecap="round">
+            {wallSegments(corners).map((seg) => (
+              <line
+                key={seg.index}
+                x1={seg.a.x}
+                y1={seg.a.y}
+                x2={seg.b.x}
+                y2={seg.b.y}
+                stroke={
+                  layer === "rim"
+                    ? RIM
+                    : wallColors[wallColorKey(seg.index, corners.length)] || DEFAULT_WALL_COLOR
+                }
+                strokeWidth={2 * (layer === "rim" ? paint + rim : paint)}
+              />
+            ))}
+          </g>
+        ))}
+      <polygon
+        points={points}
+        fill={flooring ? `url(#${patternId})` : floorTone}
+        stroke={wallColors ? RIM : "none"}
+        strokeWidth={rim}
+      />
       {ordered.map((it) => {
         const cx = it.x + it.width / 2;
         const cy = it.y + it.length / 2;
@@ -99,55 +179,50 @@ export function RoomPlanSvg({
           </g>
         );
       })}
-      <polygon
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={WALL_CM}
-        strokeLinejoin="miter"
-      />
-      {openings.map((o) => {
-        const seg = resolveWallSegment(corners, o.wall);
-        if (!seg) return null;
-        const len = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
-        if (len === 0) return null;
-        const ux = (seg.b.x - seg.a.x) / len;
-        const uy = (seg.b.y - seg.a.y) / len;
-        const p0 = { x: seg.a.x + ux * o.position, y: seg.a.y + uy * o.position };
-        const p1 = {
-          x: seg.a.x + ux * (o.position + o.width),
-          y: seg.a.y + uy * (o.position + o.width),
-        };
-        const swing = isSwingingOpening(o.kind) ? openingClearance(o, corners) : null;
-        return (
-          <g key={o.id}>
-            {/* The gap in the wall. */}
+      {!wallColors && (
+        <polygon
+          points={points}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={WALL_CM}
+          strokeLinejoin="miter"
+        />
+      )}
+      {cuts.map(({ o, p0, p1, swing }) => (
+        <g key={o.id}>
+          {/* The gap in the wall. */}
+          <line
+            x1={p0.x}
+            y1={p0.y}
+            x2={p1.x}
+            y2={p1.y}
+            stroke={floorTone}
+            strokeWidth={wallBody + 1}
+          />
+          {o.kind !== "door" && (
             <line
               x1={p0.x}
               y1={p0.y}
               x2={p1.x}
               y2={p1.y}
-              stroke="var(--plan-floor, #f8fafc)"
-              strokeWidth={WALL_CM + 1}
+              stroke="#0ea5e9"
+              strokeWidth={wallColors ? paint / 3 : 2.5}
             />
-            {o.kind !== "door" && (
-              <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke="#0ea5e9" strokeWidth={2.5} />
-            )}
-            {swing &&
-              (o.swing ?? "in") === "in" &&
-              swing.zones.map((zone, i) => (
-                <polygon
-                  key={i}
-                  points={zone.map((p) => `${p.x},${p.y}`).join(" ")}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeOpacity={0.55}
-                  strokeWidth={1}
-                />
-              ))}
-          </g>
-        );
-      })}
+          )}
+          {swing &&
+            (o.swing ?? "in") === "in" &&
+            swing.zones.map((zone, i) => (
+              <polygon
+                key={i}
+                points={zone.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill="none"
+                stroke="currentColor"
+                strokeOpacity={0.55}
+                strokeWidth={1}
+              />
+            ))}
+        </g>
+      ))}
       {dimensions && (
         <g fill="currentColor" stroke="currentColor" fontSize={textSize}>
           <line x1={bb.minX} y1={bb.minY - 30} x2={bb.maxX} y2={bb.minY - 30} strokeWidth={1} />

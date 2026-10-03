@@ -23,6 +23,7 @@ import {
   Wand2,
   BookmarkPlus,
   ArrowUpDown,
+  Columns2,
 } from "lucide-react";
 import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
@@ -37,6 +38,12 @@ import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
 import { PRESET_BY_KEY, getDefaultHeight, resolveEffectiveElevation } from "@/lib/planner-presets";
 import { SWATCHES } from "@/lib/swatches";
 import { LayoutGrid } from "lucide-react";
+import { RoomPlanSvg } from "@/components/planner/RoomPlanSvg";
+import {
+  CompareMaterialsDialog,
+  type CompareBefore,
+  type CompareTab,
+} from "@/components/planner/CompareMaterialsDialog";
 
 const OPENING_SWATCHES = [
   { name: "Anthracite", value: "#343a40" },
@@ -136,6 +143,18 @@ export function InspectorSection({
   openSaveDialog,
 }: InspectorSectionProps) {
   const { isOpen: isGroupOpen, toggle: toggleGroup } = useInspectorGroups();
+  // The material comparison, and the floor and walls it opened on (to go back to). Kept after it
+  // closes, so the dialog can animate out.
+  const [compare, setCompare] = React.useState<{
+    open: boolean;
+    tab: CompareTab;
+    before: CompareBefore;
+  } | null>(null);
+  const compareOpener = React.useRef<HTMLElement | null>(null);
+  const openCompare = (tab: CompareTab, opener: HTMLElement) => {
+    compareOpener.current = opener;
+    setCompare({ open: true, tab, before: { flooring, wallColors } });
+  };
 
   // Local draft states for selected item
   const [itemDraftW, setItemDraftW] = React.useState("");
@@ -1162,6 +1181,11 @@ export function InspectorSection({
                       );
                     })}
                   </div>
+                  <CompareButton
+                    label={t.compareSideBySide}
+                    disabled={threeDActive}
+                    onClick={(e) => openCompare("walls", e.currentTarget)}
+                  />
                 </div>
               </InspectorGroup>
 
@@ -1197,12 +1221,31 @@ export function InspectorSection({
                     {FLOOR_MATERIALS.map((mat) => {
                       const isSelected = flooring.key === mat.key;
                       const previewColor = isSelected ? flooring.color : mat.defaultColor;
+                      const name = lang === "de" ? mat.nameDe : mat.nameEn;
                       return (
                         <HoverTooltip
                           key={mat.key}
-                          content={lang === "de" ? mat.nameDe : mat.nameEn}
+                          className="p-1.5"
+                          content={
+                            // This room in that material, before committing to it.
+                            <span className="block w-44 space-y-1">
+                              <span aria-hidden="true" className="block">
+                                <RoomPlanSvg
+                                  corners={corners}
+                                  openings={openings}
+                                  items={items}
+                                  flooring={{ key: mat.key, color: previewColor }}
+                                  wallColors={wallColors}
+                                  title={name}
+                                  className="h-32 w-full text-slate-700"
+                                />
+                              </span>
+                              <span className="block text-center">{name}</span>
+                            </span>
+                          }
                         >
                           <button
+                            aria-label={name}
                             aria-pressed={isSelected}
                             type="button"
                             disabled={threeDActive}
@@ -1252,12 +1295,59 @@ export function InspectorSection({
                       </span>
                     </div>
                   </div>
+                  <CompareButton
+                    label={t.compareSideBySide}
+                    disabled={threeDActive}
+                    onClick={(e) => openCompare("floor", e.currentTarget)}
+                  />
                 </div>
               </InspectorGroup>
+              {compare && (
+                <CompareMaterialsDialog
+                  t={t}
+                  lang={lang}
+                  open={compare.open}
+                  onOpenChange={(open) => setCompare({ ...compare, open })}
+                  initialTab={compare.tab}
+                  before={compare.before}
+                  corners={corners}
+                  openings={openings}
+                  items={items}
+                  flooring={flooring}
+                  setFlooring={setFlooring}
+                  wallColors={wallColors}
+                  setWallColors={setWallColors}
+                  returnFocus={() => compareOpener.current?.focus()}
+                />
+              )}
             </div>
           )}
         </CardContent>
       )}
     </Card>
+  );
+}
+
+function CompareButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={disabled}
+      onClick={onClick}
+      className="h-7 w-full gap-1.5 text-[11px]"
+    >
+      <Columns2 className="h-3 w-3" />
+      {label}
+    </Button>
   );
 }

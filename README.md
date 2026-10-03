@@ -58,7 +58,9 @@ browser.
   fixed height. Only floor-standing furniture collides; the rest is free.
 - **Flooring that renders in both views** — a family × pattern catalog
   (planks, tiles, fibre) drawn as SVG in 2D and as a generated texture in 3D,
-  recoloured per room.
+  recoloured per room. Hovering a material shows this room in it, and
+  "Compare side by side…" lays every floor, or a set of wall paints, out on
+  the room's own plan to pick from.
 - **English and German throughout** — including the catalog, which carries
   both names for every item.
 - **Undo/redo, multi-select marquee, collision checking** — collision is on
