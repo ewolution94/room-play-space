@@ -704,6 +704,22 @@ describe("readableText", () => {
 
   test("handles malformed hex gracefully", () => {
     assert.equal(readableText("nope"), "#000");
+    assert.equal(readableText("#zzzzzz"), "#000");
+  });
+
+  test("reads the short #rgb and #rgba forms the import schema allows", () => {
+    assert.equal(readableText("#fff"), "#111");
+    assert.equal(readableText("#000"), "#fff");
+    assert.equal(readableText("#ff0"), "#111"); // yellow is bright
+    assert.equal(readableText("#00f"), "#fff"); // blue is dark
+    assert.equal(readableText("#fff8"), "#111");
+    assert.equal(readableText("#0008"), "#fff");
+  });
+
+  test("reads #rrggbbaa by its colour, ignoring alpha", () => {
+    assert.equal(readableText("#ffffff00"), "#111");
+    assert.equal(readableText("#000000cc"), "#fff");
+    assert.equal(readableText("#1e3a8aff"), readableText("#1e3a8a"));
   });
 });
 

@@ -573,9 +573,16 @@ export function computeOnTopElevation(
   return (host.elevation ?? 0) + getHeight(host);
 }
 
+/**
+ * Dark or light label text for a swatch of `hex`, by its YIQ brightness. Takes every form the
+ * import schema's COLOR_REGEX accepts (#rgb, #rgba, #rrggbb, #rrggbbaa); alpha is ignored, since
+ * the label sits on the swatch itself. Anything else gets black.
+ */
 export function readableText(hex: string): string {
-  const c = hex.replace("#", "");
-  if (c.length !== 6) return "#000";
+  let c = hex.replace("#", "");
+  if (c.length === 3 || c.length === 4) c = [...c].map((digit) => digit + digit).join("");
+  if (c.length === 8) c = c.slice(0, 6);
+  if (!/^[0-9a-fA-F]{6}$/.test(c)) return "#000";
   const r = parseInt(c.slice(0, 2), 16);
   const g = parseInt(c.slice(2, 4), 16);
   const b = parseInt(c.slice(4, 6), 16);
