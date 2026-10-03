@@ -45,9 +45,9 @@ interface CompareMaterialsDialogProps {
 /**
  * The room drawn once per flooring material or wall paint, side by side, so options can be
  * judged on this room's own shape and furniture rather than as a lone swatch. Picking a tile
- * applies it straight away. Floor and wall colour changes aren't in the undo history (the
- * inspector's own pickers aren't either), so "As it was" is the way back: a tile for the walls,
- * and the floor the room had is marked with it.
+ * applies it straight away, as an undo step (picks within a second of each other share one, see
+ * lib/history-coalesce.ts). "As it was" is the way back without counting steps: a tile for the
+ * walls, and the floor the room had is marked with it.
  */
 export function CompareMaterialsDialog({
   t,

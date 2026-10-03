@@ -43,6 +43,7 @@ import {
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
 import { DEFAULT_FLOORING } from "@/lib/floor-materials";
+import { startsNewStep, type CoalesceRun } from "@/lib/history-coalesce";
 import { buildExportFilename } from "@/lib/export-filename";
 import {
   computeAutoOpenIntervals,
@@ -484,14 +485,25 @@ export function useRoomPlanner(
   const [, forceHistoryTick] = useState(0);
 
   const snapshotEqual = (a: Snapshot, b: Snapshot) => JSON.stringify(a) === JSON.stringify(b);
+  // The run of changes to one setting that the last step stands for (lib/history-coalesce.ts).
+  // Any other step ends it.
+  const coalesceRef = useRef<CoalesceRun | null>(null);
 
   const pushHistory = () => {
+    coalesceRef.current = null;
     const snap: Snapshot = JSON.parse(JSON.stringify(stateRef.current));
     const top = historyRef.current[historyRef.current.length - 1];
     if (top && snapshotEqual(top, snap)) return;
     historyRef.current = [...historyRef.current.slice(-99), snap];
     futureRef.current = [];
     forceHistoryTick((n) => n + 1);
+  };
+
+  /** pushHistory for a setting that can change many times a second: one step per run. */
+  const pushHistoryFor = (key: string) => {
+    const now = Date.now();
+    if (startsNewStep(coalesceRef.current, key, now)) pushHistory();
+    coalesceRef.current = { key, at: now };
   };
 
   const applySnapshot = (s: Snapshot) => {
@@ -530,6 +542,7 @@ export function useRoomPlanner(
 
   const undo = () => {
     if (!historyRef.current.length) return;
+    coalesceRef.current = null;
     const prev = historyRef.current[historyRef.current.length - 1];
     futureRef.current = [...futureRef.current, JSON.parse(JSON.stringify(stateRef.current))];
     historyRef.current = historyRef.current.slice(0, -1);
@@ -539,6 +552,7 @@ export function useRoomPlanner(
 
   const redo = () => {
     if (!futureRef.current.length) return;
+    coalesceRef.current = null;
     const next = futureRef.current[futureRef.current.length - 1];
     historyRef.current = [...historyRef.current, JSON.parse(JSON.stringify(stateRef.current))];
     futureRef.current = futureRef.current.slice(0, -1);
@@ -1006,7 +1020,23 @@ export function useRoomPlanner(
       toast.error(t.ceilingBelowOpenings(needed));
       return;
     }
+    pushHistoryFor("ceilingHeight");
     setCeilingHeight(next);
+  };
+
+  // The room's surfaces as the UI sets them, each change an undo step (a whole picker drag, one).
+  // Undo/redo and loading a room use the raw setters.
+  const applyWallColors: React.Dispatch<React.SetStateAction<Record<string, string>>> = (value) => {
+    pushHistoryFor("wallColors");
+    setWallColors(value);
+  };
+  const applyFlooring: React.Dispatch<React.SetStateAction<RoomFlooring>> = (value) => {
+    pushHistoryFor("flooring");
+    setFlooring(value);
+  };
+  const applyWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>> = (value) => {
+    pushHistoryFor("wallSlopes");
+    setWallSlopes(value);
   };
 
   const removeOpening = (id: string) => {
@@ -1767,13 +1797,13 @@ export function useRoomPlanner(
     corners,
     setCorners,
     wallColors,
-    setWallColors,
+    setWallColors: applyWallColors,
     flooring,
-    setFlooring,
+    setFlooring: applyFlooring,
     ceilingHeight,
     setCeilingHeight: applyCeilingHeight,
     wallSlopes,
-    setWallSlopes,
+    setWallSlopes: applyWallSlopes,
     slopeIssues,
     placementIssues,
     selectedOpeningId,
