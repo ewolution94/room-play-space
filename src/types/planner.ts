@@ -2,6 +2,7 @@ import type React from "react";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
 import type { WallSlopeMap } from "@/lib/wall-slopes";
+import type { PlacementIssues } from "@/lib/clearance";
 
 export type Lang = "en" | "de";
 
@@ -674,6 +675,8 @@ export interface SidebarProps {
    * in useRoomPlanner and shared with the canvas, so the Elements list and
    * the plan can never disagree about what's flagged. */
   slopeIssues: Map<string, SlopeFitIssue>;
+  /** Overlaps and blocked doors/windows (lib/clearance.ts). */
+  placementIssues: PlacementIssues;
   // "My Own Catalog" -- lifted to the route level (not owned by Sidebar
   // itself) because the Inspector's own "Save to My Catalog" action
   // (InspectorSection.tsx, rendered inside CanvasArea) needs to open the
@@ -754,6 +757,8 @@ export interface CanvasAreaProps {
   wallSlopes: WallSlopeMap;
   setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
   slopeIssues: Map<string, SlopeFitIssue>;
+  /** Overlaps and blocked doors/windows (lib/clearance.ts). */
+  placementIssues: PlacementIssues;
   zoomFactor: number;
   setZoomFactor: React.Dispatch<React.SetStateAction<number>>;
   isDark: boolean;
@@ -949,4 +954,6 @@ export interface UseRoomPlannerReturn {
   wallSlopes: WallSlopeMap;
   setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
   slopeIssues: Map<string, SlopeFitIssue>;
+  /** Overlaps and blocked doors/windows (lib/clearance.ts). */
+  placementIssues: PlacementIssues;
 }

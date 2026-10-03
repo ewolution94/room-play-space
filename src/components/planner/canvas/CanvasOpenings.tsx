@@ -35,6 +35,9 @@ interface CanvasOpeningsProps {
    * passes through untouched to the stage's own pan handler -- on mobile,
    * a drag anywhere on the canvas should only ever pan the view. */
   viewOnly?: boolean;
+  /** Door or window id -> the items in its way (lib/clearance.ts): drawn red, and counted in
+   * the tooltip. */
+  blockedOpenings?: Map<string, string[]>;
 }
 
 export function CanvasOpenings({
@@ -49,6 +52,7 @@ export function CanvasOpenings({
   setSelectedOpeningId,
   openWalls,
   viewOnly,
+  blockedOpenings,
 }: CanvasOpeningsProps) {
   return (
     <>
@@ -120,7 +124,10 @@ export function CanvasOpenings({
         };
 
         // Get opening color or fall back to default styling
-        const frameColor = o.color || (isGlazed ? "rgb(14, 165, 233)" : "#475569");
+        const blockedBy = blockedOpenings?.get(o.id)?.length ?? 0;
+        const frameColor = blockedBy
+          ? "#ef4444"
+          : o.color || (isGlazed ? "rgb(14, 165, 233)" : "#475569");
 
         // Calculate paths for door swing in 2D. A terrace door swings like
         // any other door -- that's most of the point of drawing one in plan,
@@ -254,11 +261,15 @@ export function CanvasOpenings({
           window.addEventListener("pointerup", up);
         };
 
-        const kindLabel = openingKindLabel(o, STRINGS[lang === "de" ? "de" : "en"]);
+        const strings = STRINGS[lang === "de" ? "de" : "en"];
+        const kindLabel = openingKindLabel(o, strings);
         const dragLabel = lang === "de" ? "ziehen zum Bewegen" : "drag to move";
 
         return (
-          <HoverTooltip key={o.id} content={`${kindLabel} (${o.width}cm) — ${dragLabel}`}>
+          <HoverTooltip
+            key={o.id}
+            content={`${kindLabel} (${o.width}cm) — ${blockedBy ? `${strings.openingBlocked(blockedBy)} — ` : ""}${dragLabel}`}
+          >
             <div style={containerStyle} onPointerDown={onOpeningDown}>
               {/* 2D swing representation -- one leaf for a door, two for a
                   double terrace door. */}

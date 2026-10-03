@@ -67,6 +67,10 @@ browser.
   and to other items' edges and centres, with a guide line, and rotation eases
   onto right angles. Hold Shift for a 5 cm grid and 15° steps, Alt (⌥) to
   place freely; "Snap to Walls & Items" in the 2D view options turns it off.
+- **Warnings for what's in the way** — items that overlap (with collision off),
+  stand in a door's swing, or reach above the sill right in front of a window
+  get a red outline, and the door or window turns red, on the plan and in the
+  Elements list. Rugs, and things sitting on other furniture, don't count.
 - **Installs to a home screen, and works without a connection** — a web
   manifest, icons and a service worker. Since the plans live in the browser
   anyway, the whole app (3D view and furniture models included) is cached,

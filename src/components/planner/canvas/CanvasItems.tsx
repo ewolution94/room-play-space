@@ -23,6 +23,9 @@ interface CanvasItemsProps {
    * a persistent marker rather than a drop-time toast: a layout you come back
    * to tomorrow should still tell you what's wrong with it. */
   slopeIssues?: Map<string, { available: number; required: number; shortfall: number }>;
+  /** Overlaps and items in a door's swing or in front of a window, one line per item
+   * (itemIssueText in lib/clearance.ts): a red dashed outline and the line as the tooltip. */
+  warnings?: Map<string, string>;
 }
 
 // Base stacking order by layer -- "under" items (rugs, mats) always render
@@ -47,6 +50,7 @@ export function CanvasItems({
   dimsLabel,
   dimsAxesLabel,
   slopeIssues,
+  warnings,
 }: CanvasItemsProps) {
   // Whole cm -- a dragged item's raw float would otherwise render 15 digits
   // in a box a few pixels wide.
@@ -69,6 +73,7 @@ export function CanvasItems({
         const isKitTinted =
           !!preset?.kitModel && it.color.toLowerCase() !== preset.color.toLowerCase();
         const slopeIssue = slopeIssues?.get(it.id);
+        const warning = warnings?.get(it.id);
         return (
           <div
             key={it.id}
@@ -89,16 +94,22 @@ export function CanvasItems({
               // through via the badge below.
               outline: isSelected
                 ? "2px solid var(--primary)"
-                : slopeIssue
-                  ? "2px dashed #f59e0b"
-                  : undefined,
-              outlineOffset: isSelected || slopeIssue ? 2 : undefined,
+                : warning
+                  ? "2px dashed #ef4444"
+                  : slopeIssue
+                    ? "2px dashed #f59e0b"
+                    : undefined,
+              outlineOffset: isSelected || warning || slopeIssue ? 2 : undefined,
               zIndex: isSelected ? baseZ + 10 : baseZ,
             }}
             title={
-              slopeIssue
-                ? `Needs ${Math.round(slopeIssue.required)} cm, only ${Math.round(slopeIssue.available)} cm available here`
-                : undefined
+              [
+                warning,
+                slopeIssue &&
+                  `Needs ${Math.round(slopeIssue.required)} cm, only ${Math.round(slopeIssue.available)} cm available here`,
+              ]
+                .filter(Boolean)
+                .join(" · ") || undefined
             }
           >
             {/* Visible swatch -- separate from the outer hit box so the

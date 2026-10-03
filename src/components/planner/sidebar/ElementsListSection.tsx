@@ -8,6 +8,7 @@ import type { TranslationStrings } from "@/lib/planner-translations";
 import { wallLabel } from "@/lib/hallway-shapes";
 import { getDefaultHeight } from "@/lib/planner-presets";
 import { openingKindLabel } from "@/lib/openings";
+import { itemIssueText, type PlacementIssues } from "@/lib/clearance";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 
 interface ElementsListSectionProps {
@@ -25,6 +26,8 @@ interface ElementsListSectionProps {
   /** Items too tall for the sloped ceiling where they sit -- same map the
    * canvas marks up, so the list and the plan can't disagree. */
   slopeIssues?: Map<string, { available: number; required: number; shortfall: number }>;
+  /** Overlaps and blocked doors/windows -- the same answer the canvas marks up. */
+  placementIssues?: PlacementIssues;
 }
 
 export function ElementsListSection({
@@ -40,7 +43,15 @@ export function ElementsListSection({
   removeItem,
   removeOpening,
   slopeIssues,
+  placementIssues,
 }: ElementsListSectionProps) {
+  const warnings = placementIssues
+    ? itemIssueText(placementIssues, openings, {
+        overlaps: t.overlapsItem,
+        door: t.blocksDoor,
+        window: t.blocksWindow,
+      })
+    : new Map<string, string>();
   return (
     <Card className="border-border/40 shadow-sm bg-card/60 backdrop-blur-sm flex-1">
       <div className="px-4 py-3 font-semibold text-sm border-b border-border/20">
@@ -101,6 +112,14 @@ export function ElementsListSection({
                           <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
                         </HoverTooltip>
                       )}
+                      {warnings.has(it.id) && (
+                        <HoverTooltip content={warnings.get(it.id)}>
+                          <AlertTriangle
+                            className="h-3 w-3 shrink-0 text-red-500"
+                            aria-label={warnings.get(it.id)}
+                          />
+                        </HoverTooltip>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <HoverTooltip content={t.dimsLWH}>
@@ -159,9 +178,25 @@ export function ElementsListSection({
                         : "bg-background/40 hover:bg-accent/40 border-border/40"
                     }`}
                   >
-                    <span className="truncate min-w-0 capitalize">
-                      {openingKindLabel(o, t)} · {wallLabel(o.wall, t, lang)} ·{" "}
-                      {Math.round(o.position)}cm
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate capitalize">
+                        {openingKindLabel(o, t)} · {wallLabel(o.wall, t, lang)} ·{" "}
+                        {Math.round(o.position)}cm
+                      </span>
+                      {placementIssues?.blockedOpenings.has(o.id) && (
+                        <HoverTooltip
+                          content={t.openingBlocked(
+                            placementIssues.blockedOpenings.get(o.id)!.length,
+                          )}
+                        >
+                          <AlertTriangle
+                            className="h-3 w-3 shrink-0 text-red-500"
+                            aria-label={t.openingBlocked(
+                              placementIssues.blockedOpenings.get(o.id)!.length,
+                            )}
+                          />
+                        </HoverTooltip>
+                      )}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-[10px] text-muted-foreground">{o.width}cm</span>

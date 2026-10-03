@@ -52,6 +52,7 @@ export function Sidebar({
   setSelectedOpeningId,
   openWalls,
   slopeIssues,
+  placementIssues,
   customCatalog,
   openSaveDialog,
   collapsed,
@@ -271,6 +272,7 @@ export function Sidebar({
             removeItem={removeItem}
             removeOpening={removeOpening}
             slopeIssues={slopeIssues}
+            placementIssues={placementIssues}
           />
         )}
       </div>

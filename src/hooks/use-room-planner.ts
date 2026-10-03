@@ -32,6 +32,7 @@ import {
   snapRotation,
 } from "@/lib/planner-math";
 import { importSchema, formatZodError } from "@/lib/planner-schema";
+import { findPlacementIssues } from "@/lib/clearance";
 import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { findHome, updateHome } from "@/lib/homes";
 import { findSingleRoom, updateSingleRoom } from "@/lib/single-rooms";
@@ -433,6 +434,23 @@ export function useRoomPlanner(
     }
     return issues;
   }, [items, corners, wallSlopes, ceilingHeight]);
+
+  /**
+   * Items overlapping each other, and items in a door's swing or in front of a window
+   * (lib/clearance.ts) -- worked out once here for the canvas and the Elements list, like
+   * slopeIssues. An opening in a wall span that's open to a neighbour isn't drawn
+   * (CanvasOpenings), so it isn't checked either.
+   */
+  const placementIssues = useMemo(() => {
+    const present = openings.filter((o) => {
+      const spans = openWalls.get(typeof o.wall === "string" ? o.wall : String(o.wall)) ?? [];
+      return !spans.some((iv) => o.position < iv.end && o.position + o.width > iv.start);
+    });
+    return findPlacementIssues(items, present, corners, (it) => {
+      const bottom = resolveEffectiveElevation(it, items);
+      return { bottom, top: bottom + (it.height ?? getDefaultHeight(it.icon, it.kind)) };
+    });
+  }, [items, openings, corners, openWalls]);
 
   // -------- History (undo / redo) --------
   const stateRef = useRef<Snapshot>({
@@ -1799,6 +1817,7 @@ export function useRoomPlanner(
     wallSlopes,
     setWallSlopes,
     slopeIssues,
+    placementIssues,
     selectedOpeningId,
     setSelectedOpeningId,
     openWalls,

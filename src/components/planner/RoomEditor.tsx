@@ -306,6 +306,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
             setSelectedOpeningId={planner.setSelectedOpeningId}
             openWalls={planner.openWalls}
             slopeIssues={planner.slopeIssues}
+            placementIssues={planner.placementIssues}
             customCatalog={customCatalog}
             openSaveDialog={openSaveDialog}
             collapsed={sidebarCollapsed}
@@ -384,6 +385,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
           wallSlopes={planner.wallSlopes}
           setWallSlopes={planner.setWallSlopes}
           slopeIssues={planner.slopeIssues}
+          placementIssues={planner.placementIssues}
           backUrl={backUrl}
           backLabel={backLabel}
           openSaveDialog={openSaveDialog}

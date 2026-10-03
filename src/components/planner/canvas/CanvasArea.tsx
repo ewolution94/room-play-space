@@ -14,6 +14,7 @@ import { CanvasSlopes } from "./CanvasSlopes";
 import { CanvasItems } from "./CanvasItems";
 import { CanvasMarquee } from "./CanvasMarquee";
 import { CanvasSnapGuides } from "./CanvasSnapGuides";
+import { itemIssueText } from "@/lib/clearance";
 import { CanvasRuler } from "./CanvasRuler";
 import { ToolbarOverlay } from "./ToolbarOverlay";
 import { MobileZoomButtons } from "./MobileZoomButtons";
@@ -111,6 +112,7 @@ export function CanvasArea({
   wallSlopes,
   setWallSlopes,
   slopeIssues,
+  placementIssues,
   backUrl,
   backLabel,
   openSaveDialog,
@@ -307,6 +309,16 @@ export function CanvasArea({
   const selectedLabel = selectedIds.size > 0 ? t.selectedCount(selectedIds.size) : undefined;
   const scaleKey = Math.round(scale * 1000);
   const resolvedFlooringColor = resolveFlooring(flooring).color;
+  // One line per flagged item, shared with the Elements list (lib/clearance.ts).
+  const itemWarnings = useMemo(
+    () =>
+      itemIssueText(placementIssues, openings, {
+        overlaps: t.overlapsItem,
+        door: t.blocksDoor,
+        window: t.blocksWindow,
+      }),
+    [placementIssues, openings, t],
+  );
 
   // Map-like scale calculation
   const targetCm = 80 / scale;
@@ -631,6 +643,7 @@ export function CanvasArea({
                   selectedOpeningId={selectedOpeningId}
                   setSelectedOpeningId={setSelectedOpeningId}
                   openWalls={openWalls}
+                  blockedOpenings={placementIssues.blockedOpenings}
                   viewOnly={isMobileViewOnly}
                 />
 
@@ -648,6 +661,7 @@ export function CanvasArea({
                   dimsLabel={t.dimsLWH}
                   dimsAxesLabel={t.dimsAxes}
                   slopeIssues={slopeIssues}
+                  warnings={itemWarnings}
                 />
 
                 {/* marquee */}
