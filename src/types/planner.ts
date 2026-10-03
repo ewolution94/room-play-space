@@ -936,6 +936,8 @@ export interface UseRoomPlannerReturn {
   buildRoomExportPreview: () => ExportPreviewData;
   /** The room as a share link carries it (lib/share.ts). */
   buildSharePayload: () => Record<string, unknown>;
+  /** The saved room's name, null when this editor has no saved room behind it. */
+  roomName: string | null;
   validateRoomImport: (raw: unknown) => ImportValidationResult;
   applyRoomImport: (raw: unknown) => void;
   onItemPointerDown: (e: React.PointerEvent, item: Item) => void;

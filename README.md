@@ -75,6 +75,10 @@ browser.
   a preview of the room, with "Open as a new room" to keep a copy. The room
   travels inside the link itself (compressed, after the `#`), so it never
   reaches a server; a furnished room is around 1.5 KB of link.
+- **A printable blueprint** — File → Print blueprint (PDF)… prints the plan
+  with every item numbered, the overall dimensions and a 1 m scale bar, plus
+  the numbered furniture list with sizes and the doors and windows; "Save as
+  PDF" in the print dialog makes the PDF. Ctrl/⌘+P prints the same.
 - **Installs to a home screen, and works without a connection** — a web
   manifest, icons and a service worker. Since the plans live in the browser
   anyway, the whole app (3D view and furniture models included) is cached,
@@ -222,7 +226,6 @@ stack traces into a generic `{"unhandled":true}` JSON payload.
 
 - **No account, no backend, no sync.** Layouts live in your browser.
   Export/import JSON is the migration path, on purpose.
-- **No PDF blueprint yet** — on the backlog in `todo.md`.
 - **L/T/U rooms clamp slightly permissively.** Furniture is kept out of the
   notch, but an item big enough to bridge it corner to corner is accepted. A
   deliberate trade-off; see the comment on `clampPos` in `planner-math.ts`.

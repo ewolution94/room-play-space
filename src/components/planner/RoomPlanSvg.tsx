@@ -14,10 +14,14 @@ interface RoomPlanSvgProps {
   className?: string;
   /** Accessible name for the drawing. */
   title: string;
+  /** Overall width and length along the outside, and a 1 m scale bar: for the printed blueprint. */
+  dimensions?: boolean;
 }
 
 const WALL_CM = 6;
 const PAD_CM = 30;
+/** Room for the dimension labels and the scale bar when `dimensions` is on. */
+const DIMENSION_PAD_CM = 70;
 
 /**
  * A static, top-down drawing of one room in room centimetres (the viewBox), for the share-link
@@ -32,9 +36,12 @@ export function RoomPlanSvg({
   labels,
   className,
   title,
+  dimensions,
 }: RoomPlanSvgProps) {
   const bb = polygonBoundingBox(corners);
-  const viewBox = `${bb.minX - PAD_CM} ${bb.minY - PAD_CM} ${bb.width + 2 * PAD_CM} ${bb.height + 2 * PAD_CM}`;
+  const pad = dimensions ? DIMENSION_PAD_CM : PAD_CM;
+  const viewBox = `${bb.minX - pad} ${bb.minY - pad} ${bb.width + 2 * pad} ${bb.height + 2 * pad}`;
+  const textSize = Math.max(10, Math.min(bb.width, bb.height) / 28);
   const points = corners.map((c) => `${c.x},${c.y}`).join(" ");
   const ordered = [...items].sort((a, b) => layerRank(a) - layerRank(b));
 
@@ -141,6 +148,35 @@ export function RoomPlanSvg({
           </g>
         );
       })}
+      {dimensions && (
+        <g fill="currentColor" stroke="currentColor" fontSize={textSize}>
+          <line x1={bb.minX} y1={bb.minY - 30} x2={bb.maxX} y2={bb.minY - 30} strokeWidth={1} />
+          <text x={bb.minX + bb.width / 2} y={bb.minY - 38} textAnchor="middle" stroke="none">
+            {Math.round(bb.width)} cm
+          </text>
+          <line x1={bb.minX - 30} y1={bb.minY} x2={bb.minX - 30} y2={bb.maxY} strokeWidth={1} />
+          <text
+            x={bb.minX - 38}
+            y={bb.minY + bb.height / 2}
+            textAnchor="middle"
+            stroke="none"
+            transform={`rotate(-90 ${bb.minX - 38} ${bb.minY + bb.height / 2})`}
+          >
+            {Math.round(bb.height)} cm
+          </text>
+          {/* 1 m, to measure the print by. */}
+          <line
+            x1={bb.minX}
+            y1={bb.maxY + 35}
+            x2={bb.minX + 100}
+            y2={bb.maxY + 35}
+            strokeWidth={2}
+          />
+          <text x={bb.minX + 108} y={bb.maxY + 35} dominantBaseline="central" stroke="none">
+            1 m
+          </text>
+        </g>
+      )}
     </svg>
   );
 }

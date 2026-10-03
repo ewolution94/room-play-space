@@ -79,7 +79,7 @@ Roughly ordered small → large. Anything still open here is also listed in `tod
 
 **Bigger swings**
 - **✅ Done (in `c1df61a`, 2026-08-24: `clampPos` keeps items on the real floor of L/T/U rooms)** — Real point-in-polygon furniture clamping for hallway rooms. `clampPos()` currently clamps to the hallway's bounding box, not its actual L/T silhouette — documented as a deliberate simplification, but it means furniture can end up placed in the "notch" that isn't really floor. Given hallways are a first-class room type now, tightening this would remove one of the few remaining places where a hallway behaves differently from a "real" room.
-- PDF/blueprint export (also already on your wishlist) — you have precise wall/opening/furniture geometry already; a print-ready top-down floor plan with a legend and dimensions is a very natural "share this with a contractor/landlord" feature that nothing else in the app currently offers.
+- **✅ Done (2026-10-03: File → Print blueprint (PDF)…)** — PDF/blueprint export (also already on your wishlist) — you have precise wall/opening/furniture geometry already; a print-ready top-down floor plan with a legend and dimensions is a very natural "share this with a contractor/landlord" feature that nothing else in the app currently offers.
 - A basic "before you buy" cost estimate — since presets already carry real-world dimensions and (for Kenney-backed ones) realistic proportions, attaching a rough price range per catalog item would turn this from a pure layout tool into something that helps with an actual purchase decision, which seems to be the spirit of the app already (a "room play space").
 
 ## 7. What's genuinely good

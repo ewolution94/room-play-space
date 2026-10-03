@@ -1755,6 +1755,7 @@ export function useRoomPlanner(
     closeTour,
     buildRoomExportPreview,
     buildSharePayload,
+    roomName: initialRoom?.name ?? null,
     validateRoomImport,
     applyRoomImport,
     onItemPointerDown,

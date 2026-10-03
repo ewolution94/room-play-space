@@ -24,6 +24,7 @@ import {
   Settings,
   Ruler,
   Share2,
+  Printer,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
 import { Link } from "@tanstack/react-router";
@@ -218,7 +219,7 @@ export function Header({
                   <span className="hidden sm:inline">{lang === "de" ? "Datei" : "File"}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => setExportOpen(true)}>
                   <Download className="mr-2 h-4 w-4" /> {t.export}
                 </DropdownMenuItem>
@@ -227,6 +228,10 @@ export function Header({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShareOpen(true)}>
                   <Share2 className="mr-2 h-4 w-4" /> {t.shareLink}
+                </DropdownMenuItem>
+                {/* The blueprint itself is RoomEditor's, rendered on beforeprint. */}
+                <DropdownMenuItem onClick={() => window.print()}>
+                  <Printer className="mr-2 h-4 w-4" /> {t.printBlueprint}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
