@@ -33,6 +33,7 @@ import {
 } from "@/lib/planner-math";
 import { importSchema, formatZodError } from "@/lib/planner-schema";
 import { findPlacementIssues } from "@/lib/clearance";
+import { importedRoomContents } from "@/lib/room-import";
 import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/lib/planner-presets";
 import { findHome, updateHome } from "@/lib/homes";
 import { findSingleRoom, updateSingleRoom } from "@/lib/single-rooms";
@@ -1622,74 +1623,21 @@ export function useRoomPlanner(
   // point) without relying on validation having already happened.
   const applyRoomImport = (raw: unknown) => {
     try {
-      const data = importSchema.parse(raw);
+      // Defaults and normalisation live in lib/room-import.ts, shared with opening a shared link.
+      const room = importedRoomContents(importSchema.parse(raw));
 
       pushHistory();
-      const nextW = Math.max(50, Math.round(data.room.width));
-      const nextL = Math.max(50, Math.round(data.room.length));
-      setRoomW(nextW);
-      setRoomL(nextL);
-      setDraftW(String(nextW));
-      setDraftL(String(nextL));
-
-      // >= 3 (not === 4) so importing a hallway's exported JSON keeps its
-      // L/T-shaped polygon corners instead of getting flattened to a rect.
-      if (data.corners && data.corners.length >= 3) {
-        setCorners(data.corners);
-      } else {
-        setCorners([
-          { x: 0, y: 0 },
-          { x: nextW, y: 0 },
-          { x: nextW, y: nextL },
-          { x: 0, y: nextL },
-        ]);
-      }
-
-      if (data.wallColors) {
-        setWallColors(data.wallColors);
-      } else {
-        setWallColors({
-          top: "#f1f5f9",
-          right: "#f1f5f9",
-          bottom: "#f1f5f9",
-          left: "#f1f5f9",
-        });
-      }
-
-      setFlooring(data.flooring ?? { ...DEFAULT_FLOORING });
-      setCeilingHeight(data.ceilingHeight ?? DEFAULT_CEILING_HEIGHT);
-      setWallSlopes(data.wallSlopes ?? {});
-
-      setOpenings(
-        data.openings.map((o) => ({
-          id: o.id || crypto.randomUUID(),
-          wall: o.wall,
-          position: o.position,
-          width: o.width,
-          kind: o.kind,
-          hinge: o.kind === "door" ? (o.hinge === "end" ? "end" : "start") : undefined,
-          swing: o.kind === "door" ? (o.swing === "out" ? "out" : "in") : undefined,
-          color: o.color,
-        })),
-      );
-      setItems(
-        data.items.map((i) => ({
-          id: i.id || crypto.randomUUID(),
-          name: i.name,
-          width: i.width,
-          length: i.length,
-          color: i.color,
-          x: i.x,
-          y: i.y,
-          rotation: i.rotation,
-          kind: i.kind,
-          icon: i.icon,
-          height: i.height,
-          elevation: i.elevation,
-          layer: i.layer,
-          shape: i.shape,
-        })),
-      );
+      setRoomW(room.width);
+      setRoomL(room.length);
+      setDraftW(String(room.width));
+      setDraftL(String(room.length));
+      setCorners(room.corners);
+      setWallColors(room.wallColors);
+      setFlooring(room.flooring);
+      setCeilingHeight(room.ceilingHeight);
+      setWallSlopes(room.wallSlopes);
+      setOpenings(room.openings);
+      setItems(room.items);
       setSelectedIds(new Set());
       toast.success(t.imported);
     } catch (err) {

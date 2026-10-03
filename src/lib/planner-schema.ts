@@ -34,6 +34,9 @@ const itemSchema = z.object({
       l: z.number().min(1).max(5000),
     })
     .optional(),
+  // The item this one sits on (see Item.placedOnId). Without it here, zod dropped the link on
+  // every import, so a lamp no longer moved with its desk.
+  placedOnId: z.string().max(200).optional(),
 });
 
 const openingSchema = z.object({
