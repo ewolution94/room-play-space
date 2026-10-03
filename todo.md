@@ -26,7 +26,7 @@
   - [x] Implement a 3D view toggle (e.g., via React Three Fiber or CSS 3D) to view the room in 3D
   - [x] Render room boundaries, openings, and furniture presets as 3D block volumes
 - [ ] **Smart Snapping & Collision System** _(see AUDIT.md section 6 "Medium" for detail)_
-  - [ ] Implement magnetic snapping to grid lines, walls, and other placed elements
+  - [x] Implement magnetic snapping to grid lines, walls, and other placed elements — done 2026-10-03: `snapMove`/`snapBoxToGrid`/`snapRotation` in `planner-math.ts`, guides in `CanvasSnapGuides.tsx`; on by default ("Snap to Walls & Items"), Shift = 5 cm grid and 15° steps, Alt = free.
   - [ ] Add collision detection to highlight overlapping items or blocked doors/windows
 - [ ] **Shareable Links & Blueprint Export** _(see AUDIT.md section 6 "Bigger swings" for detail)_
   - [ ] Support generating a PDF blueprint that includes the room canvas drawing and a furniture inventory list

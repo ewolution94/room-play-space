@@ -13,6 +13,7 @@ import { CanvasOpenings } from "./CanvasOpenings";
 import { CanvasSlopes } from "./CanvasSlopes";
 import { CanvasItems } from "./CanvasItems";
 import { CanvasMarquee } from "./CanvasMarquee";
+import { CanvasSnapGuides } from "./CanvasSnapGuides";
 import { CanvasRuler } from "./CanvasRuler";
 import { ToolbarOverlay } from "./ToolbarOverlay";
 import { MobileZoomButtons } from "./MobileZoomButtons";
@@ -61,6 +62,9 @@ export function CanvasArea({
   applyRoom,
   collisionEnabled,
   setCollisionEnabled,
+  snapEnabled,
+  setSnapEnabled,
+  snapGuides,
   rulerMode,
   setRulerMode,
   openings,
@@ -649,6 +653,9 @@ export function CanvasArea({
                 {/* marquee */}
                 <CanvasMarquee marqueeRect={marqueeRect} cm={cm} />
 
+                {/* what a drag is snapped to */}
+                <CanvasSnapGuides guides={snapGuides} cm={cm} />
+
                 {/* ruler overlay */}
                 <CanvasRuler
                   rulerMode={rulerMode}
@@ -833,6 +840,29 @@ export function CanvasArea({
                         className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
                       />
                       <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={snapEnabled}
+                        onChange={(e) => setSnapEnabled(e.target.checked)}
+                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                      />
+                      <span className="flex items-center gap-1">
+                        {lang === "de" ? "Magnetisch ausrichten" : "Snap to Walls & Items"}
+                        <HoverTooltip
+                          content={
+                            lang === "de"
+                              ? "Beim Ziehen rasten Kanten an Wänden und anderen Möbeln ein, Drehungen bei rechten Winkeln. Shift beim Ziehen: 5-cm-Raster bzw. 15°-Schritte. Alt (⌥): frei, ohne Einrasten."
+                              : "While dragging, edges snap to walls and other items, and rotation to right angles. Shift while dragging: 5 cm grid or 15° steps. Alt (⌥): free, no snapping."
+                          }
+                        >
+                          <span className="cursor-help inline-flex items-center">
+                            <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
+                          </span>
+                        </HoverTooltip>
+                      </span>
                     </label>
 
                     <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">

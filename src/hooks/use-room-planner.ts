@@ -12,6 +12,7 @@ import type {
   Point,
   MarqueeRect,
   MarqueeState,
+  SnapGuide,
   DragState,
   UseRoomPlannerReturn,
   RoomLayout,
@@ -26,6 +27,9 @@ import {
   findFreeSpot,
   computeOnTopElevation,
   rotateWithinRoom,
+  snapMove,
+  snapBoxToGrid,
+  snapRotation,
 } from "@/lib/planner-math";
 import { importSchema, formatZodError } from "@/lib/planner-schema";
 import { getDefaultHeight, resolveEffectiveElevation, PRESET_BY_KEY } from "@/lib/planner-presets";
@@ -72,6 +76,22 @@ const ON_TOP_DEFAULT_ELEVATION = 75;
 // wall-mounted item keeps whatever height it's given here (or its own
 // Preset.elevation) no matter what furniture ends up underneath it.
 const WALL_MOUNT_DEFAULT_ELEVATION = 150;
+
+// Snapping while dragging: how close (screen px, so it feels the same at any zoom) an edge has
+// to come before it jumps, and the grid and angle steps Shift switches to.
+const SNAP_PX = 8;
+const GRID_SNAP_CM = 5;
+const ROTATE_STEP_DEG = 15;
+
+function sameGuides(a: SnapGuide[], b: SnapGuide[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (g, i) =>
+        g.axis === b[i].axis && g.at === b[i].at && g.from === b[i].from && g.to === b[i].to,
+    )
+  );
+}
 
 // Default room size + furniture for the standalone single-room planner (no
 // roomId, i.e. not a room inside the /rooms apartment) -- a fully-furnished
@@ -1055,6 +1075,10 @@ export function useRoomPlanner(
   // -------- Ruler --------
   const [rulerMode, setRulerMode] = useState(false);
   const [collisionEnabled, setCollisionEnabled] = useState(true);
+  // Magnetic snapping while dragging (snapMove/snapRotation in lib/planner-math.ts), per session
+  // like collision; the guides are what the canvas draws while a drag is snapped.
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
   const [rulerStart, setRulerStart] = useState<Point | null>(null);
   const [rulerEnd, setRulerEnd] = useState<Point | null>(null);
   const [rulerHover, setRulerHover] = useState<Point | null>(null);
@@ -1175,6 +1199,7 @@ export function useRoomPlanner(
     dragRef.current = {
       mode: "move",
       ids,
+      anchorId: item.id,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
       startPos,
@@ -1262,9 +1287,30 @@ export function useRoomPlanner(
     const d = dragRef.current;
     if (d) {
       if (d.mode === "move") {
-        const dx = (e.clientX - d.startMouseX) / scale;
-        const dy = (e.clientY - d.startMouseY) / scale;
+        let dx = (e.clientX - d.startMouseX) / scale;
+        let dy = (e.clientY - d.startMouseY) / scale;
         const idsSet = new Set(d.ids);
+        // Snapping moves the grabbed item, and the rest of the selection by the same amount:
+        // Shift = the 5 cm grid, otherwise magnetic (walls, other items) unless it's switched
+        // off or Alt is held. Clamping and collision below still have the last word.
+        const anchor = items.find((i) => i.id === d.anchorId);
+        const anchorStart = d.startPos.get(d.anchorId);
+        let guides: SnapGuide[] = [];
+        if (anchor && anchorStart) {
+          const want = { x: anchorStart.x + dx, y: anchorStart.y + dy };
+          let got = want;
+          if (e.shiftKey) {
+            got = snapBoxToGrid(anchor, want.x, want.y, GRID_SNAP_CM);
+          } else if (snapEnabled && !e.altKey) {
+            const others = items.filter((i) => !idsSet.has(i.id));
+            const snapped = snapMove(anchor, want.x, want.y, corners, others, SNAP_PX / scale);
+            got = snapped;
+            guides = snapped.guides;
+          }
+          dx += got.x - want.x;
+          dy += got.y - want.y;
+        }
+        setSnapGuides((prev) => (sameGuides(prev, guides) ? prev : guides));
         setItems((prev) =>
           prev.map((i) => {
             if (!idsSet.has(i.id)) return i;
@@ -1291,12 +1337,16 @@ export function useRoomPlanner(
       } else {
         const angle =
           (Math.atan2(e.clientY - d.centerClientY, e.clientX - d.centerClientX) * 180) / Math.PI;
-        const delta = angle - d.startAngle;
+        const raw = d.startRotation + (angle - d.startAngle);
+        // Shift = 15-degree steps; otherwise right angles pull, unless snapping is off or Alt is held.
+        const turned = e.shiftKey
+          ? snapRotation(raw, ROTATE_STEP_DEG)
+          : snapEnabled && !e.altKey
+            ? snapRotation(raw, null)
+            : raw;
         setItems((prev) =>
           prev.map((i) =>
-            i.id === d.id
-              ? rotateWithinRoom(i, d.startRotation + delta, corners, prev, collisionEnabled)
-              : i,
+            i.id === d.id ? rotateWithinRoom(i, turned, corners, prev, collisionEnabled) : i,
           ),
         );
       }
@@ -1367,6 +1417,7 @@ export function useRoomPlanner(
         });
       }
       dragRef.current = null;
+      setSnapGuides([]);
       return;
     }
 
@@ -1653,6 +1704,9 @@ export function useRoomPlanner(
     setRulerMode,
     collisionEnabled,
     setCollisionEnabled,
+    snapEnabled,
+    setSnapEnabled,
+    snapGuides,
     rulerStart,
     rulerEnd,
     rulerHover,

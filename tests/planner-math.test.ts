@@ -8,6 +8,9 @@ import {
   obbOverlapDepth,
   collidesWithOthers,
   rotateWithinRoom,
+  snapMove,
+  snapBoxToGrid,
+  snapRotation,
   findFreeSpot,
   readableText,
   resolveSweptMove,
@@ -413,6 +416,126 @@ describe("rotateWithinRoom", () => {
     assert.equal(turned.rotation, 90);
     const top = turned.y + turned.length / 2 - rotatedAABB(turned.width, turned.length, 90).h / 2;
     assert.ok(top >= 3 - 1e-9, `turned footprint starts at y=${top}, inside the 3cm wall inset`);
+  });
+});
+
+describe("snapMove", () => {
+  // A 500x400 room: its usable floor's faces sit at x=3/497 and y=3/397.
+  const room = roomCorners(500, 400);
+  const sofa = makeItem({ id: "sofa", width: 100, length: 60 });
+  const table = makeItem({ id: "table", x: 200, y: 100, width: 100, length: 60 });
+
+  test("pulls an edge onto a wall within the threshold, with a guide along it", () => {
+    const s = snapMove(sofa, 8, 150, room, [], 10);
+    assert.equal(s.x, 3);
+    assert.equal(s.y, 150);
+    assert.deepEqual(
+      s.guides.map((g) => [g.axis, g.at]),
+      [["x", 3]],
+    );
+  });
+
+  test("leaves the item alone when nothing is within the threshold", () => {
+    assert.deepEqual(snapMove(sofa, 50, 150, room, [table], 10), { x: 50, y: 150, guides: [] });
+  });
+
+  test("an edge already on a line keeps its guide (a zero-distance snap)", () => {
+    // Right edge exactly on the table's left edge, facing it.
+    const s = snapMove(sofa, 100, 150, room, [table], 10);
+    assert.equal(s.x, 100);
+    assert.deepEqual(
+      s.guides.map((g) => [g.axis, g.at]),
+      [["x", 200]],
+    );
+  });
+
+  test("puts two items flush where they face each other, and flush isn't a collision", () => {
+    const s = snapMove(sofa, 304, 110, room, [table], 10);
+    assert.equal(s.x, 300);
+    assert.equal(collidesWithOthers({ ...sofa, x: s.x, y: s.y }, [table], undefined, true), false);
+  });
+
+  test("doesn't pull edge to edge onto an item it doesn't face", () => {
+    // Same x as above, but well below the table: no shared stretch, no contact snap.
+    assert.equal(snapMove(sofa, 304, 250, room, [table], 10).x, 304);
+  });
+
+  test("aligns edges and centres at any distance, as drawing tools do", () => {
+    const leftAligned = snapMove(sofa, 204, 300, room, [table], 10);
+    assert.equal(leftAligned.x, 200);
+    const guide = leftAligned.guides.find((g) => g.axis === "x")!;
+    assert.deepEqual([guide.at, guide.from, guide.to], [200, 100, 360]);
+    const centred = snapMove(
+      makeItem({ id: "lamp", width: 40, length: 40 }),
+      233,
+      300,
+      room,
+      [table],
+      10,
+    );
+    assert.equal(centred.x + 20, 250); // the table's centre line
+  });
+
+  test("the closest candidate wins", () => {
+    // Right edge 5cm from the wall, left edge 2cm from flush against a chest: the chest wins.
+    const chest = makeItem({ id: "chest", x: 290, y: 100, width: 100, length: 60 });
+    assert.equal(snapMove(sofa, 392, 120, room, [chest], 10).x, 390);
+  });
+
+  test("a rotated item snaps by its bounding box", () => {
+    const bench = makeItem({ id: "bench", width: 100, length: 40, rotation: 90 });
+    // Turned 90 degrees its box is 40 wide; put the box's left edge 6cm off the wall.
+    const s = snapMove(bench, -21, 150, room, [], 10);
+    const left = s.x + 50 - rotatedAABB(100, 40, 90).w / 2;
+    assert.ok(Math.abs(left - 3) < 1e-9, `box left edge at ${left}`);
+  });
+
+  test("snaps to the inner wall of an L-shaped room's notch", () => {
+    const lRoom = [
+      { x: 0, y: 0 },
+      { x: 300, y: 0 },
+      { x: 300, y: 150 },
+      { x: 150, y: 150 },
+      { x: 150, y: 300 },
+      { x: 0, y: 300 },
+    ];
+    const chair = makeItem({ id: "chair", width: 50, length: 50 });
+    // Right edge at 144, 3cm short of the notch wall at x=147.
+    assert.equal(snapMove(chair, 94, 200, lRoom, [], 10).x, 97);
+  });
+});
+
+describe("snapBoxToGrid", () => {
+  test("rounds an unrotated item's position to the grid", () => {
+    const s = snapBoxToGrid(makeItem(), 12.3, 47.6, 5);
+    assert.ok(Math.abs(s.x - 10) < 1e-9 && Math.abs(s.y - 50) < 1e-9, `${s.x}, ${s.y}`);
+  });
+
+  test("puts a rotated item's box, not its unrotated corner, on the grid", () => {
+    const item = makeItem({ width: 100, length: 40, rotation: 30 });
+    const s = snapBoxToGrid(item, 12.3, 47.6, 5);
+    const box = rotatedAABB(100, 40, 30);
+    const left = s.x + 50 - box.w / 2;
+    const top = s.y + 20 - box.h / 2;
+    assert.ok(Math.abs(left / 5 - Math.round(left / 5)) < 1e-9, `left ${left}`);
+    assert.ok(Math.abs(top / 5 - Math.round(top / 5)) < 1e-9, `top ${top}`);
+  });
+});
+
+describe("snapRotation", () => {
+  test("rounds to the step while one is given (Shift: 15 degrees, so 45 too)", () => {
+    assert.equal(snapRotation(37, 15), 30);
+    assert.equal(snapRotation(44, 15), 45);
+    assert.equal(snapRotation(359, 15), 0);
+    assert.equal(snapRotation(-30, 15), 330);
+  });
+
+  test("otherwise eases onto a right angle within 3 degrees, and leaves anything else", () => {
+    assert.equal(snapRotation(2, null), 0);
+    assert.equal(snapRotation(-1, null), 0);
+    assert.equal(snapRotation(88, null), 90);
+    assert.equal(snapRotation(93.5, null), 93.5);
+    assert.equal(snapRotation(400, null), 40);
   });
 });
 

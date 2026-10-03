@@ -550,6 +550,18 @@ export interface MarqueeRect {
   h: number;
 }
 
+/**
+ * A snap guide in room cm, for the canvas to draw while a drag is snapped (snapMove in
+ * lib/planner-math.ts): `axis: "x"` is a vertical line at x = `at` from y = `from` to `to`;
+ * `axis: "y"` a horizontal one.
+ */
+export interface SnapGuide {
+  axis: "x" | "y";
+  at: number;
+  from: number;
+  to: number;
+}
+
 export interface MarqueeState {
   startCx: number;
   startCy: number;
@@ -560,6 +572,9 @@ export type DragState =
   | {
       mode: "move";
       ids: string[];
+      /** The item under the pointer: snapping is worked out for it, and the rest of the
+       * selection moves by the same amount. */
+      anchorId: string;
       startMouseX: number;
       startMouseY: number;
       startPos: Map<string, Point>;
@@ -694,6 +709,9 @@ export interface CanvasAreaProps {
   applyRoom: (customW?: number, customL?: number) => void;
   collisionEnabled: boolean;
   setCollisionEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  snapEnabled: boolean;
+  setSnapEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  snapGuides: SnapGuide[];
   rulerMode: boolean;
   setRulerMode: React.Dispatch<React.SetStateAction<boolean>>;
   openings: Opening[];
@@ -833,6 +851,9 @@ export interface UseRoomPlannerReturn {
   setRulerMode: React.Dispatch<React.SetStateAction<boolean>>;
   collisionEnabled: boolean;
   setCollisionEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  snapEnabled: boolean;
+  setSnapEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  snapGuides: SnapGuide[];
   rulerStart: Point | null;
   rulerEnd: Point | null;
   rulerHover: Point | null;

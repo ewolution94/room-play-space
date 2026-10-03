@@ -335,6 +335,9 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
           applyRoom={planner.applyRoom}
           collisionEnabled={planner.collisionEnabled}
           setCollisionEnabled={planner.setCollisionEnabled}
+          snapEnabled={planner.snapEnabled}
+          setSnapEnabled={planner.setSnapEnabled}
+          snapGuides={planner.snapGuides}
           rulerMode={planner.rulerMode}
           setRulerMode={planner.setRulerMode}
           openings={planner.openings}

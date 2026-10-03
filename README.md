@@ -63,6 +63,10 @@ browser.
   both names for every item.
 - **Undo/redo, multi-select marquee, collision checking** — collision is on
   by default and can be switched off per session when you need to cheat.
+- **Snapping while you drag** — an item's edges and centre snap to the walls
+  and to other items' edges and centres, with a guide line, and rotation eases
+  onto right angles. Hold Shift for a 5 cm grid and 15° steps, Alt (⌥) to
+  place freely; "Snap to Walls & Items" in the 2D view options turns it off.
 - **Installs to a home screen, and works without a connection** — a web
   manifest, icons and a service worker. Since the plans live in the browser
   anyway, the whole app (3D view and furniture models included) is cached,
@@ -210,9 +214,6 @@ stack traces into a generic `{"unhandled":true}` JSON payload.
 
 - **No account, no backend, no sync.** Layouts live in your browser.
   Export/import JSON is the migration path, on purpose.
-- **No magnetic snapping yet** — items clamp to the room and collide, but
-  they don't snap to grid lines, walls or each other. It's on the backlog in
-  `todo.md`.
 - **No PDF blueprint or shareable-link export** — also backlog, not built.
 - **L/T/U rooms clamp slightly permissively.** Furniture is kept out of the
   notch, but an item big enough to bridge it corner to corner is accepted. A

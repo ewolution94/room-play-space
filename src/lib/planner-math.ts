@@ -1,4 +1,4 @@
-import type { Item, Point } from "@/types/planner";
+import type { Item, Point, SnapGuide } from "@/types/planner";
 import { insetRectilinearPolygon } from "@/lib/hallway-shapes";
 
 export function rotatedAABB(w: number, l: number, deg: number) {
@@ -453,6 +453,178 @@ export function rotateWithinRoom(
   const c = clampPos(turned, corners, turned.x, turned.y);
   const candidate = { ...turned, x: c.x, y: c.y };
   return collidesWithOthers(candidate, others, ignoreIds, collisionEnabled) ? item : candidate;
+}
+
+interface Span {
+  lo: number;
+  hi: number;
+}
+
+/** One axis of a box: its two edges, its middle, and its extent on the other axis. */
+interface BoxAxis {
+  min: number;
+  max: number;
+  mid: number;
+  span: Span;
+}
+
+/** The axis-aligned box a (possibly rotated) item covers, split per axis. */
+function boxAxes(item: Pick<Item, "x" | "y" | "width" | "length" | "rotation">): {
+  x: BoxAxis;
+  y: BoxAxis;
+} {
+  const aabb = rotatedAABB(item.width, item.length, item.rotation);
+  const cx = item.x + item.width / 2;
+  const cy = item.y + item.length / 2;
+  const xs = { lo: cx - aabb.w / 2, hi: cx + aabb.w / 2 };
+  const ys = { lo: cy - aabb.h / 2, hi: cy + aabb.h / 2 };
+  return {
+    x: { min: xs.lo, max: xs.hi, mid: cx, span: ys },
+    y: { min: ys.lo, max: ys.hi, mid: cy, span: xs },
+  };
+}
+
+/**
+ * The usable floor's axis-aligned wall faces, inset by half the wall thickness like clampPos:
+ * a 4-corner room's bounding box, or a polygon room's inset outline. Diagonal walls are skipped.
+ */
+function wallFaces(corners: Point[]): {
+  x: { at: number; span: Span }[];
+  y: { at: number; span: Span }[];
+} {
+  const x: { at: number; span: Span }[] = [];
+  const y: { at: number; span: Span }[] = [];
+  if (corners.length === 4) {
+    const xs = corners.map((c) => c.x);
+    const ys = corners.map((c) => c.y);
+    const l = Math.min(...xs) + WALL_HALF_THICKNESS;
+    const r = Math.max(...xs) - WALL_HALF_THICKNESS;
+    const t = Math.min(...ys) + WALL_HALF_THICKNESS;
+    const b = Math.max(...ys) - WALL_HALF_THICKNESS;
+    x.push({ at: l, span: { lo: t, hi: b } }, { at: r, span: { lo: t, hi: b } });
+    y.push({ at: t, span: { lo: l, hi: r } }, { at: b, span: { lo: l, hi: r } });
+    return { x, y };
+  }
+  const floor = insetRectilinearPolygon(corners, WALL_HALF_THICKNESS);
+  for (let i = 0; i < floor.length; i++) {
+    const a = floor[i];
+    const b = floor[(i + 1) % floor.length];
+    if (Math.abs(a.x - b.x) < 1e-6)
+      x.push({ at: a.x, span: { lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) } });
+    else if (Math.abs(a.y - b.y) < 1e-6)
+      y.push({ at: a.y, span: { lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) } });
+  }
+  return { x, y };
+}
+
+const facing = (a: Span, b: Span) => a.lo < b.hi && b.lo < a.hi;
+
+/** The closest snap on one axis within `threshold`, walls first on a tie. */
+function bestSnap(
+  mine: BoxAxis,
+  walls: { at: number; span: Span }[],
+  boxes: BoxAxis[],
+  threshold: number,
+): { delta: number; at: number; span: Span } | null {
+  let best: { delta: number; at: number; span: Span } | null = null;
+  const consider = (at: number, edge: number, span: Span) => {
+    const delta = at - edge;
+    if (Math.abs(delta) <= threshold && (!best || Math.abs(delta) < Math.abs(best.delta))) {
+      best = { delta, at, span };
+    }
+  };
+  for (const w of walls) {
+    if (!facing(mine.span, w.span)) continue;
+    consider(w.at, mine.min, w.span);
+    consider(w.at, mine.max, w.span);
+  }
+  for (const o of boxes) {
+    // Edge to edge only across a shared stretch; alignment at any distance.
+    if (facing(mine.span, o.span)) {
+      consider(o.max, mine.min, o.span);
+      consider(o.min, mine.max, o.span);
+    }
+    consider(o.min, mine.min, o.span);
+    consider(o.max, mine.max, o.span);
+    consider(o.mid, mine.mid, o.span);
+  }
+  return best;
+}
+
+/**
+ * Magnetic snapping for an item being moved to (`x`, `y`): its box's edges or centre jump onto a
+ * wall face, or onto another item's edge or centre, when within `threshold` cm, the closest
+ * candidate per axis winning. It only moves the item; clampPos and the collision check still run
+ * on the result like on any other move (flush edges don't count as a collision). Returns the
+ * guide to draw for each axis that snapped.
+ *
+ * Boxes are axis-aligned bounding boxes, which is exact at 0/90/180/270 degrees and good enough
+ * in between. Edge-to-edge contact only counts where the two boxes face each other across the
+ * line; alignment (left on left, centre on centre) counts at any distance, as in drawing tools.
+ */
+export function snapMove(
+  item: Item,
+  x: number,
+  y: number,
+  corners: Point[],
+  others: Item[],
+  threshold: number,
+): { x: number; y: number; guides: SnapGuide[] } {
+  const mine = boxAxes({ ...item, x, y });
+  const faces = wallFaces(corners);
+  const boxes = others.map(boxAxes);
+  const sx = bestSnap(
+    mine.x,
+    faces.x,
+    boxes.map((b) => b.x),
+    threshold,
+  );
+  const sy = bestSnap(
+    mine.y,
+    faces.y,
+    boxes.map((b) => b.y),
+    threshold,
+  );
+  const guides: SnapGuide[] = [];
+  if (sx) {
+    const lo = Math.min(sx.span.lo, mine.x.span.lo + (sy?.delta ?? 0));
+    const hi = Math.max(sx.span.hi, mine.x.span.hi + (sy?.delta ?? 0));
+    guides.push({ axis: "x", at: sx.at, from: lo, to: hi });
+  }
+  if (sy) {
+    const lo = Math.min(sy.span.lo, mine.y.span.lo + (sx?.delta ?? 0));
+    const hi = Math.max(sy.span.hi, mine.y.span.hi + (sx?.delta ?? 0));
+    guides.push({ axis: "y", at: sy.at, from: lo, to: hi });
+  }
+  return { x: x + (sx?.delta ?? 0), y: y + (sy?.delta ?? 0), guides };
+}
+
+/**
+ * Moves (`x`, `y`) so the item's box starts on the `step` cm grid (the room's own origin), which
+ * for an unrotated item is just its position rounded. Used while Shift is held.
+ */
+export function snapBoxToGrid(
+  item: Pick<Item, "width" | "length" | "rotation">,
+  x: number,
+  y: number,
+  step: number,
+): { x: number; y: number } {
+  const box = boxAxes({ ...item, x, y });
+  return {
+    x: x + (Math.round(box.x.min / step) * step - box.x.min),
+    y: y + (Math.round(box.y.min / step) * step - box.y.min),
+  };
+}
+
+/**
+ * A rotation in degrees, normalised to 0-360: rounded to `step` when one is given (15 while Shift
+ * is held), otherwise eased onto a right angle when within `magnet` degrees of one.
+ */
+export function snapRotation(deg: number, step: number | null, magnet = 3): number {
+  const n = ((deg % 360) + 360) % 360;
+  if (step) return (Math.round(n / step) * step) % 360;
+  const right = Math.round(n / 90) * 90;
+  return Math.abs(n - right) <= magnet ? right % 360 : n;
 }
 
 export function findFreeSpot(
