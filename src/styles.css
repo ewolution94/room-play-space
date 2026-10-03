@@ -7,6 +7,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* `tablet:` -- where the editor's sidebar-beside-canvas layout starts. Matches PHONE_SHORT_SIDE
+   in src/lib/viewport.ts: anything that isn't a phone is at least this wide, and a phone, even in
+   landscape, gets the view-only layout from JS instead, whatever its width. */
+@theme {
+  --breakpoint-tablet: 37.5rem;
+}
+
 /*
  * Design system definition.
  *

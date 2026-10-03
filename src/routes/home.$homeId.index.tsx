@@ -594,7 +594,7 @@ function HomeOverview() {
   // actual visible viewport on mobile browsers, where 100vh alone is
   // notoriously unreliable (address bar show/hide).
   return (
-    <div className="h-dvh lg:h-screen overflow-hidden flex flex-col bg-background">
+    <div className="h-dvh tablet:h-screen overflow-hidden flex flex-col bg-background">
       {/* Header section */}
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="flex w-full items-center justify-between gap-4 px-4 py-3">
@@ -941,8 +941,8 @@ function HomeOverview() {
           isMobileViewOnly
             ? "flex flex-1 min-h-0 w-full flex-col p-2"
             : sidebarCollapsed
-              ? "grid w-full gap-4 px-4 py-4 lg:grid-cols-[64px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
-              : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+              ? "grid w-full gap-4 px-4 py-4 tablet:grid-cols-[64px_minmax(0,1fr)] tablet:flex-1 tablet:min-h-0"
+              : "grid w-full gap-4 px-4 py-4 tablet:grid-cols-[minmax(240px,32%)_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)] tablet:flex-1 tablet:min-h-0"
         }
       >
         {/* Left Column: Sidebar to add rooms and adjust selection details --

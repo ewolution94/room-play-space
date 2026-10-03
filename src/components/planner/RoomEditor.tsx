@@ -177,7 +177,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
   };
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-background">
+    <div className="min-h-screen tablet:h-screen tablet:overflow-hidden flex flex-col bg-background">
       <Header
         t={planner.t}
         lang={planner.lang}
@@ -256,8 +256,8 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
           isMobileViewOnly
             ? "flex flex-1 min-h-0 w-full flex-col p-2"
             : sidebarCollapsed
-              ? "grid w-full gap-4 px-4 py-4 lg:grid-cols-[64px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
-              : "grid w-full gap-4 px-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+              ? "grid w-full gap-4 px-4 py-4 tablet:grid-cols-[64px_minmax(0,1fr)] tablet:flex-1 tablet:min-h-0"
+              : "grid w-full gap-4 px-4 py-4 tablet:grid-cols-[minmax(240px,32%)_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)] tablet:flex-1 tablet:min-h-0"
         }
       >
         {/* Left column: Unified Tabbed Sidebar -- hidden entirely in mobile

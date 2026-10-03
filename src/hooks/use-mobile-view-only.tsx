@@ -1,27 +1,19 @@
 import { useEffect, useState } from "react";
+import { isPhoneViewport } from "@/lib/viewport";
 
 /**
- * Anything narrower than this (in either orientation -- see below) gets the
- * stripped-down mobile "view only" canvas experience instead of the full
- * desktop editor chrome. Matches the app's existing `lg` Tailwind breakpoint
- * (1024px), which is already the one place the app collapses its two-column
- * sidebar+canvas layout down to a single stacked column -- so this hook just
- * extends that same cutoff into JS-driven behavior (hiding tools, floating
- * panels becoming bottom sheets, etc.) instead of introducing a second,
- * inconsistent breakpoint.
+ * A phone gets the stripped-down "view only" canvas instead of the editor: tools hidden,
+ * floating panels as bottom sheets. What counts as a phone is decided by the viewport's short
+ * side (isPhoneViewport in lib/viewport.ts), so a phone stays in view-only mode in both
+ * orientations -- rotating to landscape only ever gives it more canvas room, which is what the
+ * "rotate hint" suggests -- while a tablet, portrait included, gets the full editor.
  *
- * Deliberately just `innerWidth`, not `Math.min(innerWidth, innerHeight)`:
- * no real phone's landscape width gets anywhere near 1024px (the largest
- * mainstream phones top out around ~930px landscape), so a plain width
- * check already keeps a phone in view-only mode in both orientations --
- * rotating to landscape only ever gives you more canvas room, it never
- * exits view-only mode (which is the point of the "rotate hint" -- it's
- * suggesting a better view, not a different mode).
+ * Until 2026-10-03 this was a flat 1024px width, the `lg` breakpoint, which also caught every
+ * portrait iPad. Between 600px and `lg` the editor now uses its narrow layout: the sidebar
+ * stacked above a canvas of fixed height (RoomEditor.tsx, CanvasArea.tsx).
  */
-const VIEW_ONLY_BREAKPOINT = 1024;
-
 export interface MobileViewOnlyState {
-  /** True below the view-only breakpoint, in either orientation. */
+  /** True on a phone, in either orientation. */
   isMobileViewOnly: boolean;
   /** True when the viewport is taller than it is wide -- drives the
    * "rotate to landscape" hint, independent of isMobileViewOnly itself. */
@@ -30,7 +22,7 @@ export interface MobileViewOnlyState {
 
 function readState(): MobileViewOnlyState {
   return {
-    isMobileViewOnly: window.innerWidth < VIEW_ONLY_BREAKPOINT,
+    isMobileViewOnly: isPhoneViewport(window.innerWidth, window.innerHeight),
     isPortrait: window.innerHeight > window.innerWidth,
   };
 }

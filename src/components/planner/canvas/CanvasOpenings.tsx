@@ -11,6 +11,7 @@ import {
 import { STRINGS } from "@/lib/planner-translations";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
+import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 
 interface CanvasOpeningsProps {
   openings: Opening[];
@@ -54,6 +55,7 @@ export function CanvasOpenings({
   viewOnly,
   blockedOpenings,
 }: CanvasOpeningsProps) {
+  const coarse = useCoarsePointer();
   return (
     <>
       {openings.map((o) => {
@@ -90,7 +92,7 @@ export function CanvasOpenings({
         const thetaDeg = (theta * 180) / Math.PI;
 
         const isSelected = selectedOpeningId === o.id;
-        const hitThick = 24; // 24px hit target
+        const hitThick = coarse ? 40 : 24; // px; finger-sized on a touch screen
         const isGlazed = isGlazedOpening(o.kind);
         const swings = isSwingingOpening(o.kind);
         const leaves = openingLeaves(o);

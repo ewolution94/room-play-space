@@ -222,9 +222,11 @@ stack traces into a generic `{"unhandled":true}` JSON payload.
 - **L/T/U rooms clamp slightly permissively.** Furniture is kept out of the
   notch, but an item big enough to bridge it corner to corner is accepted. A
   deliberate trade-off; see the comment on `clampPos` in `planner-math.ts`.
-- **Mobile is view-only.** Below 1024px wide (`use-mobile-view-only.tsx`),
-  the room editor and the floor overview let you look, pan and zoom but not
-  edit, and the dashboard's create flows that need precise input (a room from
-  scratch, the wizard, a new home, a file import) explain why instead of
-  opening. "From example" still works. Editing a floor plan on a phone isn't
-  a thing PLANUM pretends to do well.
+- **Phones are view-only; tablets edit.** A viewport under 600px on its short
+  side (`lib/viewport.ts`) is a phone, in either orientation: the room editor
+  and the floor overview let you look, pan and zoom but not edit, and the
+  dashboard's create flows that need precise input (a room from scratch, the
+  wizard, a new home, a file import) explain why instead of opening. "From
+  example" still works. A tablet, portrait included, gets the full editor
+  with the sidebar beside a narrower canvas and finger-sized handles. Editing
+  a floor plan on a phone isn't a thing PLANUM pretends to do well.

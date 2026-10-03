@@ -186,7 +186,7 @@ export function MultiRoomSidebar({
 
   if (collapsed) {
     return (
-      <aside className="flex flex-col items-center gap-2 py-1 lg:h-full lg:shrink-0">
+      <aside className="flex flex-col items-center gap-2 py-1 tablet:h-full tablet:shrink-0">
         <HoverTooltip content={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}>
           <Button
             aria-label={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}
@@ -214,7 +214,7 @@ export function MultiRoomSidebar({
   }
 
   return (
-    <aside className="w-full flex flex-col gap-4 select-none lg:h-full lg:overflow-y-auto pr-1">
+    <aside className="w-full flex flex-col gap-4 select-none tablet:h-full tablet:overflow-y-auto pr-1">
       <div className="flex justify-end">
         <HoverTooltip content={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}>
           <Button

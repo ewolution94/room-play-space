@@ -124,7 +124,7 @@ A full pass over the app (bugs, cross-view inconsistencies, UX ideas) was done a
 **Medium**
 
 - [x] A lightweight measurements/shopping-list export — a plain list of every placed item with its dimensions (already computed for the export JSON's summary lines) as a printable/copyable list. Done in `c1df61a` (2026-08-24): the Measurements dialog (`MeasurementsDialog.tsx`, `lib/measurements.ts`) groups identical items per room, with Copy and CSV download.
-- [ ] Tablet support: the mobile "view-only" cutoff is a flat 1024px window width, which catches real tablets into the stripped-down look-only mode even though touch-drag already works elsewhere. Worth a middle tier (full editing tools, touch-sized hit targets) instead of collapsing straight to view-only.
+- [x] Tablet support: the mobile "view-only" cutoff is a flat 1024px window width, which catches real tablets into the stripped-down look-only mode even though touch-drag already works elsewhere. Worth a middle tier (full editing tools, touch-sized hit targets) instead of collapsing straight to view-only. Done 2026-10-03: a phone is now told apart by its short side (under 600px, `lib/viewport.ts`), so a portrait iPad (744px and up) gets the editor while a landscape phone stays view-only; from 600px the sidebar sits beside the canvas (`tablet:` breakpoint), the options panels wait behind a button below `lg`, and the rotate handle and door/window hit strips are finger-sized on touch screens.
 - [ ] A "compare materials" side-by-side swatch preview for flooring/wall colors, showing the actual room thumbnail per option on hover.
 
 **Bigger swings**

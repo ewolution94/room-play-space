@@ -187,6 +187,9 @@ export function MultiRoomCanvas({
   // visible "Layout Options" panel becomes a togglable bottom sheet.
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+  // Below `lg` the canvas is too narrow for the always-open options panel (it covers the floor
+  // switcher), so it waits behind a button there, closed at first -- as in CanvasArea.tsx.
+  const [narrowOptionsOpen, setNarrowOptionsOpen] = useState(false);
 
   // Whether each room's flooring pattern renders in its 2D thumbnail here --
   // mirrors CanvasArea.tsx's own "Show Flooring" toggle for the single-room
@@ -1016,12 +1019,12 @@ export function MultiRoomCanvas({
     redoRooms,
   ]);
 
-  // flex-1 min-h-0 apply unconditionally below (not just lg:) -- see the
+  // flex-1 min-h-0 apply unconditionally below (not just tablet:) -- see the
   // matching comment in canvas/CanvasArea.tsx for why: without it, <main>
-  // has no defined height below lg, so the canvas below collapses to
-  // ~0px instead of filling the mobile flex wrapper.
+  // has no defined height on a phone, so the canvas below collapses to
+  // ~0px instead of filling the phone's flex wrapper.
   return (
-    <main className="min-w-0 flex-1 min-h-0 lg:h-full flex flex-col gap-2">
+    <main className="min-w-0 flex-1 min-h-0 tablet:h-full flex flex-col gap-2">
       {/* Confirm-before-delete -- unlike every other room action here
           (drag/rotate/duplicate), deleting a room deletes everything
           inside it (furniture, doors, windows), so it stays gated behind
@@ -1334,130 +1337,146 @@ export function MultiRoomCanvas({
 
         {/* 2D control options overlay (desktop) */}
         {!threeDActive && !isMobileViewOnly && (
-          <div
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-3 right-3 z-20 w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md text-[11px]"
-          >
-            <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
-              <span>{lang === "de" ? "Layout Optionen" : "Layout Options"}</span>
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-              <input
-                type="checkbox"
-                checked={collisionEnabled}
-                onChange={(e) => setCollisionEnabled(e.target.checked)}
-                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-              />
-              <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-              <input
-                type="checkbox"
-                checked={showFurniture}
-                onChange={(e) => setShowFurniture(e.target.checked)}
-                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-              />
-              <span>{lang === "de" ? "Möbel anzeigen" : "Show Furniture"}</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-              <input
-                type="checkbox"
-                checked={showDimensions}
-                onChange={(e) => setShowDimensions(e.target.checked)}
-                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-              />
-              <span>{lang === "de" ? "Maße anzeigen" : "Show Dimensions"}</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-              <input
-                type="checkbox"
-                checked={showLabels}
-                onChange={(e) => setShowLabels(e.target.checked)}
-                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-              />
-              <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
-              <input
-                type="checkbox"
-                checked={showFlooring}
-                onChange={(e) => setShowFlooring(e.target.checked)}
-                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-              />
-              <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
-            </label>
-
-            <HoverTooltip
-              content={
-                lang === "de"
-                  ? "Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
-                  : "Tip: hold Ctrl to activate multi-select temporarily."
-              }
+          <>
+            <HoverTooltip content={lang === "de" ? "Ansichtsoptionen" : "View Options"}>
+              <button
+                type="button"
+                aria-label={lang === "de" ? "Ansichtsoptionen" : "View Options"}
+                aria-expanded={narrowOptionsOpen}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setNarrowOptionsOpen((open) => !open)}
+                className="lg:hidden absolute top-3 right-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+            </HoverTooltip>
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              className={`absolute top-3 right-3 z-20 w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md text-[11px] ${narrowOptionsOpen ? "max-lg:top-14" : "max-lg:hidden"}`}
             >
+              <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
+                <span>{lang === "de" ? "Layout Optionen" : "Layout Options"}</span>
+              </div>
               <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
                 <input
                   type="checkbox"
-                  checked={multiSelectMode}
-                  onChange={(e) => setMultiSelectMode(e.target.checked)}
+                  checked={collisionEnabled}
+                  onChange={(e) => setCollisionEnabled(e.target.checked)}
                   className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
                 />
-                <span>{lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}</span>
+                <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
               </label>
-            </HoverTooltip>
 
-            {/* Zoom controls */}
-            <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
-              <div className="flex items-center justify-between font-medium text-[10.5px]">
-                <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
-                <span className="font-semibold text-primary">{Math.round(zoomFactor * 100)}%</span>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <button
-                  onClick={() =>
-                    setZoomFactor(Math.max(0.2, Math.round((zoomFactor - 0.1) * 10) / 10))
-                  }
-                  className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
-                >
-                  -
-                </button>
+              <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
                 <input
-                  type="range"
-                  min="0.2"
-                  max="2.0"
-                  step="0.05"
-                  value={zoomFactor}
-                  onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
-                  className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                  type="checkbox"
+                  checked={showFurniture}
+                  onChange={(e) => setShowFurniture(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
                 />
+                <span>{lang === "de" ? "Möbel anzeigen" : "Show Furniture"}</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+                <input
+                  type="checkbox"
+                  checked={showDimensions}
+                  onChange={(e) => setShowDimensions(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                />
+                <span>{lang === "de" ? "Maße anzeigen" : "Show Dimensions"}</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+                <input
+                  type="checkbox"
+                  checked={showLabels}
+                  onChange={(e) => setShowLabels(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                />
+                <span>{lang === "de" ? "Beschriftungen anzeigen" : "Show Labels"}</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+                <input
+                  type="checkbox"
+                  checked={showFlooring}
+                  onChange={(e) => setShowFlooring(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                />
+                <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
+              </label>
+
+              <HoverTooltip
+                content={
+                  lang === "de"
+                    ? "Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
+                    : "Tip: hold Ctrl to activate multi-select temporarily."
+                }
+              >
+                <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors py-1">
+                  <input
+                    type="checkbox"
+                    checked={multiSelectMode}
+                    onChange={(e) => setMultiSelectMode(e.target.checked)}
+                    className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                  />
+                  <span>{lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}</span>
+                </label>
+              </HoverTooltip>
+
+              {/* Zoom controls */}
+              <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
+                <div className="flex items-center justify-between font-medium text-[10.5px]">
+                  <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
+                  <span className="font-semibold text-primary">
+                    {Math.round(zoomFactor * 100)}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <button
+                    onClick={() =>
+                      setZoomFactor(Math.max(0.2, Math.round((zoomFactor - 0.1) * 10) / 10))
+                    }
+                    className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="2.0"
+                    step="0.05"
+                    value={zoomFactor}
+                    onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
+                    className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <button
+                    onClick={() =>
+                      setZoomFactor(Math.min(2.0, Math.round((zoomFactor + 0.1) * 10) / 10))
+                    }
+                    className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Reset View Button */}
+              <div className="border-t border-border/20 pt-2">
                 <button
-                  onClick={() =>
-                    setZoomFactor(Math.min(2.0, Math.round((zoomFactor + 0.1) * 10) / 10))
-                  }
-                  className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                  onClick={() => {
+                    setPanX(0);
+                    setPanY(0);
+                    setZoomFactor(0.85);
+                  }}
+                  className="w-full h-7 rounded border border-border bg-background hover:bg-accent text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors text-muted-foreground hover:text-foreground"
                 >
-                  +
+                  <span>{lang === "de" ? "Ansicht zurücksetzen" : "Reset View"}</span>
                 </button>
               </div>
             </div>
-
-            {/* Reset View Button */}
-            <div className="border-t border-border/20 pt-2">
-              <button
-                onClick={() => {
-                  setPanX(0);
-                  setPanY(0);
-                  setZoomFactor(0.85);
-                }}
-                className="w-full h-7 rounded border border-border bg-background hover:bg-accent text-[10px] font-semibold flex items-center justify-center gap-1 transition-colors text-muted-foreground hover:text-foreground"
-              >
-                <span>{lang === "de" ? "Ansicht zurücksetzen" : "Reset View"}</span>
-              </button>
-            </div>
-          </div>
+          </>
         )}
 
         {/* Scaled Floor Area */}

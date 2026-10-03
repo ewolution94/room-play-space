@@ -200,10 +200,12 @@ export function CanvasItems({
                   style={{ top: -24 }}
                 />
                 <HoverTooltip content={dragToRotateLabel}>
+                  {/* Finger-sized on a touch screen (36px), centred on the same point. */}
                   <div
                     role="button"
+                    aria-label={dragToRotateLabel}
                     onPointerDown={(e) => onRotateHandleDown(e, it)}
-                    className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background text-foreground shadow active:cursor-grabbing"
+                    className="absolute left-1/2 flex h-5 w-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-foreground bg-background text-foreground shadow active:cursor-grabbing pointer-coarse:-mt-2 pointer-coarse:h-9 pointer-coarse:w-9"
                     style={{
                       top: -34,
                       touchAction: "none",

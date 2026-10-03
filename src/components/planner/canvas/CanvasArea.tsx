@@ -129,6 +129,9 @@ export function CanvasArea({
   // togglable bottom sheet instead of permanently eating screen space.
   const { isMobileViewOnly, isPortrait } = useMobileViewOnly();
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
+  // Below `lg` (a tablet, or a narrow window) the canvas is too narrow for the always-open
+  // options panel, so it waits behind a button there, closed at first.
+  const [narrowOptionsOpen, setNarrowOptionsOpen] = useState(false);
 
   // A drag on mobile should only ever pan the canvas -- never place a
   // ruler point or start a marquee selection. Both of those are gated
@@ -363,16 +366,16 @@ export function CanvasArea({
   }
   const scalePx = scaleCm * scale;
 
-  // flex-1 min-h-0 apply unconditionally below (not just lg:) so this
-  // <main> fills its parent's height in the mobile flex-column wrapper too
-  // (see routes/index.tsx's isMobileViewOnly branch) -- without it, <main>
-  // has no defined height below lg, so the canvas div inside (itself
-  // flex-1/min-h-0) has nothing bounded to grow into and collapses to
-  // ~0px, i.e. the whole canvas silently disappears. lg:h-full still does
-  // the equivalent job in the lg+ CSS grid layout, where flex-1's
-  // flex-grow is simply a no-op.
+  // flex-1 min-h-0 apply unconditionally below (not just tablet:) so this
+  // <main> fills its parent's height in the phone's flex-column wrapper too
+  // (RoomEditor.tsx's isMobileViewOnly branch) -- without it, <main> has no
+  // defined height there, so the canvas div inside (itself flex-1/min-h-0)
+  // has nothing bounded to grow into and collapses to ~0px, i.e. the whole
+  // canvas silently disappears. tablet:h-full does the equivalent job in
+  // the sidebar-beside-canvas grid (from the `tablet` breakpoint, see
+  // styles.css), where flex-1's flex-grow is simply a no-op.
   return (
-    <main className="min-w-0 flex-1 min-h-0 lg:h-full flex flex-col gap-2">
+    <main className="min-w-0 flex-1 min-h-0 tablet:h-full flex flex-col gap-2">
       {/* Hidden in mobile view-only mode: it's drag/rotate/ruler
           instructions for tools that are disabled there, and the whole
           point of view-only mode is reclaiming that space for the canvas
@@ -817,161 +820,175 @@ export function CanvasArea({
                   </DrawerContent>
                 </Drawer>
               ) : (
-                <div
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onPointerMove={(e) => e.stopPropagation()}
-                  onPointerUp={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onMouseUp={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  className="absolute top-3 right-3 z-50 pointer-events-auto w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md select-none text-[11px] text-foreground animate-in fade-in slide-in-from-top-1 duration-200"
-                >
-                  <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
-                    <span>{lang === "de" ? "Optionen (2D)" : "2D View Options"}</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={showGrid2D}
-                        onChange={(e) => setShowGrid2D(e.target.checked)}
-                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-                      />
-                      <span>{lang === "de" ? "Raster anzeigen" : "Show Grid Lines"}</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={showWallIds}
-                        onChange={(e) => setShowWallIds(e.target.checked)}
-                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-                      />
-                      <span className="flex items-center gap-1">
-                        {lang === "de" ? "Wandnummern anzeigen" : "Show Wall Numbers"}
-                        <HoverTooltip
-                          content={
-                            lang === "de"
-                              ? "Zeigt die Wand-ID neben jeder Wand an -- praktisch, um die richtige Wand im Tür-/Fenster-Dialog auszuwählen."
-                              : "Shows each wall's id next to it on the canvas -- handy for picking the right wall in the Add Door/Window dialog."
-                          }
-                        >
-                          <span className="cursor-help inline-flex items-center">
-                            <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
-                          </span>
-                        </HoverTooltip>
-                      </span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={showFlooring}
-                        onChange={(e) => setShowFlooring(e.target.checked)}
-                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-                      />
-                      <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={collisionEnabled}
-                        onChange={(e) => setCollisionEnabled(e.target.checked)}
-                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-                      />
-                      <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={snapEnabled}
-                        onChange={(e) => setSnapEnabled(e.target.checked)}
-                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-                      />
-                      <span className="flex items-center gap-1">
-                        {lang === "de" ? "Magnetisch ausrichten" : "Snap to Walls & Items"}
-                        <HoverTooltip
-                          content={
-                            lang === "de"
-                              ? "Beim Ziehen rasten Kanten an Wänden und anderen Möbeln ein, Drehungen bei rechten Winkeln. Shift beim Ziehen: 5-cm-Raster bzw. 15°-Schritte. Alt (⌥): frei, ohne Einrasten."
-                              : "While dragging, edges snap to walls and other items, and rotation to right angles. Shift while dragging: 5 cm grid or 15° steps. Alt (⌥): free, no snapping."
-                          }
-                        >
-                          <span className="cursor-help inline-flex items-center">
-                            <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
-                          </span>
-                        </HoverTooltip>
-                      </span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={multiSelectMode}
-                        onChange={(e) => setMultiSelectMode(e.target.checked)}
-                        className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
-                      />
-                      <span className="flex items-center gap-1">
-                        {lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}
-                        <HoverTooltip
-                          content={
-                            lang === "de"
-                              ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf. Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
-                              : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead. Tip: hold Ctrl to activate multi-select temporarily."
-                          }
-                        >
-                          <span className="cursor-help inline-flex items-center">
-                            <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
-                          </span>
-                        </HoverTooltip>
-                      </span>
-                    </label>
-                  </div>
-
-                  {/* Zoom control */}
-                  <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
-                    <div className="flex items-center justify-between font-medium text-[10.5px]">
-                      <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
-                      <span className="font-semibold text-primary">
-                        {Math.round(zoomFactor * 100)}%
-                      </span>
+                <>
+                  <HoverTooltip content={lang === "de" ? "Ansichtsoptionen" : "View Options"}>
+                    <button
+                      type="button"
+                      aria-label={lang === "de" ? "Ansichtsoptionen" : "View Options"}
+                      aria-expanded={narrowOptionsOpen}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => setNarrowOptionsOpen((open) => !open)}
+                      className="lg:hidden absolute top-3 right-3 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </button>
+                  </HoverTooltip>
+                  <div
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerMove={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseUp={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    className={`absolute top-3 right-3 z-50 pointer-events-auto w-52 flex flex-col gap-2 rounded-xl border border-border/40 bg-background/85 backdrop-blur-md p-3 shadow-md select-none text-[11px] text-foreground animate-in fade-in slide-in-from-top-1 duration-200 ${narrowOptionsOpen ? "max-lg:top-14" : "max-lg:hidden"}`}
+                  >
+                    <div className="flex items-center justify-between font-semibold border-b border-border/20 pb-1.5 text-[11.5px] text-primary">
+                      <span>{lang === "de" ? "Optionen (2D)" : "2D View Options"}</span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <HoverTooltip content={lang === "de" ? "Herauszoomen" : "Zoom out"}>
-                        <button
-                          onClick={() =>
-                            setZoomFactor((z) => Math.max(0.1, Math.round((z - 0.1) * 10) / 10))
-                          }
-                          className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
-                        >
-                          -
-                        </button>
-                      </HoverTooltip>
-                      <input
-                        type="range"
-                        min="0.1"
-                        max="2.0"
-                        step="0.05"
-                        value={zoomFactor}
-                        onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
-                        className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                      />
-                      <HoverTooltip content={lang === "de" ? "Hineinzoomen" : "Zoom in"}>
-                        <button
-                          onClick={() =>
-                            setZoomFactor((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))
-                          }
-                          className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
-                        >
-                          +
-                        </button>
-                      </HoverTooltip>
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={showGrid2D}
+                          onChange={(e) => setShowGrid2D(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                        />
+                        <span>{lang === "de" ? "Raster anzeigen" : "Show Grid Lines"}</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={showWallIds}
+                          onChange={(e) => setShowWallIds(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                        />
+                        <span className="flex items-center gap-1">
+                          {lang === "de" ? "Wandnummern anzeigen" : "Show Wall Numbers"}
+                          <HoverTooltip
+                            content={
+                              lang === "de"
+                                ? "Zeigt die Wand-ID neben jeder Wand an -- praktisch, um die richtige Wand im Tür-/Fenster-Dialog auszuwählen."
+                                : "Shows each wall's id next to it on the canvas -- handy for picking the right wall in the Add Door/Window dialog."
+                            }
+                          >
+                            <span className="cursor-help inline-flex items-center">
+                              <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
+                            </span>
+                          </HoverTooltip>
+                        </span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={showFlooring}
+                          onChange={(e) => setShowFlooring(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                        />
+                        <span>{lang === "de" ? "Bodenbelag anzeigen" : "Show Flooring"}</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={collisionEnabled}
+                          onChange={(e) => setCollisionEnabled(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                        />
+                        <span>{lang === "de" ? "Kollision aktivieren" : "Enable Collision"}</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={snapEnabled}
+                          onChange={(e) => setSnapEnabled(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                        />
+                        <span className="flex items-center gap-1">
+                          {lang === "de" ? "Magnetisch ausrichten" : "Snap to Walls & Items"}
+                          <HoverTooltip
+                            content={
+                              lang === "de"
+                                ? "Beim Ziehen rasten Kanten an Wänden und anderen Möbeln ein, Drehungen bei rechten Winkeln. Shift beim Ziehen: 5-cm-Raster bzw. 15°-Schritte. Alt (⌥): frei, ohne Einrasten."
+                                : "While dragging, edges snap to walls and other items, and rotation to right angles. Shift while dragging: 5 cm grid or 15° steps. Alt (⌥): free, no snapping."
+                            }
+                          >
+                            <span className="cursor-help inline-flex items-center">
+                              <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
+                            </span>
+                          </HoverTooltip>
+                        </span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer font-medium hover:text-primary transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={multiSelectMode}
+                          onChange={(e) => setMultiSelectMode(e.target.checked)}
+                          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-primary text-primary focus:ring-primary"
+                        />
+                        <span className="flex items-center gap-1">
+                          {lang === "de" ? "Mehrfachauswahl" : "Enable Multi-Select"}
+                          <HoverTooltip
+                            content={
+                              lang === "de"
+                                ? "Wenn deaktiviert, verschiebt das Ziehen auf leerer Fläche die Ansicht. Wenn aktiviert, zieht es ein Auswahlrechteck auf. Tipp: Strg gedrückt halten aktiviert die Mehrfachauswahl vorübergehend."
+                                : "When off, dragging on empty canvas pans the view. When on, it draws a marquee multi-select box instead. Tip: hold Ctrl to activate multi-select temporarily."
+                            }
+                          >
+                            <span className="cursor-help inline-flex items-center">
+                              <HelpCircle className="h-3 w-3 text-muted-foreground/75 hover:text-amber-500 transition-colors" />
+                            </span>
+                          </HoverTooltip>
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Zoom control */}
+                    <div className="flex flex-col gap-1 border-t border-border/20 pt-2 mt-1">
+                      <div className="flex items-center justify-between font-medium text-[10.5px]">
+                        <span>{lang === "de" ? "Zoom" : "Zoom"}</span>
+                        <span className="font-semibold text-primary">
+                          {Math.round(zoomFactor * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <HoverTooltip content={lang === "de" ? "Herauszoomen" : "Zoom out"}>
+                          <button
+                            onClick={() =>
+                              setZoomFactor((z) => Math.max(0.1, Math.round((z - 0.1) * 10) / 10))
+                            }
+                            className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                          >
+                            -
+                          </button>
+                        </HoverTooltip>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="2.0"
+                          step="0.05"
+                          value={zoomFactor}
+                          onChange={(e) => setZoomFactor(parseFloat(e.target.value))}
+                          className="flex-1 h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
+                        <HoverTooltip content={lang === "de" ? "Hineinzoomen" : "Zoom in"}>
+                          <button
+                            onClick={() =>
+                              setZoomFactor((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))
+                            }
+                            className="w-5.5 h-5 rounded border border-border bg-background hover:bg-accent text-[11px] font-bold flex items-center justify-center transition-colors"
+                          >
+                            +
+                          </button>
+                        </HoverTooltip>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </>
               )}
             </>
           )

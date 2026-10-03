@@ -69,7 +69,7 @@ export function Sidebar({
       { key: "layers", icon: Layers, badge: items.length + openings.length },
     ];
     return (
-      <aside className="flex flex-col items-center gap-2 py-1 lg:h-full lg:shrink-0">
+      <aside className="flex flex-col items-center gap-2 py-1 tablet:h-full tablet:shrink-0">
         <HoverTooltip content={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}>
           <Button
             aria-label={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}
@@ -124,7 +124,10 @@ export function Sidebar({
   }
 
   return (
-    <aside id="tour-sidebar" className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:shrink-0">
+    <aside
+      id="tour-sidebar"
+      className="flex flex-col gap-4 tablet:h-full tablet:min-h-0 tablet:shrink-0"
+    >
       {threeDActive && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-600 dark:text-amber-400 dark:bg-amber-500/10 backdrop-blur-sm shadow-sm flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-1.5 font-semibold">
@@ -149,8 +152,8 @@ export function Sidebar({
             onClick={() => setActiveTab("add")}
             className="h-8 px-1.5"
           >
-            <Plus className="mr-1 h-4 w-4 shrink-0" />
-            <span className="truncate">{lang === "de" ? "Hinzufügen" : "Add"}</span>
+            <Plus className="mr-1 h-4 w-4 shrink-0 max-lg:mr-0" />
+            <span className="truncate max-lg:sr-only">{lang === "de" ? "Hinzufügen" : "Add"}</span>
           </Button>
           <Button
             aria-pressed={activeTab === "catalog"}
@@ -159,8 +162,10 @@ export function Sidebar({
             onClick={() => setActiveTab("catalog")}
             className="h-8 relative px-1.5"
           >
-            <BookmarkPlus className="mr-1 h-4 w-4 shrink-0" />
-            <span className="truncate">{lang === "de" ? "Mein Katalog" : "My Catalog"}</span>
+            <BookmarkPlus className="mr-1 h-4 w-4 shrink-0 max-lg:mr-0" />
+            <span className="truncate max-lg:sr-only">
+              {lang === "de" ? "Mein Katalog" : "My Catalog"}
+            </span>
             {customCatalog.items.length > 0 && (
               <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
                 {customCatalog.items.length}
@@ -174,8 +179,10 @@ export function Sidebar({
             onClick={() => setActiveTab("layers")}
             className="h-8 relative px-1.5"
           >
-            <Layers className="mr-1 h-4 w-4 shrink-0" />
-            <span className="truncate">{lang === "de" ? "Elemente" : "Elements"}</span>
+            <Layers className="mr-1 h-4 w-4 shrink-0 max-lg:mr-0" />
+            <span className="truncate max-lg:sr-only">
+              {lang === "de" ? "Elemente" : "Elements"}
+            </span>
             {(items.length > 0 || openings.length > 0) && (
               <span className="absolute -top-1.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
                 {items.length + openings.length}
