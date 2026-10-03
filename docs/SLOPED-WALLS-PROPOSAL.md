@@ -2,10 +2,11 @@
 
 Written 2026-07-31.
 
-**Status: Phases 0-3 are built and verified. Phase 4 (the 3D half) is not
-started.** So the model, the Inspector editing, the 2D overlay and the
-furniture-fit feedback below all describe shipped code; the 3D sections are
-still a plan. See `todo.md` for the build notes and what each phase actually
+**Status: Phases 0-4 are built and verified; Phase 4 (the 3D ceiling and
+slopes) shipped the same day as 0-3. Phase 5 (wizard step, roof windows,
+dormers) is not started.** So the model, the Inspector editing, the 2D
+overlay, the furniture-fit feedback and the 3D sections below all describe
+shipped code. See `todo.md` for the build notes and what each phase actually
 touched.
 
 One correction worth carrying forward from the build: the 2D band initially
