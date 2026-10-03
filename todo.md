@@ -142,8 +142,8 @@ A full pass over the app (bugs, cross-view inconsistencies, UX ideas) was done a
 
 **Test coverage still open**
 
-- [ ] `floor-pattern-svg.tsx`/`floor-textures.ts` (the actual 2D/3D renderers) have no tests, only the shared geometry they consume (`floor-pattern-geometry.ts`) does.
-- [ ] No component or hook tests at all — `use-room-planner.ts` and every React component are only ever exercised by hand.
+- [x] `floor-pattern-svg.tsx`/`floor-textures.ts` (the actual 2D/3D renderers) have no tests, only the shared geometry they consume (`floor-pattern-geometry.ts`) does. Done 2026-10-04: `tests/floor-renderers.test.ts` checks, for every material, that the SVG pattern and the canvas texture draw the same shapes in the same shades in the same order (a mutation that drew the 3D dots unshaded fails three materials), plus herringbone rotation, tile scale, the 1024 px cap, the texture cache and the fallbacks. The texture's canvas is a recording stand-in; the SVG is rendered with `react-dom/server`.
+- [ ] No component or hook tests at all — `use-room-planner.ts` and every React component are only ever exercised by hand. Partly done 2026-10-04: the test loader now compiles `.tsx` with the project's own TypeScript (`tests/support/alias-loader.mjs`, no new dependency), so components can be rendered to markup; `tests/room-plan-svg.test.ts` is the first. Still open: hooks and anything interactive need a DOM (jsdom or happy-dom, plus Testing Library) — new dev dependencies, so the user's call.
 
 **Accessibility (not addressed yet)**
 

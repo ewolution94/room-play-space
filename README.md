@@ -149,6 +149,8 @@ it costs nothing but the offline start. See `public/sw.js`.
   sonner.
 - **Validation**: Zod, on every import path.
 - **Tests**: `node:test` via `--experimental-strip-types` — no test framework.
+  The test loader compiles `.tsx` with the project's own TypeScript, so a test
+  can render a component with `react-dom/server` and check the markup.
 
 ## Project structure
 
@@ -181,7 +183,8 @@ room-play-space/
 │   ├── hooks/use-room-planner.ts    the planner state machine
 │   └── types/planner.ts
 ├── tests/                  node:test files covering the lib modules (geometry,
-│                           persistence, catalogs); no UI or drag tests
+│                           persistence, catalogs) and the static drawings
+│                           (floor patterns, the room plan); no drag tests
 ├── docs/LEARNINGS.md       the geometry/rendering write-up — read before
 │                           touching planner-math, hallway-shapes, ThreeDView
 ├── docs/*-PROPOSAL.md      the design write-ups for homes and sloped walls

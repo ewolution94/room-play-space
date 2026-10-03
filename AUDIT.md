@@ -53,7 +53,9 @@ All ~3,200 lines of tests were pure-function/data-transformation tests — `plan
 
 **✅ Fixed** — `floor-materials.ts`, `floor-pattern-geometry.ts`, `planner-schema.ts`, and `wallLabel` (in `hallway-shapes.ts`) previously had zero test coverage; all four now have dedicated test files/blocks (`tests/floor-materials.test.ts`, `tests/floor-pattern-geometry.test.ts`, `tests/planner-schema.test.ts`, the `wallLabel` describe block in `tests/hallway-shapes.test.ts`) covering fallback behavior, bounds/caps rejection, determinism, and the numeric-vs-named wall label split. Total suite is now 382 tests (was 318).
 
-⏳ **Still open** — `floor-pattern-svg.tsx`/`floor-textures.ts` (the actual renderers, as opposed to the shared geometry they consume) still have no tests, and — bigger picture — there are still no component or hook tests whatsoever. `use-room-planner.ts` (1,400+ lines, all the drag/collision/undo/import state) and every React component are only ever exercised by hand. *(Tracked in `todo.md`.)*
+**✅ Fixed (2026-10-04)** — `floor-pattern-svg.tsx`/`floor-textures.ts` now have `tests/floor-renderers.test.ts`, which holds the 2D pattern and the 3D texture to drawing the same thing, material by material; the test loader compiles `.tsx`, so components can be rendered to markup in tests.
+
+⏳ **Still open** — bigger picture, there are still no hook tests, and components are only tested as static markup (`tests/room-plan-svg.test.ts`). `use-room-planner.ts` (1,400+ lines, all the drag/collision/undo/import state) and every interactive component are only ever exercised by hand; testing those needs a DOM in the test run (a new dev dependency). *(Tracked in `todo.md`.)*
 
 ## 5. Accessibility — ✅ done (2026-10-03: names on every icon-only button, `aria-pressed` on toggles, arrow keys move the Inspector panels)
 
