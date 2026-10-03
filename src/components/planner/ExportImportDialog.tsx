@@ -273,6 +273,7 @@ export function ExportImportDialog({
               >
                 {scopes.map((s) => (
                   <button
+                    aria-pressed={scopeId === s.id}
                     key={s.id}
                     type="button"
                     onClick={() => setScopeId(s.id)}

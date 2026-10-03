@@ -28,6 +28,7 @@ export function ColorSwatchPicker({ lang, value, onChange, compact }: ColorSwatc
       <div className="flex flex-wrap items-center gap-1.5">
         {ROOM_SWATCHES.map((sw) => (
           <button
+            aria-pressed={value.toLowerCase() === sw.value.toLowerCase()}
             key={sw.value}
             type="button"
             onClick={() => onChange(sw.value)}

@@ -87,6 +87,8 @@ interface InspectorSectionProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onHeaderPointerDown?: (e: React.PointerEvent) => void;
+  /** Arrow keys on the header's grip move the panel: the keyboard path to the drag. */
+  onHeaderKeyDown?: (e: React.KeyboardEvent) => void;
   /** Opens the "Save to My Catalog" dialog, prefilled from a draft -- see
    * the "Save to My Catalog" quick action below, the only entry point into
    * My Catalog's create flow (see CatalogTile.tsx's doc comment for why it
@@ -130,6 +132,7 @@ export function InspectorSection({
   isCollapsed = false,
   onToggleCollapse,
   onHeaderPointerDown,
+  onHeaderKeyDown,
   openSaveDialog,
 }: InspectorSectionProps) {
   const { isOpen: isGroupOpen, toggle: toggleGroup } = useInspectorGroups();
@@ -262,7 +265,17 @@ export function InspectorSection({
       >
         <div className="flex items-center gap-1.5 min-w-0">
           {onHeaderPointerDown && (
-            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+            <button
+              type="button"
+              data-drag-handle
+              aria-label={
+                lang === "de" ? "Bedienfeld verschieben (Pfeiltasten)" : "Move panel (arrow keys)"
+              }
+              onKeyDown={onHeaderKeyDown}
+              className="-m-1 shrink-0 cursor-move rounded p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" />
+            </button>
           )}
           <span className="truncate">
             {selectedOpening
@@ -309,6 +322,15 @@ export function InspectorSection({
               }
             >
               <button
+                aria-label={
+                  isCollapsed
+                    ? lang === "de"
+                      ? "Erweitern"
+                      : "Expand"
+                    : lang === "de"
+                      ? "Einklappen"
+                      : "Collapse"
+                }
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -340,6 +362,7 @@ export function InspectorSection({
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Button
+                    aria-label={lang === "de" ? "Löschen" : "Delete"}
                     variant="outline"
                     size="icon"
                     className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all"
@@ -369,6 +392,8 @@ export function InspectorSection({
                         content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
                       >
                         <button
+                          aria-label={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                          aria-pressed={isSelected}
                           type="button"
                           disabled={threeDActive}
                           onClick={() => updateOpening(selectedOpening.id, { color: sw.value })}
@@ -515,6 +540,7 @@ export function InspectorSection({
                 <div className="flex gap-1 shrink-0">
                   <HoverTooltip content={t.duplicate}>
                     <Button
+                      aria-label={t.duplicate}
                       variant="outline"
                       size="icon"
                       className="h-8 w-8 hover:bg-accent active:scale-95 transition-all"
@@ -528,6 +554,9 @@ export function InspectorSection({
                     content={lang === "de" ? "Zu meinem Katalog speichern" : "Save to My Catalog"}
                   >
                     <Button
+                      aria-label={
+                        lang === "de" ? "Zu meinem Katalog speichern" : "Save to My Catalog"
+                      }
                       variant="outline"
                       size="icon"
                       className="h-8 w-8 hover:bg-primary/10 hover:text-primary active:scale-95 transition-all"
@@ -557,6 +586,7 @@ export function InspectorSection({
                   </HoverTooltip>
                   <HoverTooltip content={lang === "de" ? "Löschen" : "Delete"}>
                     <Button
+                      aria-label={lang === "de" ? "Löschen" : "Delete"}
                       variant="outline"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all"
@@ -636,6 +666,10 @@ export function InspectorSection({
                               content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
                             >
                               <button
+                                aria-label={
+                                  lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`
+                                }
+                                aria-pressed={isSelected}
                                 type="button"
                                 disabled={threeDActive}
                                 onClick={() => updateItem(selectedItem.id, { color: sw.value })}
@@ -1102,6 +1136,11 @@ export function InspectorSection({
                             }
                           >
                             <button
+                              aria-label={
+                                lang === "de"
+                                  ? "Diese Farbe auf alle Wände anwenden"
+                                  : "Apply this color to all walls"
+                              }
                               type="button"
                               disabled={threeDActive}
                               onClick={() => {
@@ -1164,6 +1203,7 @@ export function InspectorSection({
                           content={lang === "de" ? mat.nameDe : mat.nameEn}
                         >
                           <button
+                            aria-pressed={isSelected}
                             type="button"
                             disabled={threeDActive}
                             onClick={() => setFlooring({ key: mat.key, color: mat.defaultColor })}

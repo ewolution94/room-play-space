@@ -89,6 +89,7 @@ export function MyCatalogSection({
         <div className="flex items-center gap-1 shrink-0">
           <HoverTooltip content={lang === "de" ? "Katalog exportieren" : "Export catalog"}>
             <Button
+              aria-label={lang === "de" ? "Katalog exportieren" : "Export catalog"}
               variant="ghost"
               size="icon"
               className="h-6 w-6"
@@ -99,6 +100,7 @@ export function MyCatalogSection({
           </HoverTooltip>
           <HoverTooltip content={lang === "de" ? "Katalog importieren" : "Import catalog"}>
             <Button
+              aria-label={lang === "de" ? "Katalog importieren" : "Import catalog"}
               variant="ghost"
               size="icon"
               className="h-6 w-6"
@@ -181,6 +183,7 @@ export function MyCatalogSection({
                       </span>
                       <HoverTooltip content={lang === "de" ? "Bearbeiten" : "Edit"}>
                         <Button
+                          aria-label={lang === "de" ? "Bearbeiten" : "Edit"}
                           variant="ghost"
                           size="icon"
                           disabled={threeDActive}
@@ -211,6 +214,7 @@ export function MyCatalogSection({
                       </HoverTooltip>
                       <HoverTooltip content={lang === "de" ? "Löschen" : "Delete"}>
                         <Button
+                          aria-label={lang === "de" ? "Löschen" : "Delete"}
                           variant="ghost"
                           size="icon"
                           disabled={threeDActive}

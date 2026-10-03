@@ -129,6 +129,7 @@ export function ElementsListSection({
                         </span>
                       </HoverTooltip>
                       <Button
+                        aria-label={lang === "de" ? `${it.name} löschen` : `Delete ${it.name}`}
                         variant="ghost"
                         size="icon"
                         disabled={threeDActive}
@@ -201,6 +202,11 @@ export function ElementsListSection({
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-[10px] text-muted-foreground">{o.width}cm</span>
                       <Button
+                        aria-label={
+                          lang === "de"
+                            ? `${openingKindLabel(o, t)} löschen`
+                            : `Delete ${openingKindLabel(o, t).toLowerCase()}`
+                        }
                         variant="ghost"
                         size="icon"
                         disabled={threeDActive}

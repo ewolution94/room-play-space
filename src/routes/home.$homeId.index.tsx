@@ -642,7 +642,13 @@ function HomeOverview() {
             <div className="flex items-center gap-2">
               {isPortrait && (
                 <HoverTooltip content="Dashboard">
-                  <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
+                  <Button
+                    aria-label="Dashboard"
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="h-9 w-9 p-0"
+                  >
                     <Link to="/dashboard">
                       <LayoutDashboard className="h-4 w-4 text-amber-500" />
                     </Link>
@@ -651,6 +657,7 @@ function HomeOverview() {
               )}
               <HoverTooltip content={lang === "en" ? "Deutsch" : "English"}>
                 <Button
+                  aria-label={lang === "en" ? "Deutsch" : "English"}
                   variant="outline"
                   size="sm"
                   onClick={() => changeLanguage(lang === "en" ? "de" : "en")}
@@ -671,6 +678,15 @@ function HomeOverview() {
                 }
               >
                 <Button
+                  aria-label={
+                    theme === "light"
+                      ? lang === "de"
+                        ? "Dunkelmodus aktivieren"
+                        : "Switch to Dark Mode"
+                      : lang === "de"
+                        ? "Hellmodus aktivieren"
+                        : "Switch to Light Mode"
+                  }
                   variant="outline"
                   size="sm"
                   onClick={toggleTheme}
@@ -688,7 +704,13 @@ function HomeOverview() {
             <div className="flex flex-wrap items-center gap-2">
               {isPortrait && (
                 <HoverTooltip content="Dashboard">
-                  <Button variant="outline" size="sm" asChild className="h-9 w-9 p-0">
+                  <Button
+                    aria-label="Dashboard"
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="h-9 w-9 p-0"
+                  >
                     <Link to="/dashboard">
                       <LayoutDashboard className="h-4 w-4 text-amber-500" />
                     </Link>
@@ -738,6 +760,15 @@ function HomeOverview() {
                 }
               >
                 <Button
+                  aria-label={
+                    theme === "light"
+                      ? lang === "de"
+                        ? "Dunkelmodus aktivieren"
+                        : "Switch to Dark Mode"
+                      : lang === "de"
+                        ? "Hellmodus aktivieren"
+                        : "Switch to Light Mode"
+                  }
                   variant="outline"
                   size="sm"
                   onClick={toggleTheme}
@@ -777,7 +808,12 @@ function HomeOverview() {
               <DropdownMenu>
                 <HoverTooltip content="More">
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0">
+                    <Button
+                      aria-label="More"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-9 p-0 shrink-0"
+                    >
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>

@@ -65,6 +65,7 @@ export function FloorSwitcher({
           return (
             <HoverTooltip key={floor.id} content={name}>
               <button
+                aria-pressed={isActive}
                 type="button"
                 onClick={() => onSelectFloor(floor.id)}
                 className={`h-7 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-3 text-xs font-medium transition-colors ${
@@ -82,6 +83,7 @@ export function FloorSwitcher({
 
       <HoverTooltip content={lang === "de" ? "Geschoss hinzufügen" : "Add floor"}>
         <button
+          aria-label={lang === "de" ? "Geschoss hinzufügen" : "Add floor"}
           type="button"
           onClick={onAddFloor}
           className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -94,6 +96,7 @@ export function FloorSwitcher({
         <HoverTooltip content={lang === "de" ? "Geschosse verwalten" : "Manage floors"}>
           <PopoverTrigger asChild>
             <button
+              aria-label={lang === "de" ? "Geschosse verwalten" : "Manage floors"}
               type="button"
               className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
@@ -298,6 +301,7 @@ function FloorRow({
     >
       <HoverTooltip content={lang === "de" ? "Ziehen zum Umsortieren" : "Drag to reorder"}>
         <button
+          aria-label={lang === "de" ? "Ziehen zum Umsortieren" : "Drag to reorder"}
           type="button"
           onPointerDown={onDragHandlePointerDown}
           className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
@@ -321,6 +325,7 @@ function FloorRow({
       />
       <HoverTooltip content={lang === "de" ? "Geschoss löschen" : "Delete floor"}>
         <button
+          aria-label={lang === "de" ? "Geschoss löschen" : "Delete floor"}
           type="button"
           disabled={total <= 1}
           onClick={() => onDeleteFloor(floor.id)}

@@ -52,6 +52,7 @@ export function ToolbarOverlay({
           {/* Ruler toggle */}
           <HoverTooltip content={t.rulerHint}>
             <Button
+              aria-pressed={rulerMode}
               id="tour-ruler"
               variant={rulerMode ? "secondary" : "ghost"}
               size="sm"
@@ -107,6 +108,7 @@ export function ToolbarOverlay({
         }
       >
         <Button
+          aria-pressed={threeDActive}
           id="tour-3d-toggle"
           variant={threeDActive ? "secondary" : "ghost"}
           size="sm"

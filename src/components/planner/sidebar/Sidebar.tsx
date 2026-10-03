@@ -71,7 +71,13 @@ export function Sidebar({
     return (
       <aside className="flex flex-col items-center gap-2 py-1 lg:h-full lg:shrink-0">
         <HoverTooltip content={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}>
-          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-9 w-9 p-0">
+          <Button
+            aria-label={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}
+            variant="outline"
+            size="sm"
+            onClick={onToggleCollapsed}
+            className="h-9 w-9 p-0"
+          >
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
         </HoverTooltip>
@@ -94,6 +100,7 @@ export function Sidebar({
               }
             >
               <Button
+                aria-pressed={activeTab === key}
                 variant={activeTab === key ? "default" : "outline"}
                 size="sm"
                 className="relative h-9 w-9 p-0"
@@ -136,6 +143,7 @@ export function Sidebar({
       <div className="flex items-center gap-1.5 shrink-0">
         <div className="grid flex-1 min-w-0 grid-cols-3 gap-1 rounded-lg border bg-muted/50 p-1">
           <Button
+            aria-pressed={activeTab === "add"}
             variant={activeTab === "add" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("add")}
@@ -145,6 +153,7 @@ export function Sidebar({
             <span className="truncate">{lang === "de" ? "Hinzufügen" : "Add"}</span>
           </Button>
           <Button
+            aria-pressed={activeTab === "catalog"}
             variant={activeTab === "catalog" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("catalog")}
@@ -159,6 +168,7 @@ export function Sidebar({
             )}
           </Button>
           <Button
+            aria-pressed={activeTab === "layers"}
             variant={activeTab === "layers" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("layers")}
@@ -175,6 +185,7 @@ export function Sidebar({
         </div>
         <HoverTooltip content={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}>
           <Button
+            aria-label={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}
             variant="outline"
             size="sm"
             onClick={onToggleCollapsed}

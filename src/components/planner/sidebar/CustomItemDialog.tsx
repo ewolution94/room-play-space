@@ -173,6 +173,7 @@ export function CustomItemDialog({
                     }
                   >
                     <button
+                      aria-pressed={nLayer === opt.value}
                       type="button"
                       onClick={() => setNLayer(opt.value)}
                       className={`h-8 rounded-md border text-[9.5px] font-semibold transition-all ${
@@ -193,6 +194,7 @@ export function CustomItemDialog({
               </Label>
               <div className="grid grid-cols-2 gap-1">
                 <button
+                  aria-pressed={nShape === "rect"}
                   type="button"
                   onClick={() => setNShape("rect")}
                   className={`flex h-8 items-center justify-center gap-1 rounded-md border text-[9.5px] font-semibold transition-all ${
@@ -205,6 +207,7 @@ export function CustomItemDialog({
                   {lang === "de" ? "Eckig" : "Rect"}
                 </button>
                 <button
+                  aria-pressed={nShape === "circle"}
                   type="button"
                   onClick={() => setNShape("circle")}
                   className={`flex h-8 items-center justify-center gap-1 rounded-md border text-[9.5px] font-semibold transition-all ${
@@ -233,6 +236,8 @@ export function CustomItemDialog({
                     content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
                   >
                     <button
+                      aria-label={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                      aria-pressed={isSelected}
                       type="button"
                       onClick={() => setNColor(sw.value)}
                       className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${

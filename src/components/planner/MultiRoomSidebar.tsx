@@ -188,12 +188,24 @@ export function MultiRoomSidebar({
     return (
       <aside className="flex flex-col items-center gap-2 py-1 lg:h-full lg:shrink-0">
         <HoverTooltip content={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}>
-          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-9 w-9 p-0">
+          <Button
+            aria-label={lang === "de" ? "Seitenleiste einblenden" : "Expand sidebar"}
+            variant="outline"
+            size="sm"
+            onClick={onToggleCollapsed}
+            className="h-9 w-9 p-0"
+          >
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
         </HoverTooltip>
         <HoverTooltip content={lang === "de" ? "Raum hinzufügen" : "Create New Room"}>
-          <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={onToggleCollapsed}>
+          <Button
+            aria-label={lang === "de" ? "Raum hinzufügen" : "Create New Room"}
+            variant="outline"
+            size="sm"
+            className="h-9 w-9 p-0"
+            onClick={onToggleCollapsed}
+          >
             <Plus className="h-4 w-4 text-emerald-500" />
           </Button>
         </HoverTooltip>
@@ -205,7 +217,13 @@ export function MultiRoomSidebar({
     <aside className="w-full flex flex-col gap-4 select-none lg:h-full lg:overflow-y-auto pr-1">
       <div className="flex justify-end">
         <HoverTooltip content={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}>
-          <Button variant="outline" size="sm" onClick={onToggleCollapsed} className="h-8 w-8 p-0">
+          <Button
+            aria-label={lang === "de" ? "Seitenleiste einklappen" : "Collapse sidebar"}
+            variant="outline"
+            size="sm"
+            onClick={onToggleCollapsed}
+            className="h-8 w-8 p-0"
+          >
             <PanelLeftClose className="h-4 w-4" />
           </Button>
         </HoverTooltip>
@@ -229,6 +247,7 @@ export function MultiRoomSidebar({
         {/* Room / Hallway mode toggle */}
         <div className="grid grid-cols-2 gap-1.5 rounded-lg border bg-muted/30 p-1">
           <button
+            aria-pressed={createMode === "room"}
             type="button"
             onClick={() => setCreateMode("room")}
             className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-colors ${
@@ -241,6 +260,7 @@ export function MultiRoomSidebar({
             {lang === "de" ? "Raum" : "Room"}
           </button>
           <button
+            aria-pressed={createMode === "hallway"}
             type="button"
             onClick={() => setCreateMode("hallway")}
             className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-colors ${
@@ -397,6 +417,7 @@ export function MultiRoomSidebar({
                 {HALLWAY_SHAPES.map((s) => (
                   <HoverTooltip key={s.value} content={lang === "de" ? s.labelDe : s.labelEn}>
                     <button
+                      aria-pressed={hallwayShape === s.value}
                       type="button"
                       onClick={() => setHallwayShape(s.value)}
                       className={`flex aspect-square flex-col items-center justify-center rounded-md border p-1 transition-colors ${

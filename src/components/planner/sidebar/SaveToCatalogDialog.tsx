@@ -225,6 +225,8 @@ export function SaveToCatalogDialog({
                     content={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
                   >
                     <button
+                      aria-label={lang === "de" ? `${sw.name} Farbton` : `${sw.name} finish`}
+                      aria-pressed={isSelected}
                       type="button"
                       onClick={() => setColor(sw.value)}
                       className={`h-6 w-6 rounded-full border transition-all duration-200 hover:scale-110 active:scale-95 ${

@@ -370,6 +370,7 @@ export function IkeaRoomWizard({
 
             <div className="flex items-center justify-center gap-2">
               <Button
+                aria-pressed={openingKind === "door"}
                 type="button"
                 variant={openingKind === "door" ? "default" : "outline"}
                 size="sm"
@@ -379,6 +380,7 @@ export function IkeaRoomWizard({
                 {t.door}
               </Button>
               <Button
+                aria-pressed={openingKind === "window"}
                 type="button"
                 variant={openingKind === "window" ? "default" : "outline"}
                 size="sm"
@@ -388,6 +390,7 @@ export function IkeaRoomWizard({
                 {t.window}
               </Button>
               <Button
+                aria-pressed={openingKind === "terrace-door"}
                 type="button"
                 variant={openingKind === "terrace-door" ? "default" : "outline"}
                 size="sm"
@@ -402,6 +405,7 @@ export function IkeaRoomWizard({
                 <div className="flex items-center gap-1 rounded-md border p-0.5">
                   {([1, 2] as const).map((n) => (
                     <Button
+                      aria-pressed={openingLeavesSel === n}
                       key={n}
                       type="button"
                       variant={openingLeavesSel === n ? "default" : "ghost"}
@@ -446,6 +450,7 @@ export function IkeaRoomWizard({
                 {openingWidthPresets(selectedOpening.kind, openingLeaves(selectedOpening)).map(
                   (w) => (
                     <Button
+                      aria-pressed={selectedOpening.width === w}
                       key={w}
                       type="button"
                       size="sm"

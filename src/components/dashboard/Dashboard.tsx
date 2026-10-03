@@ -107,6 +107,15 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
           </Link>
           <div className="flex items-center gap-2">
             <Button
+              aria-label={
+                theme === "light"
+                  ? lang === "de"
+                    ? "Dunkelmodus aktivieren"
+                    : "Switch to Dark Mode"
+                  : lang === "de"
+                    ? "Hellmodus aktivieren"
+                    : "Switch to Light Mode"
+              }
               variant="outline"
               size="sm"
               onClick={toggleTheme}
@@ -119,6 +128,7 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
               )}
             </Button>
             <Button
+              aria-label={lang === "de" ? "Einstellungen" : "Settings"}
               variant="outline"
               size="sm"
               onClick={() => setSettingsOpen(true)}

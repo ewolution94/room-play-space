@@ -240,6 +240,7 @@ export function OpeningsDialog({
               <div className="grid grid-cols-2 gap-1.5">
                 {([1, 2] as const).map((n) => (
                   <button
+                    aria-pressed={oLeaves === n}
                     key={n}
                     type="button"
                     onClick={() => {
@@ -305,6 +306,7 @@ export function OpeningsDialog({
           <div className="flex flex-wrap gap-1.5">
             {openingWidthPresets(oKind, oLeaves).map((w) => (
               <button
+                aria-pressed={oWidth === w}
                 key={w}
                 type="button"
                 onClick={() => setOWidth(w)}

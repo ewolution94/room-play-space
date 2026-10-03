@@ -47,6 +47,34 @@ export function clampInspectorPos(
   };
 }
 
+/** How far one arrow-key press moves a floating Inspector, and with Shift held. */
+export const INSPECTOR_KEY_STEP = 10;
+export const INSPECTOR_KEY_STEP_SHIFT = 50;
+
+/**
+ * Where an arrow key moves a floating Inspector, the keyboard path to what dragging its header
+ * does: one step per press, clamped exactly like a drag. null for any other key, so the caller
+ * can let it through.
+ */
+export function nudgeInspectorPos(
+  pos: { x: number; y: number },
+  key: string,
+  shift: boolean,
+  stage: { width: number; height: number },
+  panel: { width: number; height: number },
+): { x: number; y: number } | null {
+  const step = shift ? INSPECTOR_KEY_STEP_SHIFT : INSPECTOR_KEY_STEP;
+  const moves: Record<string, [number, number]> = {
+    ArrowLeft: [-step, 0],
+    ArrowRight: [step, 0],
+    ArrowUp: [0, -step],
+    ArrowDown: [0, step],
+  };
+  const move = moves[key];
+  if (!move) return null;
+  return clampInspectorPos(pos.x + move[0], pos.y + move[1], stage, panel);
+}
+
 /**
  * The CSS `max-height` for an Inspector whose top is `y` px down the stage:
  * everything left below it, minus the reserved strip, but never less than

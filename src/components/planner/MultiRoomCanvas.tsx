@@ -54,7 +54,7 @@ import { FloorPatternDef } from "@/lib/floor-pattern-svg";
 import { isGlazedOpening } from "@/lib/openings";
 import { resolveFlooring } from "@/lib/floor-materials";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
-import { clampInspectorPos, inspectorMaxHeight } from "@/lib/canvas-layout";
+import { clampInspectorPos, inspectorMaxHeight, nudgeInspectorPos } from "@/lib/canvas-layout";
 import {
   Drawer,
   DrawerContent,
@@ -431,7 +431,10 @@ export function MultiRoomCanvas({
   // Drag handler for the floating inspector header -- ported directly from
   // CanvasArea.tsx's onInspectorHeaderPointerDown.
   const onInspectorHeaderPointerDown = useCallback((e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest("button")) return;
+    // A button never starts a drag (the collapse toggle), except the grip, which is a button so
+    // the keyboard can reach it (onInspectorHeaderKeyDown).
+    const button = (e.target as HTMLElement).closest("button");
+    if (button && !button.hasAttribute("data-drag-handle")) return;
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
@@ -512,6 +515,27 @@ export function MultiRoomCanvas({
     window.addEventListener("pointermove", move, { capture: true });
     window.addEventListener("pointerup", up, { capture: true });
     window.addEventListener("pointercancel", up, { capture: true });
+  }, []);
+
+  // The keyboard path to that drag: arrow keys on the header's grip move the panel (Shift for
+  // bigger steps), clamped the same way.
+  const onInspectorHeaderKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const container = stageRef.current;
+    const panel = inspectorRef.current;
+    if (!container || !panel) return;
+    const bounds = container.getBoundingClientRect();
+    const next = nudgeInspectorPos(
+      inspectorPosRef.current,
+      e.key,
+      e.shiftKey,
+      { width: bounds.width, height: bounds.height },
+      { width: panel.offsetWidth, height: panel.offsetHeight },
+    );
+    if (!next) return;
+    // Kept from the window-level arrow-key handlers that nudge the selection.
+    e.preventDefault();
+    e.stopPropagation();
+    setInspectorPos(next);
   }, []);
 
   const onStagePointerDown = (e: React.PointerEvent) => {
@@ -1124,6 +1148,7 @@ export function MultiRoomCanvas({
             }
           >
             <button
+              aria-pressed={threeDActive}
               onClick={() => {
                 if (!threeDEnabled) return;
                 if (!threeDActive && isMobileViewOnly && isPortrait) {
@@ -1188,6 +1213,7 @@ export function MultiRoomCanvas({
             <HoverTooltip content={lang === "de" ? "Ansichtsoptionen" : "View Options"}>
               <DrawerTrigger asChild>
                 <button
+                  aria-label={lang === "de" ? "Ansichtsoptionen" : "View Options"}
                   onPointerDown={(e) => e.stopPropagation()}
                   className="absolute top-3 right-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
                 >
@@ -2152,6 +2178,7 @@ export function MultiRoomCanvas({
               isCollapsed={inspectorCollapsed}
               onToggleCollapse={() => setInspectorCollapsed((c) => !c)}
               onHeaderPointerDown={onInspectorHeaderPointerDown}
+              onHeaderKeyDown={onInspectorHeaderKeyDown}
             />
           </div>
         )}

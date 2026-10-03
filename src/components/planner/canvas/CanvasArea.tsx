@@ -22,7 +22,7 @@ import { CanvasLoadingOverlay } from "./CanvasLoadingOverlay";
 import { InspectorSection } from "../sidebar/InspectorSection";
 import { FloorPatternDef } from "@/lib/floor-pattern-svg";
 import { resolveFlooring } from "@/lib/floor-materials";
-import { clampInspectorPos, inspectorMaxHeight } from "@/lib/canvas-layout";
+import { clampInspectorPos, inspectorMaxHeight, nudgeInspectorPos } from "@/lib/canvas-layout";
 import { ArrowLeft, HelpCircle, SlidersHorizontal } from "lucide-react";
 import {
   Drawer,
@@ -220,7 +220,10 @@ export function CanvasArea({
   const onInspectorHeaderPointerDown = useCallback(
     (e: React.PointerEvent) => {
       // Don't start drag on button clicks (collapse toggle)
-      if ((e.target as HTMLElement).closest("button")) return;
+      // A button never starts a drag (the collapse toggle), except the grip, which is a button so
+      // the keyboard can reach it (onInspectorHeaderKeyDown).
+      const button = (e.target as HTMLElement).closest("button");
+      if (button && !button.hasAttribute("data-drag-handle")) return;
       e.preventDefault();
       e.stopPropagation();
       const target = e.currentTarget as HTMLElement;
@@ -302,6 +305,30 @@ export function CanvasArea({
       window.addEventListener("pointermove", move, { capture: true });
       window.addEventListener("pointerup", up, { capture: true });
       window.addEventListener("pointercancel", up, { capture: true });
+    },
+    [stageRef],
+  );
+
+  // The keyboard path to that drag: arrow keys on the header's grip move the panel (Shift for
+  // bigger steps), clamped the same way.
+  const onInspectorHeaderKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const container = stageRef.current;
+      const panel = inspectorRef.current;
+      if (!container || !panel) return;
+      const bounds = container.getBoundingClientRect();
+      const next = nudgeInspectorPos(
+        inspectorPosRef.current,
+        e.key,
+        e.shiftKey,
+        { width: bounds.width, height: bounds.height },
+        { width: panel.offsetWidth, height: panel.offsetHeight },
+      );
+      if (!next) return;
+      // Kept from the window-level arrow-key handlers that nudge the selection.
+      e.preventDefault();
+      e.stopPropagation();
+      setInspectorPos(next);
     },
     [stageRef],
   );
@@ -706,6 +733,7 @@ export function CanvasArea({
                   <HoverTooltip content={lang === "de" ? "Ansichtsoptionen" : "View Options"}>
                     <DrawerTrigger asChild>
                       <button
+                        aria-label={lang === "de" ? "Ansichtsoptionen" : "View Options"}
                         onPointerDown={(e) => e.stopPropagation()}
                         className="absolute top-3 right-3 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
                       >
@@ -1082,6 +1110,7 @@ export function CanvasArea({
               isCollapsed={inspectorCollapsed}
               onToggleCollapse={() => setInspectorCollapsed((c) => !c)}
               onHeaderPointerDown={onInspectorHeaderPointerDown}
+              onHeaderKeyDown={onInspectorHeaderKeyDown}
               openSaveDialog={openSaveDialog}
             />
           </div>

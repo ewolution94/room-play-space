@@ -55,7 +55,7 @@ All ~3,200 lines of tests were pure-function/data-transformation tests — `plan
 
 ⏳ **Still open** — `floor-pattern-svg.tsx`/`floor-textures.ts` (the actual renderers, as opposed to the shared geometry they consume) still have no tests, and — bigger picture — there are still no component or hook tests whatsoever. `use-room-planner.ts` (1,400+ lines, all the drag/collision/undo/import state) and every React component are only ever exercised by hand. *(Tracked in `todo.md`.)*
 
-## 5. Accessibility — ⏳ open, not addressed this pass
+## 5. Accessibility — ✅ done (2026-10-03: names on every icon-only button, `aria-pressed` on toggles, arrow keys move the Inspector panels)
 
 Checkbox/label pairing is done correctly throughout (`<label><input/><span></label>`), which covers a lot of ground for free. Past that, accessibility is thin: only 4 of roughly 25 planner-specific components use `aria-label` at all, icon-only buttons mostly rely on `title` tooltips (not reliably announced by screen readers, not available at all on touch), and there's no visible keyboard-only path to reposition the floating Inspector panels (pointer-drag only) — though item/room nudging by arrow key is a nice exception. Given the stated emphasis on UX, this is worth a dedicated pass at some point, even a light one: `aria-label` on every icon-only button, and `aria-pressed`/`aria-checked` where a toggle button currently only communicates state via color. *(Tracked in `todo.md`.)*
 

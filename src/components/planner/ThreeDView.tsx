@@ -2628,7 +2628,10 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         <Drawer open={mobileControlsOpen} onOpenChange={setMobileControlsOpen}>
           <HoverTooltip content={isDe ? "3D-Steuerung" : "3D View Controls"}>
             <DrawerTrigger asChild>
-              <button className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors">
+              <button
+                aria-label={isDe ? "3D-Steuerung" : "3D View Controls"}
+                className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/85 backdrop-blur-md shadow-md text-foreground hover:bg-accent transition-colors"
+              >
                 <SlidersHorizontal className="h-4 w-4" />
               </button>
             </DrawerTrigger>

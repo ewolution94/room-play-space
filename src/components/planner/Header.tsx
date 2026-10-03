@@ -92,6 +92,7 @@ export function Header({
           <div className="flex items-center gap-2">
             <HoverTooltip content={lang === "en" ? "Deutsch" : "English"}>
               <Button
+                aria-label={lang === "en" ? "Deutsch" : "English"}
                 variant="outline"
                 size="sm"
                 onClick={() => setLang(lang === "en" ? "de" : "en")}
@@ -112,6 +113,15 @@ export function Header({
               }
             >
               <Button
+                aria-label={
+                  theme === "light"
+                    ? lang === "de"
+                      ? "Dunkelmodus aktivieren"
+                      : "Switch to Dark Mode"
+                    : lang === "de"
+                      ? "Hellmodus aktivieren"
+                      : "Switch to Light Mode"
+                }
                 variant="outline"
                 size="sm"
                 onClick={toggleTheme}
@@ -171,6 +181,15 @@ export function Header({
               }
             >
               <Button
+                aria-label={
+                  theme === "light"
+                    ? lang === "de"
+                      ? "Dunkelmodus aktivieren"
+                      : "Switch to Dark Mode"
+                    : lang === "de"
+                      ? "Hellmodus aktivieren"
+                      : "Switch to Light Mode"
+                }
                 variant="outline"
                 size="sm"
                 onClick={toggleTheme}
@@ -214,7 +233,12 @@ export function Header({
             <DropdownMenu>
               <HoverTooltip content="More">
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0">
+                  <Button
+                    aria-label="More"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-9 p-0 shrink-0"
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

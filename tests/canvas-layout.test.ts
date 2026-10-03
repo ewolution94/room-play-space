@@ -5,6 +5,9 @@ import {
   INSPECTOR_MIN_HEIGHT,
   clampInspectorPos,
   inspectorMaxHeight,
+  nudgeInspectorPos,
+  INSPECTOR_KEY_STEP,
+  INSPECTOR_KEY_STEP_SHIFT,
 } from "@/lib/canvas-layout";
 
 const STAGE = { width: 1000, height: 700 };
@@ -47,5 +50,41 @@ describe("inspectorMaxHeight", () => {
 
   test("always keeps a usable floor, however far down the panel sits", () => {
     assert.ok(inspectorMaxHeight(9999).startsWith(`max(${INSPECTOR_MIN_HEIGHT}px,`));
+  });
+});
+
+describe("nudgeInspectorPos (the keyboard path to dragging the header)", () => {
+  test("arrow keys move one step, Shift five", () => {
+    const at = { x: 100, y: 100 };
+    assert.deepEqual(nudgeInspectorPos(at, "ArrowRight", false, STAGE, PANEL), {
+      x: 100 + INSPECTOR_KEY_STEP,
+      y: 100,
+    });
+    assert.deepEqual(nudgeInspectorPos(at, "ArrowUp", false, STAGE, PANEL), {
+      x: 100,
+      y: 100 - INSPECTOR_KEY_STEP,
+    });
+    assert.deepEqual(nudgeInspectorPos(at, "ArrowLeft", true, STAGE, PANEL), {
+      x: 100 - INSPECTOR_KEY_STEP_SHIFT,
+      y: 100,
+    });
+    assert.deepEqual(nudgeInspectorPos(at, "ArrowDown", true, STAGE, PANEL), {
+      x: 100,
+      y: 100 + INSPECTOR_KEY_STEP_SHIFT,
+    });
+  });
+
+  test("clamps exactly like a drag", () => {
+    assert.deepEqual(nudgeInspectorPos({ x: 4, y: 4 }, "ArrowLeft", true, STAGE, PANEL), {
+      x: 0,
+      y: 4,
+    });
+    const { y } = nudgeInspectorPos({ x: 16, y: 9000 }, "ArrowDown", false, STAGE, PANEL)!;
+    assert.equal(y + PANEL.height, STAGE.height - STAGE_BOTTOM_SAFE_ZONE);
+  });
+
+  test("any other key is left to the caller", () => {
+    assert.equal(nudgeInspectorPos({ x: 0, y: 0 }, "Enter", false, STAGE, PANEL), null);
+    assert.equal(nudgeInspectorPos({ x: 0, y: 0 }, "r", false, STAGE, PANEL), null);
   });
 });

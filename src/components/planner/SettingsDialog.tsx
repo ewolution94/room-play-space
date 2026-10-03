@@ -75,6 +75,7 @@ function SegmentedToggle<T extends string>({
     <div className="flex items-center rounded-md border overflow-hidden">
       {options.map((opt, i) => (
         <Button
+          aria-pressed={value === opt.value}
           key={opt.value}
           type="button"
           variant={value === opt.value ? "secondary" : "ghost"}

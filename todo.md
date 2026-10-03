@@ -146,9 +146,9 @@ A full pass over the app (bugs, cross-view inconsistencies, UX ideas) was done a
 
 **Accessibility (not addressed yet)**
 
-- [ ] `aria-label` on icon-only buttons app-wide (only ~4 of 25 planner components have any today).
-- [ ] `aria-pressed`/`aria-checked` on toggle buttons that currently only communicate state via color.
-- [ ] A keyboard-only path to reposition the floating Inspector panels (currently pointer-drag only).
+- [x] `aria-label` on icon-only buttons app-wide (only ~4 of 25 planner components have any today). Done 2026-10-03: all 41 icon-only buttons have one (their tooltip text, where there is one), found by parsing the TSX rather than by grep.
+- [x] `aria-pressed`/`aria-checked` on toggle buttons that currently only communicate state via color. Done 2026-10-03: `aria-pressed` on 32 toggles and pick-one buttons (ruler, 3D, sidebar tabs, segments, swatches, presets).
+- [x] A keyboard-only path to reposition the floating Inspector panels (currently pointer-drag only). Done 2026-10-03: the header grip is a button; arrow keys move the panel 10 px (Shift 50), clamped like a drag (`nudgeInspectorPos`), without nudging the selection.
 
 ## Onboarding Dashboard -- Phase 1 (2026-07-28)
 

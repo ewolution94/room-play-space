@@ -45,6 +45,8 @@ interface MultiRoomInspectorProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onHeaderPointerDown: (e: React.PointerEvent) => void;
+  /** Arrow keys on the header's grip move the panel: the keyboard path to the drag. */
+  onHeaderKeyDown?: (e: React.KeyboardEvent) => void;
 }
 
 /**
@@ -70,6 +72,7 @@ export function MultiRoomInspector({
   isCollapsed,
   onToggleCollapse,
   onHeaderPointerDown,
+  onHeaderKeyDown,
 }: MultiRoomInspectorProps) {
   const isBulk = selectedRoomIds.size > 1;
 
@@ -121,7 +124,17 @@ export function MultiRoomInspector({
         onPointerDown={onHeaderPointerDown}
       >
         <div className="flex items-center gap-1.5 min-w-0">
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+          <button
+            type="button"
+            data-drag-handle
+            aria-label={
+              lang === "de" ? "Bedienfeld verschieben (Pfeiltasten)" : "Move panel (arrow keys)"
+            }
+            onKeyDown={onHeaderKeyDown}
+            className="-m-1 shrink-0 cursor-move rounded p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" />
+          </button>
           <span className="truncate">
             {isBulk
               ? lang === "de"
@@ -150,6 +163,15 @@ export function MultiRoomInspector({
             }
           >
             <button
+              aria-label={
+                isCollapsed
+                  ? lang === "de"
+                    ? "Erweitern"
+                    : "Expand"
+                  : lang === "de"
+                    ? "Einklappen"
+                    : "Collapse"
+              }
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
@@ -289,6 +311,7 @@ export function MultiRoomInspector({
                             }
                           >
                             <button
+                              aria-pressed={override === undefined}
                               type="button"
                               onClick={() => setWallOverride(key, undefined)}
                               className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
@@ -301,6 +324,7 @@ export function MultiRoomInspector({
                             </button>
                           </HoverTooltip>
                           <button
+                            aria-pressed={override === true}
                             type="button"
                             onClick={() => setWallOverride(key, true)}
                             className={`px-1.5 py-1 text-[10px] font-medium transition-colors border-l border-border ${
@@ -312,6 +336,7 @@ export function MultiRoomInspector({
                             {lang === "de" ? "Offen" : "Open"}
                           </button>
                           <button
+                            aria-pressed={override === false}
                             type="button"
                             onClick={() => setWallOverride(key, false)}
                             className={`px-1.5 py-1 text-[10px] font-medium transition-colors border-l border-border ${
