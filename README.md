@@ -195,7 +195,12 @@ Work happens on `release`; `main` is parked. Every push to `release` runs
 lint and the tests first (`.github/workflows/docker-publish.yml`), and only
 if both pass does it build a multi-arch image and publish it to
 `ghcr.io/ewolution94/room-play-space:latest`, which is what the Portainer
-stack on the NAS pulls. A push to `release` is a production deploy.
+stack on the NAS pulls (`deploy/portainer-stack.yml`, kept in sync with the
+live one). A push to `release` is a production deploy.
+
+Visits are counted by Census, the self-hosted, cookieless counter: `entry.js`
+forwards `/_e.js` and `/_e` to it (`census.js`) when `PLANUM_CENSUS` is set,
+and does nothing otherwise. Layouts never leave the browser either way.
 
 `NAS_DEPLOYMENT.md` documents the whole arrangement, including the SSR
 error-interception shim that stops TanStack Start from swallowing loader

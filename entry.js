@@ -1,7 +1,11 @@
 import worker from "./dist/server/index.js";
 import { join } from "path";
+import { createCensus } from "./census.js";
 
 const CLIENT_DIR = join(import.meta.dir, "dist/client");
+
+// Visit counting: off unless PLANUM_CENSUS names Census's ingest (http://census:4901 on the NAS).
+const census = createCensus({ target: process.env.PLANUM_CENSUS, site: "planum" });
 
 // Vite fingerprints everything under /assets/, so those can be kept forever,
 // and the Kenney models never change in place. Every other file keeps its name
@@ -17,7 +21,11 @@ function cacheControl(pathname) {
 Bun.serve({
   port: process.env.PORT || 3000,
   hostname: "0.0.0.0",
-  async fetch(request) {
+  async fetch(request, server) {
+    // Census's /_e.js and /_e, before anything else can answer them (census.js).
+    const counted = await census(request, server.requestIP(request)?.address);
+    if (counted) return counted;
+
     const url = new URL(request.url);
 
     // Serve static files from the client directory

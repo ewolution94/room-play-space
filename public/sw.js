@@ -193,6 +193,8 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Census's beacon (census.js): always from the network, never into a cache.
+  if (url.pathname === "/_e.js" || url.pathname === "/_e") return;
 
   if (request.mode === "navigate") {
     // Fetched by URL rather than by passing the request on: a navigation

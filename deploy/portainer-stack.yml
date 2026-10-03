@@ -1,0 +1,25 @@
+# The NAS's Portainer stack "room-planner", copied from the live stack on 2026-10-03 and kept in
+# sync with it. Image only: CI on `release` publishes :latest and Watchtower pulls it.
+# Keep the service key, container_name and stack name as they are on the NAS.
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/ewolution94/room-play-space:latest
+    container_name: room-planner
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Maps port 3000 on your NAS to port 3000 in the container
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Visit counting (census.js): Census's ingest, reached over the ewolution network.
+      - PLANUM_CENSUS=http://census:4901
+    networks:
+      - ewolution
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+networks:
+  ewolution:
+    external: true

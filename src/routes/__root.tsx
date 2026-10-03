@@ -5,6 +5,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -13,6 +14,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { THEME_COLOR } from "@/hooks/use-theme";
+import { isRedirectGate, loadCensus } from "@/lib/census";
 
 function NotFoundComponent() {
   return (
@@ -184,6 +186,12 @@ function RootComponent() {
     if (document.readyState === "complete") register();
     else window.addEventListener("load", register, { once: true });
   }, []);
+
+  // Visit counting, once the first real page is showing -- see lib/census.ts.
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  useEffect(() => {
+    if (!isRedirectGate(pathname)) loadCensus();
+  }, [pathname]);
 
   return (
     <QueryClientProvider client={queryClient}>
