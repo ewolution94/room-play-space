@@ -123,21 +123,21 @@ A full pass over the app (bugs, cross-view inconsistencies, UX ideas) was done a
 
 **Medium**
 
-- [ ] A lightweight measurements/shopping-list export — a plain list of every placed item with its dimensions (already computed for the export JSON's summary lines) as a printable/copyable list.
+- [x] A lightweight measurements/shopping-list export — a plain list of every placed item with its dimensions (already computed for the export JSON's summary lines) as a printable/copyable list. Done in `c1df61a` (2026-08-24): the Measurements dialog (`MeasurementsDialog.tsx`, `lib/measurements.ts`) groups identical items per room, with Copy and CSV download.
 - [ ] Tablet support: the mobile "view-only" cutoff is a flat 1024px window width, which catches real tablets into the stripped-down look-only mode even though touch-drag already works elsewhere. Worth a middle tier (full editing tools, touch-sized hit targets) instead of collapsing straight to view-only.
 - [ ] A "compare materials" side-by-side swatch preview for flooring/wall colors, showing the actual room thumbnail per option on hover.
 
 **Bigger swings**
 
-- [ ] Real point-in-polygon furniture clamping for hallway rooms — `clampPos()` currently clamps to the bounding box, not the actual L/T silhouette, so furniture can end up in a "notch" that isn't really floor.
+- [x] Real point-in-polygon furniture clamping for hallway rooms — `clampPos()` currently clamps to the bounding box, not the actual L/T silhouette, so furniture can end up in a "notch" that isn't really floor. Done in `c1df61a` (2026-08-24): `clampPos` keeps items on the inset floor of L/T/U rooms (tests in `planner-math.test.ts`); only an item big enough to bridge a notch is let through, on purpose.
 - [ ] A basic "before you buy" cost estimate per catalog item, since presets already carry real-world dimensions.
 
 **Other risks (lower priority, not user-facing bugs)**
 
-- [ ] Unseeded texture noise in the 3D view — `ThreeDView.tsx`'s `createProceduralTexture` uses plain `Math.random()` with no caching for furniture materials, unlike the seeded/stable flooring patterns, so wood grain re-randomizes on every scene rebuild.
+- [x] Unseeded texture noise in the 3D view — `ThreeDView.tsx`'s `createProceduralTexture` uses plain `Math.random()` with no caching for furniture materials, unlike the seeded/stable flooring patterns, so wood grain re-randomizes on every scene rebuild. Done in `c1df61a` (2026-08-24): `getProceduralTexture` caches each texture per (type, colour) and seeds it with `mulberry32(hashSeed(key))`.
 - [x] `readableText()` (black/white swatch label text) only handles 6-digit hex; 3/4/8-digit hex colors (which the import schema explicitly allows) silently fall back to black regardless of actual brightness. Fixed 2026-10-03: every COLOR_REGEX form is read, alpha ignored.
-- [ ] History snapshots (both single-room and the newly-added multi-room undo) are full deep clones on every push — fine at normal scale, but worth revisiting if a very large hand-built layout makes dragging noticeably slower.
-- [ ] A handful of `catch {}` blocks around `releasePointerCapture` calls swallow errors silently with no explanatory comment.
+- [x] History snapshots (both single-room and the newly-added multi-room undo) are full deep clones on every push — fine at normal scale, but worth revisiting if a very large hand-built layout makes dragging noticeably slower. Measured 2026-10-03, no change: at the import's cap of 1000 items a clone takes about 0.56 ms (Node 26, M-series Mac), and history is pushed once per action or drag start, never per pointer move, so it can't slow a drag down. Worst-case memory is about 29 MB (1000 items × 100 steps). Structural sharing would save that but turn any in-place mutation into silent history corruption; revisit only if memory shows up on a phone.
+- [x] A handful of `catch {}` blocks around `releasePointerCapture` calls swallow errors silently with no explanatory comment. Done in `76f5282` (2026-09-28): each says why ignoring it is right (the call only throws once the pointer is no longer active).
 
 **Test coverage still open**
 
