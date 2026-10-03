@@ -9,17 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as ShareRouteImport } from './routes/share'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as RoomRoomIdRouteImport } from './routes/room.$roomId'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoomsIndexRouteImport } from './routes/rooms.index'
 import { Route as RoomsRoomIdRouteImport } from './routes/rooms.$roomId'
+import { Route as RoomRoomIdRouteImport } from './routes/room.$roomId'
 import { Route as HomeHomeIdIndexRouteImport } from './routes/home.$homeId.index'
 import { Route as HomeHomeIdRoomRoomIdRouteImport } from './routes/home.$homeId.room.$roomId'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ShareRoute = ShareRouteImport.update({
+  id: '/share',
+  path: '/share',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -27,9 +28,9 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RoomRoomIdRoute = RoomRoomIdRouteImport.update({
-  id: '/room/$roomId',
-  path: '/room/$roomId',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoomsIndexRoute = RoomsIndexRouteImport.update({
@@ -40,6 +41,11 @@ const RoomsIndexRoute = RoomsIndexRouteImport.update({
 const RoomsRoomIdRoute = RoomsRoomIdRouteImport.update({
   id: '/rooms/$roomId',
   path: '/rooms/$roomId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomRoomIdRoute = RoomRoomIdRouteImport.update({
+  id: '/room/$roomId',
+  path: '/room/$roomId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HomeHomeIdIndexRoute = HomeHomeIdIndexRouteImport.update({
@@ -56,6 +62,7 @@ const HomeHomeIdRoomRoomIdRoute = HomeHomeIdRoomRoomIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/share': typeof ShareRoute
   '/room/$roomId': typeof RoomRoomIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/rooms/': typeof RoomsIndexRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/share': typeof ShareRoute
   '/room/$roomId': typeof RoomRoomIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/rooms': typeof RoomsIndexRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/share': typeof ShareRoute
   '/room/$roomId': typeof RoomRoomIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/rooms/': typeof RoomsIndexRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/share'
     | '/room/$roomId'
     | '/rooms/$roomId'
     | '/rooms/'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/share'
     | '/room/$roomId'
     | '/rooms/$roomId'
     | '/rooms'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/share'
     | '/room/$roomId'
     | '/rooms/$roomId'
     | '/rooms/'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  ShareRoute: typeof ShareRoute
   RoomRoomIdRoute: typeof RoomRoomIdRoute
   RoomsRoomIdRoute: typeof RoomsRoomIdRoute
   RoomsIndexRoute: typeof RoomsIndexRoute
@@ -123,11 +136,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/share': {
+      id: '/share'
+      path: '/share'
+      fullPath: '/share'
+      preLoaderRoute: typeof ShareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -137,11 +150,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/room/$roomId': {
-      id: '/room/$roomId'
-      path: '/room/$roomId'
-      fullPath: '/room/$roomId'
-      preLoaderRoute: typeof RoomRoomIdRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rooms/': {
@@ -156,6 +169,13 @@ declare module '@tanstack/react-router' {
       path: '/rooms/$roomId'
       fullPath: '/rooms/$roomId'
       preLoaderRoute: typeof RoomsRoomIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room/$roomId': {
+      id: '/room/$roomId'
+      path: '/room/$roomId'
+      fullPath: '/room/$roomId'
+      preLoaderRoute: typeof RoomRoomIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/home/$homeId/': {
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  ShareRoute: ShareRoute,
   RoomRoomIdRoute: RoomRoomIdRoute,
   RoomsRoomIdRoute: RoomsRoomIdRoute,
   RoomsIndexRoute: RoomsIndexRoute,

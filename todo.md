@@ -30,7 +30,7 @@
   - [x] Add collision detection to highlight overlapping items or blocked doors/windows — done 2026-10-03: `lib/clearance.ts` (overlaps by the collision rules; items in a door's swing, or its 60 cm doorway when it opens outward; items above the sill within 40 cm of a window). Red dashed outline on the canvas, red door/window, warnings in the Elements list.
 - [ ] **Shareable Links & Blueprint Export** _(see AUDIT.md section 6 "Bigger swings" for detail)_
   - [ ] Support generating a PDF blueprint that includes the room canvas drawing and a furniture inventory list
-  - [ ] Allow encoding the room configuration in a compressed URL hash for instant sharing
+  - [x] Allow encoding the room configuration in a compressed URL hash for instant sharing — done 2026-10-03: File → Share link… (`lib/share.ts`: `r1.` + base64url of deflate-raw JSON, capped at 2 MB inflated); `/share` previews the room and only saves it on "Open as a new room".
 - [x] Add support for angled walls
   - [x] In the canvas, users should be able to drag a corner further in/out easily to account for more special room layouts
 - Slanted walls (how could this be tackled?)

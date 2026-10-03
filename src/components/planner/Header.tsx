@@ -23,11 +23,13 @@ import {
   LayoutDashboard,
   Settings,
   Ruler,
+  Share2,
 } from "lucide-react";
 import type { HeaderProps } from "@/types/planner";
 import { Link } from "@tanstack/react-router";
 import { ExportImportDialog } from "./ExportImportDialog";
 import { MeasurementsDialog } from "./MeasurementsDialog";
+import { ShareLinkDialog } from "./ShareLinkDialog";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { measureItems } from "@/lib/measurements";
 
@@ -42,6 +44,7 @@ export function Header({
   items,
   openings,
   buildRoomExportPreview,
+  buildSharePayload,
   validateRoomImport,
   applyRoomImport,
   customCatalogCount,
@@ -56,6 +59,7 @@ export function Header({
   const [exportOpen, setExportOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const [measurementsOpen, setMeasurementsOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
   const roomScopes = [{ id: "room", label: lang === "de" ? "Dieser Raum" : "This room" }];
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -221,6 +225,9 @@ export function Header({
                 <DropdownMenuItem onClick={() => setImportOpen(true)}>
                   <Upload className="mr-2 h-4 w-4" /> {t.import}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                  <Share2 className="mr-2 h-4 w-4" /> {t.shareLink}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -339,6 +346,13 @@ export function Header({
               ? "Falls diese Datei gespeicherte Katalog-Elemente enthält, werden neue zu Meinem Katalog hinzugefügt."
               : "If this file includes saved catalog items, any new ones are added to My Catalog.",
         }}
+      />
+
+      <ShareLinkDialog
+        t={t}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        buildPayload={buildSharePayload}
       />
 
       <MeasurementsDialog

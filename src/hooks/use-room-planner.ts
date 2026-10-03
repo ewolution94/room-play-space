@@ -1599,6 +1599,14 @@ export function useRoomPlanner(
     };
   };
 
+  // What a share link carries (lib/share.ts): the export payload plus the room's name and
+  // colour, which the file export leaves to its filename. Opening the link makes a new room of it.
+  const buildSharePayload = () => ({
+    ...buildRoomExportPreview().json,
+    name: initialRoom?.name,
+    color: initialRoom?.color,
+  });
+
   // Preview-only: parses and validates without touching any room state,
   // so the dialog can show a summary (or a validation error) before the
   // user commits to importing.
@@ -1746,6 +1754,7 @@ export function useRoomPlanner(
     clearRuler,
     closeTour,
     buildRoomExportPreview,
+    buildSharePayload,
     validateRoomImport,
     applyRoomImport,
     onItemPointerDown,

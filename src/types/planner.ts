@@ -609,6 +609,8 @@ export interface HeaderProps {
   // stays entirely unaware custom catalogs exist. See lib/custom-catalog.ts's
   // extractBundledCustomCatalog/mergeCustomCatalog.
   buildRoomExportPreview: (includeCatalog: boolean) => ExportPreviewData;
+  /** The room as a share link carries it (lib/share.ts). */
+  buildSharePayload: () => unknown;
   validateRoomImport: (raw: unknown, includeCatalog: boolean) => ImportValidationResult;
   applyRoomImport: (raw: unknown, includeCatalog: boolean) => void;
   /** Current My Catalog item count -- just for the export checkbox's hint
@@ -932,6 +934,8 @@ export interface UseRoomPlannerReturn {
   clearRuler: () => void;
   closeTour: () => void;
   buildRoomExportPreview: () => ExportPreviewData;
+  /** The room as a share link carries it (lib/share.ts). */
+  buildSharePayload: () => Record<string, unknown>;
   validateRoomImport: (raw: unknown) => ImportValidationResult;
   applyRoomImport: (raw: unknown) => void;
   onItemPointerDown: (e: React.PointerEvent, item: Item) => void;

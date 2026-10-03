@@ -189,6 +189,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
         items={planner.items}
         openings={planner.openings}
         buildRoomExportPreview={buildRoomExportPreviewWithCatalog}
+        buildSharePayload={planner.buildSharePayload}
         validateRoomImport={validateRoomImportWithCatalog}
         applyRoomImport={applyRoomImportWithCatalog}
         customCatalogCount={customCatalog.items.length}
