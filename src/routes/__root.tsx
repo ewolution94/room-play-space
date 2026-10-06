@@ -101,7 +101,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://planum.ewolution.cloud/" },
       // Social preview, 1200×630 in public/. Bump ?v= when the image changes.
-      { property: "og:image", content: "https://planum.ewolution.cloud/og.png?v=6" },
+      { property: "og:image", content: "https://planum.ewolution.cloud/og.png?v=7" },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
       {
@@ -109,7 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "PLANUM: floor plans in 2D and 3D, sloped ceilings included.",
       },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: "https://planum.ewolution.cloud/og.png?v=6" },
+      { name: "twitter:image", content: "https://planum.ewolution.cloud/og.png?v=7" },
       { name: "twitter:title", content: "PLANUM" },
       {
         name: "twitter:description",
