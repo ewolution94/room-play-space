@@ -207,6 +207,21 @@ export const STRINGS = {
     dormerRoofWindow: "A roof window is in the way.",
     dormerNoRoom: "No free stretch of this wall is wide enough for a dormer.",
     dormerOpeningsOutside: "A door or window in this dormer would end up outside it.",
+    // The room wizard's slopes step (IkeaRoomWizard.tsx).
+    wizardSlopesTitle: "Any sloped ceilings?",
+    wizardSlopesBody:
+      "Tap a wall with a sloped ceiling above it, then drag the dashed line to where the ceiling reaches full height. No slopes? Just go on.",
+    wizardSlopesHint: "Tap a wall to give it a slope.",
+    wizardNoSlopes: "No slopes, next",
+    wizardSlopeSummary: (standFrom: number, pitch: number) =>
+      `Stand upright from ${standFrom} cm in · ${pitch}° pitch`,
+    wizardSlopeHasOpenings:
+      "This wall already has a door or window. Remove it in the next step first, then come back.",
+    wizardSlopedWallOpening:
+      "This wall has a sloped ceiling: doors and windows there go in a dormer, which you can add in the editor.",
+    slopeKneeWall: "Knee wall (cm)",
+    slopeDepth: "Depth (cm)",
+    removeSlope: "Remove slope",
     slopeRemoveTitle: "Remove the slope and what's in it?",
     slopeRemoveBody:
       "Without the slope there's nothing for them to sit in: removing it also deletes the dormers, roof windows and dormer windows on this wall.",
@@ -443,6 +458,20 @@ export const STRINGS = {
     dormerRoofWindow: "Ein Dachfenster ist im Weg.",
     dormerNoRoom: "Auf dieser Wand ist kein freies Stück breit genug für eine Gaube.",
     dormerOpeningsOutside: "Eine Tür oder ein Fenster in dieser Gaube läge danach außerhalb.",
+    wizardSlopesTitle: "Gibt es Dachschrägen?",
+    wizardSlopesBody:
+      "Tippe auf eine Wand mit einer Schräge darüber und zieh die gestrichelte Linie dorthin, wo die Decke die volle Höhe erreicht. Keine Schrägen? Einfach weiter.",
+    wizardSlopesHint: "Tippe auf eine Wand, um ihr eine Schräge zu geben.",
+    wizardNoSlopes: "Keine Schrägen, weiter",
+    wizardSlopeSummary: (standFrom: number, pitch: number) =>
+      `Aufrecht stehen ab ${standFrom} cm · ${pitch}° Neigung`,
+    wizardSlopeHasOpenings:
+      "An dieser Wand ist schon eine Tür oder ein Fenster. Entferne sie im nächsten Schritt und komm dann zurück.",
+    wizardSlopedWallOpening:
+      "Diese Wand hat eine Schräge: Türen und Fenster sitzen dort in einer Gaube, die du im Editor hinzufügen kannst.",
+    slopeKneeWall: "Kniestock (cm)",
+    slopeDepth: "Tiefe (cm)",
+    removeSlope: "Schräge entfernen",
     slopeRemoveTitle: "Schräge mit allem darin entfernen?",
     slopeRemoveBody:
       "Ohne die Schräge haben sie keinen Platz mehr: Das Entfernen löscht auch die Gauben, Dachfenster und Gaubenfenster an dieser Wand.",

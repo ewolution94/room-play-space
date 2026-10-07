@@ -4,7 +4,7 @@ Written 2026-07-31.
 
 **Status: Phases 0-4 are built and verified; Phase 4 (the 3D ceiling and
 slopes) shipped the same day as 0-3. Phase 5: roof windows and box dormers
-are built (2026-10-07); the wizard step is next.** So the model, the Inspector editing, the 2D
+and the wizard's slope step are built (2026-10-07).** So the model, the Inspector editing, the 2D
 overlay, the furniture-fit feedback and the 3D sections below all describe
 shipped code. See `todo.md` for the build notes and what each phase actually
 touched.

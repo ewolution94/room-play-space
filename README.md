@@ -28,7 +28,8 @@ browser.
   layout, two views, no separate "3D mode" file.
 - **Rooms that aren't rectangles** — rectangle, L, T, U and cut-corner
   templates, plus constrained wall-dragging to match a real floor plan.
-  Hallways get their own straight/L/T shape family for corridors bending
+  The guided wizard also asks about sloped ceilings: tap a wall, drag where
+  the ceiling reaches full height. Hallways get their own straight/L/T shape family for corridors bending
   around a corner.
 - **Homes → floors → rooms** — a Home owns any number of floors, a floor owns
   rooms placed relative to each other. A single standalone room with no

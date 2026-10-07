@@ -21,7 +21,21 @@ import {
   computeStableViewBox,
   type RoomShapeKind,
 } from "@/lib/room-shapes";
-import { NAMED_WALLS, polygonBoundingBox, resolveWallSegment } from "@/lib/hallway-shapes";
+import {
+  NAMED_WALLS,
+  polygonBoundingBox,
+  resolveWallSegment,
+  wallColorKey,
+  wallLabel,
+} from "@/lib/hallway-shapes";
+import {
+  DEFAULT_CEILING_HEIGHT,
+  STANDING_HEIGHT,
+  distanceToClearHeight,
+  pitchFromRun,
+  type WallSlope,
+  type WallSlopeMap,
+} from "@/lib/wall-slopes";
 import { createRoomLayoutWithCorners } from "@/lib/multi-room-actions";
 import { STRINGS } from "@/lib/planner-translations";
 import { ROOM_SWATCHES } from "@/lib/swatches";
@@ -65,7 +79,11 @@ interface IkeaRoomWizardProps {
   siblings?: RoomLayout[];
 }
 
-type WizardStep = "shape" | "dimensions" | "openings";
+type WizardStep = "shape" | "dimensions" | "slopes" | "openings";
+
+/** A new slope's starting shape, the same as the editor's (RoomHeightSection):
+ * a knee wall you can sit but not stand beside, full height 1.5m in. */
+const NEW_SLOPE: WallSlope = { kneeHeight: 110, run: 150 };
 
 const DEFAULT_OPENING_WIDTH = 90;
 
@@ -99,6 +117,10 @@ export function IkeaRoomWizard({
   // pair 180, which is why the placed width follows this too.
   const [openingLeavesSel, setOpeningLeavesSel] = useState<1 | 2>(1);
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
+  // The slopes step: optional, so both start as a plain box.
+  const [ceilingHeight, setCeilingHeight] = useState(DEFAULT_CEILING_HEIGHT);
+  const [wallSlopes, setWallSlopes] = useState<WallSlopeMap>({});
+  const [slopeWall, setSlopeWall] = useState<number | null>(null);
 
   // Fresh start every time the wizard is (re)opened.
   useEffect(() => {
@@ -112,6 +134,9 @@ export function IkeaRoomWizard({
     setOpenings([]);
     setOpeningKind("door");
     setSelectedOpeningId(null);
+    setCeilingHeight(DEFAULT_CEILING_HEIGHT);
+    setWallSlopes({});
+    setSlopeWall(null);
   }, [open]);
 
   const pickShape = (kind: RoomShapeKind) => {
@@ -150,8 +175,46 @@ export function IkeaRoomWizard({
   const wallKeyFor = (wallIndex: number): Opening["wall"] =>
     corners.length === 4 ? NAMED_WALLS[wallIndex] : wallIndex;
 
+  const slopeKeyFor = (wallIndex: number) => wallColorKey(wallIndex, corners.length);
+
+  /** Tapping a wall in the slopes step: gives it a slope, or picks the one
+   * it has for editing. A wall with doors or windows (placed, then come back
+   * here) keeps them and gets no slope: a knee wall only holds them in a
+   * dormer, and dormers are the editor's. */
+  const toggleSlopeWall = (wallIndex: number) => {
+    const key = slopeKeyFor(wallIndex);
+    if (wallSlopes[key]) {
+      setSlopeWall(wallIndex);
+      return;
+    }
+    if (openings.some((o) => String(o.wall) === String(wallKeyFor(wallIndex)))) {
+      toast.error(t.wizardSlopeHasOpenings);
+      return;
+    }
+    setWallSlopes((prev) => ({ ...prev, [key]: { ...NEW_SLOPE } }));
+    setSlopeWall(wallIndex);
+  };
+  const updateSlope = (wallIndex: number, patch: Partial<WallSlope>) => {
+    const key = slopeKeyFor(wallIndex);
+    setWallSlopes((prev) => (prev[key] ? { ...prev, [key]: { ...prev[key], ...patch } } : prev));
+  };
+  const removeSlope = (wallIndex: number) => {
+    const key = slopeKeyFor(wallIndex);
+    setWallSlopes((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setSlopeWall(null);
+  };
+  const editedSlope = slopeWall === null ? undefined : wallSlopes[slopeKeyFor(slopeWall)];
+
   const handleWallClick = (wallIndex: number, positionAlongWall: number) => {
     const wallKey = wallKeyFor(wallIndex);
+    if (wallSlopes[slopeKeyFor(wallIndex)]) {
+      toast.error(t.wizardSlopedWallOpening);
+      return;
+    }
     const seg = resolveWallSegment(corners, wallKey);
     if (!seg) return;
     const wallLength = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
@@ -255,8 +318,17 @@ export function IkeaRoomWizard({
       color,
       openings,
     });
+    // A slope deeper than any ceiling height, or a knee wall above the
+    // ceiling, is a plain wall: dropped rather than saved meaningless.
+    const slopes = Object.fromEntries(
+      Object.entries(wallSlopes).filter(([, s]) => s.run > 0 && s.kneeHeight < ceilingHeight),
+    );
     onOpenChange(false);
-    onCreate(room);
+    onCreate({
+      ...room,
+      ceilingHeight,
+      ...(Object.keys(slopes).length > 0 ? { wallSlopes: slopes } : {}),
+    });
   };
 
   return (
@@ -345,8 +417,109 @@ export function IkeaRoomWizard({
                 <ArrowLeft className="h-4 w-4" />
                 {lang === "de" ? "Zurück" : "Back"}
               </Button>
-              <Button onClick={() => setStep("openings")}>
+              <Button onClick={() => setStep("slopes")}>
                 {lang === "de" ? "Weiter" : "Next"}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {step === "slopes" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t.wizardSlopesTitle}</DialogTitle>
+              <DialogDescription>{t.wizardSlopesBody}</DialogDescription>
+            </DialogHeader>
+            <div className="flex h-[min(440px,48dvh)] justify-center rounded-lg border bg-muted/20 py-4">
+              <RoomShapeCanvas
+                corners={corners}
+                viewBox={viewBox}
+                mode="slopes"
+                wallSlopes={wallSlopes}
+                selectedSlopeWall={slopeWall}
+                onSlopeWallClick={toggleSlopeWall}
+                onSlopeRunChange={(i, run) => {
+                  setSlopeWall(i);
+                  updateSlope(i, { run });
+                }}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)]">
+              <div className="space-y-1.5">
+                <Label>{t.roomHeight}</Label>
+                <NumberField
+                  min={150}
+                  max={600}
+                  value={ceilingHeight}
+                  onCommit={setCeilingHeight}
+                  aria-label={t.roomHeight}
+                />
+              </div>
+              {slopeWall !== null && editedSlope ? (
+                <div className="rounded-md border p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">
+                      {wallLabel(wallKeyFor(slopeWall), t, lang)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeSlope(slopeWall)}
+                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {t.removeSlope}
+                    </Button>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.slopeKneeWall}</Label>
+                      <NumberField
+                        min={0}
+                        max={ceilingHeight - 1}
+                        value={editedSlope.kneeHeight}
+                        onCommit={(v) => updateSlope(slopeWall, { kneeHeight: v })}
+                        aria-label={t.slopeKneeWall}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{t.slopeDepth}</Label>
+                      <NumberField
+                        min={20}
+                        max={2000}
+                        value={editedSlope.run}
+                        onCommit={(v) => updateSlope(slopeWall, { run: v })}
+                        aria-label={t.slopeDepth}
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {t.wizardSlopeSummary(
+                      Math.round(
+                        distanceToClearHeight(editedSlope, STANDING_HEIGHT, ceilingHeight),
+                      ),
+                      Math.round(
+                        pitchFromRun(editedSlope.kneeHeight, editedSlope.run, ceilingHeight),
+                      ),
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <p className="self-center text-sm text-muted-foreground">{t.wizardSlopesHint}</p>
+              )}
+            </div>
+            <DialogFooter className="sm:justify-between">
+              <Button variant="outline" onClick={() => setStep("dimensions")}>
+                <ArrowLeft className="h-4 w-4" />
+                {lang === "de" ? "Zurück" : "Back"}
+              </Button>
+              <Button onClick={() => setStep("openings")}>
+                {Object.keys(wallSlopes).length === 0
+                  ? t.wizardNoSlopes
+                  : lang === "de"
+                    ? "Weiter"
+                    : "Next"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </DialogFooter>
@@ -425,6 +598,7 @@ export function IkeaRoomWizard({
                 corners={corners}
                 viewBox={viewBox}
                 mode="openings"
+                wallSlopes={wallSlopes}
                 openings={openings}
                 ghostKind={openingKind}
                 ghostLeaves={openingLeavesSel}
@@ -500,7 +674,7 @@ export function IkeaRoomWizard({
             <ColorSwatchPicker lang={lang} value={color} onChange={setColor} />
 
             <DialogFooter className="sm:justify-between">
-              <Button variant="outline" onClick={() => setStep("dimensions")}>
+              <Button variant="outline" onClick={() => setStep("slopes")}>
                 <ArrowLeft className="h-4 w-4" />
                 {lang === "de" ? "Zurück" : "Back"}
               </Button>

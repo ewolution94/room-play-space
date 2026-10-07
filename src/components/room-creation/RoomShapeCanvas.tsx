@@ -1,8 +1,8 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { wallSegments, resolveWallSegment, NAMED_WALLS } from "@/lib/hallway-shapes";
+import { useId, useLayoutEffect, useRef, useState } from "react";
+import { wallSegments, resolveWallSegment, NAMED_WALLS, wallColorKey } from "@/lib/hallway-shapes";
 import { dragWallEdge } from "@/lib/room-shapes";
 import type { Point, Opening, OpeningKind } from "@/types/planner";
-import { inwardNormal } from "@/lib/wall-slopes";
+import { inwardNormal, type WallSlopeMap } from "@/lib/wall-slopes";
 import { openingLeaves } from "@/lib/openings";
 
 interface RoomShapeCanvasProps {
@@ -15,7 +15,7 @@ interface RoomShapeCanvasProps {
    * stable box too, not from the live corners, so nothing visibly grows
    * or shrinks mid-drag -- only wall positions move. */
   viewBox: string;
-  mode: "drag" | "openings";
+  mode: "drag" | "openings" | "slopes";
   /** "drag" mode only. */
   onCornersChange?: (next: Point[]) => void;
   /** "openings" mode only. */
@@ -35,6 +35,16 @@ interface RoomShapeCanvasProps {
   /** Commit a typed wall length. Only ever called for 4-corner shapes --
    * see canEditLengths. */
   onWallLengthChange?: (wallIndex: number, lengthCm: number) => void;
+  /** Sloped ceilings, keyed like wallColors, drawn as bands in the "slopes"
+   * and "openings" modes (so the openings step shows which walls are knee
+   * walls). */
+  wallSlopes?: WallSlopeMap;
+  /** "slopes" mode only: tapping a wall. */
+  onSlopeWallClick?: (wallIndex: number) => void;
+  /** "slopes" mode only: dragging a band's inner edge sets that slope's depth. */
+  onSlopeRunChange?: (wallIndex: number, run: number) => void;
+  /** "slopes" mode only: the wall whose slope is being edited. */
+  selectedSlopeWall?: number | null;
 }
 
 /**
@@ -238,7 +248,12 @@ export function RoomShapeCanvas({
   selectedOpeningId = null,
   onSelectOpening,
   onWallLengthChange,
+  wallSlopes = {},
+  onSlopeWallClick,
+  onSlopeRunChange,
+  selectedSlopeWall = null,
 }: RoomShapeCanvasProps) {
+  const slopeClipId = `wizard-slope-clip-${useId().replace(/[^\w-]/g, "")}`;
   // Which wall's dimension label is currently being typed into, and the
   // in-progress text. Offered on every shape: setWallLength (room-shapes.ts)
   // resolves "make this wall 380" for polygons too, by moving the wall's
@@ -464,6 +479,39 @@ export function RoomShapeCanvas({
     window.addEventListener("pointerup", up);
   };
 
+  /** Dragging a slope band's inner edge: the depth is how far the pointer
+   * is from the wall, along the wall's inward normal. */
+  const onSlopeEdgePointerDown = (e: React.PointerEvent<SVGLineElement>, wallIndex: number) => {
+    if (mode !== "slopes" || !onSlopeRunChange) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const seg = segs[wallIndex];
+    if (!seg) return;
+    const n = inwardNormal(cornersRef.current, seg.a, seg.b);
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic pointers (tests) can't be captured; real ones always can.
+    }
+    const move = (ev: PointerEvent) => {
+      const p = clientToSvgPoint(ev.clientX, ev.clientY);
+      const depth = (p.x - seg.a.x) * n.x + (p.y - seg.a.y) * n.y;
+      onSlopeRunChange(wallIndex, Math.max(20, Math.min(2000, Math.round(depth))));
+    };
+    const up = (ev: PointerEvent) => {
+      try {
+        target.releasePointerCapture(ev.pointerId);
+      } catch {
+        // Only throws once the pointer is no longer active -- no capture left to release.
+      }
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   const onWallClickCapture = (
     e: React.MouseEvent<SVGLineElement>,
     wallIndex: number,
@@ -482,6 +530,34 @@ export function RoomShapeCanvas({
   const points = corners.map((c) => `${c.x},${c.y}`).join(" ");
 
   const segs = wallSegments(corners);
+
+  // Each sloped wall's band (overshooting along the wall, clipped to the
+  // room like the editor's own overlay) and its inner edge, where the
+  // ceiling reaches full height.
+  const slopeBands = segs.flatMap((seg) => {
+    const slope = wallSlopes[wallColorKey(seg.index, corners.length)];
+    if (!slope || slope.run <= 0 || seg.length === 0) return [];
+    const ux = (seg.b.x - seg.a.x) / seg.length;
+    const uy = (seg.b.y - seg.a.y) / seg.length;
+    const n = inwardNormal(corners, seg.a, seg.b);
+    const ext = stableSpan;
+    const at = (base: Point, along: number, off: number): Point => ({
+      x: base.x + ux * along + n.x * off,
+      y: base.y + uy * along + n.y * off,
+    });
+    return [
+      {
+        index: seg.index,
+        band: [
+          at(seg.a, -ext, 0),
+          at(seg.b, ext, 0),
+          at(seg.b, ext, slope.run),
+          at(seg.a, -ext, slope.run),
+        ],
+        edge: { a: at(seg.a, 0, slope.run), b: at(seg.b, 0, slope.run) },
+      },
+    ];
+  });
 
   /**
    * Where each wall's dimension label sits, in container pixels.
@@ -568,6 +644,24 @@ export function RoomShapeCanvas({
     <div ref={hostRef} className="relative h-full w-full" style={{ maxHeight: 440 }}>
       <svg ref={svgRef} viewBox={viewBox} className="h-full w-full touch-none select-none">
         <polygon points={points} className="fill-primary/10 stroke-none" />
+        {(mode === "slopes" || mode === "openings") && slopeBands.length > 0 && (
+          <g className="pointer-events-none">
+            <defs>
+              <clipPath id={slopeClipId}>
+                <polygon points={points} />
+              </clipPath>
+            </defs>
+            <g clipPath={`url(#${slopeClipId})`}>
+              {slopeBands.map((b) => (
+                <polygon
+                  key={b.index}
+                  points={b.band.map((p) => `${p.x},${p.y}`).join(" ")}
+                  className="fill-amber-500/25"
+                />
+              ))}
+            </g>
+          </g>
+        )}
         {/* The walls themselves, drawn once as the closed outline rather than
             per-segment: a single stroked polygon miters its own corners, so
             a thick wall meets its neighbour cleanly instead of showing the
@@ -582,7 +676,8 @@ export function RoomShapeCanvas({
         />
         {segs.map((seg) => {
           const emphasised =
-            mode === "drag" && (activeWall === seg.index || hoverWall === seg.index);
+            (mode === "drag" && (activeWall === seg.index || hoverWall === seg.index)) ||
+            (mode === "slopes" && selectedSlopeWall === seg.index);
           const hit = hitSegment(seg);
           return (
             <g key={seg.index}>
@@ -610,7 +705,11 @@ export function RoomShapeCanvas({
                 stroke="transparent"
                 strokeWidth={hitWidth}
                 className={
-                  mode === "drag" ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"
+                  mode === "drag"
+                    ? "cursor-grab active:cursor-grabbing"
+                    : mode === "slopes"
+                      ? "cursor-pointer"
+                      : "cursor-crosshair"
                 }
                 onPointerDown={mode === "drag" ? (e) => onWallPointerDown(e, seg.index) : undefined}
                 onPointerEnter={mode === "drag" ? () => setHoverWall(seg.index) : undefined}
@@ -632,12 +731,47 @@ export function RoomShapeCanvas({
                     : () => setHoverWall((w) => (w === seg.index ? null : w))
                 }
                 onClick={
-                  mode === "openings" ? (e) => onWallClickCapture(e, seg.index, seg) : undefined
+                  mode === "openings"
+                    ? (e) => onWallClickCapture(e, seg.index, seg)
+                    : mode === "slopes"
+                      ? () => onSlopeWallClick?.(seg.index)
+                      : undefined
                 }
               />
             </g>
           );
         })}
+        {mode === "slopes" &&
+          slopeBands.map((b) => (
+            <g key={`edge-${b.index}`}>
+              <line
+                x1={b.edge.a.x}
+                y1={b.edge.a.y}
+                x2={b.edge.b.x}
+                y2={b.edge.b.y}
+                className={
+                  selectedSlopeWall === b.index
+                    ? "stroke-amber-600 pointer-events-none"
+                    : "stroke-amber-500/70 pointer-events-none"
+                }
+                strokeWidth={3}
+                strokeDasharray="8 5"
+                vectorEffect="non-scaling-stroke"
+              />
+              <line
+                x1={b.edge.a.x}
+                y1={b.edge.a.y}
+                x2={b.edge.b.x}
+                y2={b.edge.b.y}
+                stroke="transparent"
+                strokeWidth={hitWidth}
+                className="cursor-move"
+                style={{ touchAction: "none" }}
+                onPointerDown={(e) => onSlopeEdgePointerDown(e, b.index)}
+                data-slope-edge={b.index}
+              />
+            </g>
+          ))}
         {/* --- Openings: real floor-plan symbols, not coloured blobs ---
             A door is drawn the way a plan draws one: the leaf plus its swing
             arc, so you can see which way it opens and how much floor it
