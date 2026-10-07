@@ -130,6 +130,9 @@ export const DEFAULT_ROOM_L = 400;
 // built from the dashboard, hiding the very content they asked for -- see
 // those components' own comments.
 export const TOUR_KEY = "planner-tour-v1-done";
+/** sessionStorage: "open the tour as soon as the next room mounts" -- how the
+ * dashboard's "take the tour" (which has no editor of its own) hands over. */
+export const TOUR_START_KEY = "planner-tour-start";
 
 let defaultItemIdCounter = 0;
 function defaultOfficeItem(
@@ -1247,19 +1250,37 @@ export function useRoomPlanner(
   }, [settingsHydrated, settings.defaultView, settings.defaultZoom, settings.collisionDefault]);
 
   // -------- Onboarding tour --------
+  // Someone who hasn't seen the tour is OFFERED it the first time they land
+  // in a room, in a small card that doesn't cover anything (RoomEditor's
+  // TourOffer). It used to open full-screen instead, which ambushed rooms
+  // just created from the dashboard -- so every creation path marked it
+  // seen, and a new user who started from the dashboard never got it at all.
   const [tourOpen, setTourOpen] = useState(false);
   const [tourStep, setTourStep] = useState(0);
+  const [tourOffered, setTourOffered] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!window.localStorage.getItem(TOUR_KEY)) {
+    if (window.sessionStorage.getItem(TOUR_START_KEY)) {
+      window.sessionStorage.removeItem(TOUR_START_KEY);
       setTourOpen(true);
       setTourStep(0);
+      return;
     }
+    if (!window.localStorage.getItem(TOUR_KEY)) setTourOffered(true);
   }, []);
   const closeTour = () => {
     setTourOpen(false);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(TOUR_KEY, "1");
+    }
+  };
+  /** Either answer to the offer is final: it isn't offered again. */
+  const answerTourOffer = (start: boolean) => {
+    setTourOffered(false);
+    window.localStorage.setItem(TOUR_KEY, "1");
+    if (start) {
+      setTourStep(0);
+      setTourOpen(true);
     }
   };
 
@@ -1818,6 +1839,8 @@ export function useRoomPlanner(
     canRedo,
     tourOpen,
     setTourOpen,
+    tourOffered,
+    answerTourOffer,
     tourStep,
     setTourStep,
     threeDActive,

@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRoomPlanner } from "@/hooks/use-room-planner";
 import { useTheme } from "@/hooks/use-theme";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
+import { TourOffer } from "@/components/planner/TourOffer";
 import { useSidebarCollapsed } from "@/hooks/use-sidebar-collapsed";
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
 import { useSettings } from "@/hooks/use-settings";
@@ -250,6 +251,12 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Phones get the editor view-only, where the tour's targets are
+            hidden: the offer waits for a bigger screen. */}
+        {planner.tourOffered && !planner.tourOpen && !isMobileViewOnly && (
+          <TourOffer t={planner.t} onAnswer={planner.answerTourOffer} />
+        )}
 
         <TourOverlay
           t={planner.t}

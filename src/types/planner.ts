@@ -920,6 +920,10 @@ export interface UseRoomPlannerReturn {
   canUndo: boolean;
   canRedo: boolean;
   tourOpen: boolean;
+  /** The first-visit tour offer is showing (RoomEditor's TourOffer). */
+  tourOffered: boolean;
+  /** Start the tour (true) or decline it (false); either way it's not offered again. */
+  answerTourOffer: (start: boolean) => void;
   setTourOpen: React.Dispatch<React.SetStateAction<boolean>>;
   tourStep: number;
   setTourStep: React.Dispatch<React.SetStateAction<number>>;

@@ -207,6 +207,11 @@ export const STRINGS = {
     dormerRoofWindow: "A roof window is in the way.",
     dormerNoRoom: "No free stretch of this wall is wide enough for a dormer.",
     dormerOpeningsOutside: "A door or window in this dormer would end up outside it.",
+    // The first-visit tour offer (TourOffer.tsx).
+    tourOfferTitle: "New here?",
+    tourOfferBody: "Take the 45-second tour of the editor.",
+    tourOfferStart: "Show me",
+    tourOfferLater: "Not now",
     // The room wizard's slopes step (IkeaRoomWizard.tsx).
     wizardSlopesTitle: "Any sloped ceilings?",
     wizardSlopesBody:
@@ -458,6 +463,10 @@ export const STRINGS = {
     dormerRoofWindow: "Ein Dachfenster ist im Weg.",
     dormerNoRoom: "Auf dieser Wand ist kein freies Stück breit genug für eine Gaube.",
     dormerOpeningsOutside: "Eine Tür oder ein Fenster in dieser Gaube läge danach außerhalb.",
+    tourOfferTitle: "Neu hier?",
+    tourOfferBody: "Mach die 45-Sekunden-Tour durch den Editor.",
+    tourOfferStart: "Zeig's mir",
+    tourOfferLater: "Nicht jetzt",
     wizardSlopesTitle: "Gibt es Dachschrägen?",
     wizardSlopesBody:
       "Tippe auf eine Wand mit einer Schräge darüber und zieh die gestrichelte Linie dorthin, wo die Decke die volle Höhe erreicht. Keine Schrägen? Einfach weiter.",

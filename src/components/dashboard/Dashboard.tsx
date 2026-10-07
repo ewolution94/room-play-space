@@ -7,7 +7,7 @@ import { loadSingleRooms } from "@/lib/single-rooms";
 import { buildHomeOfficeRoom } from "@/lib/room-templates";
 import { useCreateSingleRoom } from "@/hooks/use-create-single-room";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
-import { TOUR_KEY } from "@/hooks/use-room-planner";
+import { TOUR_START_KEY } from "@/hooks/use-room-planner";
 import type { Lang, PlannerSettings } from "@/types/planner";
 import { CreateSingleRoomFlow } from "@/components/dashboard/CreateSingleRoomFlow";
 import { CreateHomeFlow } from "@/components/dashboard/CreateHomeFlow";
@@ -45,15 +45,14 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
    * The tour explains the room editor, so it can only run inside a room --
    * which is why the dashboard's Settings dialog showed no "take the tour"
    * option at all, even though the identical dialog inside a room does.
-   * Rather than duplicate the tour here, this clears the seen-flag and
-   * opens a room, letting useRoomPlanner's existing first-mount auto-open
-   * do the rest. Returns null when there's no room to tour yet, which
+   * Rather than duplicate the tour here, this asks the next room to open it
+   * (TOUR_START_KEY) and opens a room. Returns null when there's no room to tour yet, which
    * leaves the button hidden (see SettingsDialog's `onTakeTour`).
    */
   const startTour = () => {
     const single = loadSingleRooms()[0];
     if (single) {
-      window.localStorage.removeItem(TOUR_KEY);
+      window.sessionStorage.setItem(TOUR_START_KEY, "1");
       navigate({ to: "/room/$roomId", params: { roomId: single.id } });
       return;
     }
@@ -62,7 +61,7 @@ export function Dashboard({ settings, updateSettings, theme, toggleTheme }: Dash
     if (!homeRoom) return;
     const homeId = findHomeIdForRoom(homes, homeRoom.id);
     if (!homeId) return;
-    window.localStorage.removeItem(TOUR_KEY);
+    window.sessionStorage.setItem(TOUR_START_KEY, "1");
     navigate({ to: "/home/$homeId/room/$roomId", params: { homeId, roomId: homeRoom.id } });
   };
 

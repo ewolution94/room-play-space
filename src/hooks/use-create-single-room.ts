@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { addSingleRoom } from "@/lib/single-rooms";
-import { TOUR_KEY } from "@/hooks/use-room-planner";
 import type { RoomLayout } from "@/types/planner";
 
 /**
@@ -21,12 +20,9 @@ export function useCreateSingleRoom() {
   return useCallback(
     (room: RoomLayout) => {
       addSingleRoom(room);
-      // The user just went through a creation flow deliberately -- don't
-      // also ambush the room they built with the separate "welcome, here's
-      // a tour" modal, which useRoomPlanner auto-opens on its first-ever
-      // mount and which would cover the very content they just made. Still
-      // reachable anytime via the Header's "Take the tour".
-      window.localStorage.setItem(TOUR_KEY, "1");
+      // No tour suppression here any more: a first-time visitor is offered
+      // the tour in a small card in the room (useRoomPlanner), which doesn't
+      // cover what they just built the way the old full-screen auto-open did.
       navigate({ to: "/room/$roomId", params: { roomId: room.id } });
     },
     [navigate],

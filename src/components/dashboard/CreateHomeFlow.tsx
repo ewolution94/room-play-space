@@ -14,7 +14,6 @@ import { extractBundledCustomCatalog, mergeCustomCatalog } from "@/lib/custom-ca
 import { useCustomCatalog } from "@/hooks/use-custom-catalog";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { ExportImportDialog } from "@/components/planner/ExportImportDialog";
-import { TOUR_KEY } from "@/hooks/use-room-planner";
 import {
   CREATE_OPTION_LIST_CLASS,
   CreateOptionButton,
@@ -53,10 +52,6 @@ export function CreateHomeFlow({ lang }: CreateHomeFlowProps) {
   const open = (home: Home) => {
     addHome(home);
     saveActiveHomeId(home.id);
-    // Same reasoning as the single-room creation flows: a deliberate
-    // dashboard creation shouldn't be followed by useRoomPlanner's
-    // first-visit tour ambushing the first room the user clicks into.
-    window.localStorage.setItem(TOUR_KEY, "1");
     navigate({ to: "/home/$homeId", params: { homeId: home.id } });
   };
 
