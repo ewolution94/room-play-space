@@ -131,7 +131,7 @@ A full pass over the app (bugs, cross-view inconsistencies, UX ideas) was done a
 **Bigger swings**
 
 - [x] Real point-in-polygon furniture clamping for hallway rooms — `clampPos()` currently clamps to the bounding box, not the actual L/T silhouette, so furniture can end up in a "notch" that isn't really floor. Done in `c1df61a` (2026-08-24): `clampPos` keeps items on the inset floor of L/T/U rooms (tests in `planner-math.test.ts`); only an item big enough to bridge a notch is let through, on purpose.
-- [ ] A basic "before you buy" cost estimate per catalog item, since presets already carry real-world dimensions.
+- [ ] A basic "before you buy" cost estimate per catalog item, since presets already carry real-world dimensions. Waiting on the user's call on where prices come from (asked 2026-10-03). Suggested: prices the user types in per item, with totals per room and home, since no catalog source keeps real prices current.
 
 **Other risks (lower priority, not user-facing bugs)**
 
