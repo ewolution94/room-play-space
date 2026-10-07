@@ -111,6 +111,7 @@ export function CanvasArea({
   setCeilingHeight,
   wallSlopes,
   setWallSlopes,
+  roofActions,
   slopeIssues,
   placementIssues,
   backUrl,
@@ -655,6 +656,21 @@ export function CanvasArea({
                     cm={cm}
                     idKey={String(scaleKey)}
                     lang={lang}
+                    dormerDrag={
+                      isMobileViewOnly || threeDActive
+                        ? undefined
+                        : {
+                            scale,
+                            start: pushHistory,
+                            move: (wallKey, id, position) =>
+                              roofActions.updateDormer(
+                                wallKey,
+                                id,
+                                { position },
+                                { quiet: true, history: false },
+                              ),
+                          }
+                    }
                   />
                 </svg>
 
@@ -666,6 +682,8 @@ export function CanvasArea({
                   openings={openings}
                   setOpenings={setOpenings}
                   corners={corners}
+                  wallSlopes={wallSlopes}
+                  ceilingHeight={ceilingHeight}
                   scale={scale}
                   cm={cm}
                   pushHistory={pushHistory}
@@ -1110,6 +1128,7 @@ export function CanvasArea({
               setCeilingHeight={setCeilingHeight}
               wallSlopes={wallSlopes}
               setWallSlopes={setWallSlopes}
+              roofActions={roofActions}
               corners={corners}
               items={items}
               updateItem={updateItem}

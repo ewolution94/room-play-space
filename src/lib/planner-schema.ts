@@ -47,13 +47,17 @@ const openingSchema = z.object({
   wall: z.union([z.enum(["top", "bottom", "left", "right"]), z.number().int().min(0)]),
   position: z.number().min(0).max(10000),
   width: z.number().min(0).max(5000),
-  kind: z.enum(["door", "window", "terrace-door"]),
+  kind: z.enum(["door", "window", "terrace-door", "roof-window"]),
   hinge: z.enum(["start", "end"]).optional(),
   swing: z.enum(["in", "out"]).optional(),
   // Terrace doors only, and optional -- every file exported before terrace
   // doors existed still imports, and an absent value means one leaf.
   leaves: z.union([z.literal(1), z.literal(2)]).optional(),
   color: z.string().optional(),
+  // Roof windows only (lib/roof-windows.ts): the lower edge's height and the
+  // length up the slope.
+  sill: z.number().min(0).max(2000).optional(),
+  slopeLength: z.number().min(10).max(1000).optional(),
 });
 
 // Room height and sloped ceilings ("Dachschrägen"), shared by the
@@ -71,6 +75,17 @@ const wallSlopesSchema = z
     z.object({
       kneeHeight: z.number().min(0).max(2000),
       run: z.number().min(0).max(10000),
+      // Box dormers in the slope (Dormer in lib/wall-slopes.ts).
+      dormers: z
+        .object({
+          id: z.string().max(200),
+          position: z.number().min(0).max(10000),
+          width: z.number().min(1).max(10000),
+          height: z.number().min(0).max(2000).optional(),
+        })
+        .array()
+        .max(20)
+        .optional(),
     }),
   )
   .optional();

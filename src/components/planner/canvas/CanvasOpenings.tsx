@@ -10,6 +10,14 @@ import {
 } from "@/lib/openings";
 import { STRINGS } from "@/lib/planner-translations";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
+import { inwardNormal, type WallSlopeMap } from "@/lib/wall-slopes";
+import {
+  dormerAround,
+  openingProblem,
+  roofWindowGeometry,
+  roofWindowLength,
+  type RoomShell,
+} from "@/lib/roof-windows";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 
@@ -17,6 +25,10 @@ interface CanvasOpeningsProps {
   openings: Opening[];
   setOpenings: React.Dispatch<React.SetStateAction<Opening[]>>;
   corners: Point[];
+  /** Roof windows sit in these slopes, and doors and windows on a sloped
+   * wall stay inside their dormer (lib/roof-windows.ts). */
+  wallSlopes: WallSlopeMap;
+  ceilingHeight: number;
   scale: number;
   cm: (val: number) => number;
   pushHistory: () => void;
@@ -45,6 +57,8 @@ export function CanvasOpenings({
   openings,
   setOpenings,
   corners,
+  wallSlopes,
+  ceilingHeight,
   scale,
   cm,
   pushHistory,
@@ -56,9 +70,41 @@ export function CanvasOpenings({
   blockedOpenings,
 }: CanvasOpeningsProps) {
   const coarse = useCoarsePointer();
+  // A drag only ever lands where the opening can be built; one that already
+  // couldn't (an imported room, say) keeps the old clamp-only behaviour.
+  const shellFor = (list: Opening[]): RoomShell => ({
+    corners,
+    wallSlopes,
+    ceilingHeight,
+    openings: list,
+  });
+  const fitsAt = (prev: Opening[], moved: Opening) =>
+    !openingProblem(moved, shellFor(prev.map((x) => (x.id === moved.id ? moved : x))));
   return (
     <>
       {openings.map((o) => {
+        if (o.kind === "roof-window") {
+          return (
+            <RoofWindowOnPlan
+              key={o.id}
+              o={o}
+              corners={corners}
+              wallSlopes={wallSlopes}
+              ceilingHeight={ceilingHeight}
+              scale={scale}
+              cm={cm}
+              lang={lang}
+              isSelected={selectedOpeningId === o.id}
+              viewOnly={viewOnly}
+              hitPad={coarse ? 12 : 4}
+              onSelect={() => setSelectedOpeningId(o.id)}
+              pushHistory={pushHistory}
+              setOpenings={setOpenings}
+              fitsAt={fitsAt}
+              buildable={fitsAt(openings, o)}
+            />
+          );
+        }
         // An opening whose span actually overlaps an open interval on its
         // wall has nothing to hang a door/window on there -- mirrors the
         // same string-vs-numeric wall key convention used throughout (see
@@ -234,7 +280,14 @@ export function CanvasOpenings({
           const startMouseX = (e.clientX - stageRect.left) / scale;
           const startMouseY = (e.clientY - stageRect.top) / scale;
           const startPos = o.position;
-          const maxPos = Math.max(0, wallLen - o.width);
+          // On a sloped wall a door or window lives in a dormer's front, so
+          // it slides within that dormer rather than along the whole wall.
+          const dormer = dormerAround(wallSlopes[wallKey], o);
+          const minPos = dormer ? dormer.position : 0;
+          const maxPos = dormer
+            ? Math.max(minPos, dormer.position + dormer.width - o.width)
+            : Math.max(0, wallLen - o.width);
+          const wasBuildable = fitsAt(openings, o);
 
           const move = (ev: PointerEvent) => {
             const curMouseX = (ev.clientX - stageRect.left) / scale;
@@ -244,9 +297,14 @@ export function CanvasOpenings({
 
             // Vector projection onto the wall unit vector
             const shift = pdx * Ux + pdy * Uy;
-            const next = Math.min(maxPos, Math.max(0, startPos + shift));
+            const next = Math.min(maxPos, Math.max(minPos, startPos + shift));
 
-            setOpenings((prev) => prev.map((x) => (x.id === o.id ? { ...x, position: next } : x)));
+            setOpenings((prev) => {
+              const moved = { ...o, ...prev.find((x) => x.id === o.id), position: next };
+              // Stops at a neighbour instead of sliding over it.
+              if (wasBuildable && !fitsAt(prev, moved)) return prev;
+              return prev.map((x) => (x.id === o.id ? moved : x));
+            });
           };
 
           const up = (ev: PointerEvent) => {
@@ -352,5 +410,167 @@ export function CanvasOpenings({
         );
       })}
     </>
+  );
+}
+
+/**
+ * A roof window on the plan: its footprint inside the slope band (it's in
+ * the ceiling, so drawn dashed, the way plans draw what's overhead). Dragged
+ * along the wall and up or down the slope at once; a move that would take it
+ * out of its slope, into a dormer or over another roof window is tried along
+ * each direction alone before it's refused, so it slides along whatever
+ * stopped it.
+ */
+function RoofWindowOnPlan({
+  o,
+  corners,
+  wallSlopes,
+  ceilingHeight,
+  scale,
+  cm,
+  lang,
+  isSelected,
+  viewOnly,
+  hitPad,
+  onSelect,
+  pushHistory,
+  setOpenings,
+  fitsAt,
+  buildable,
+}: {
+  o: Opening;
+  corners: Point[];
+  wallSlopes: WallSlopeMap;
+  ceilingHeight: number;
+  scale: number;
+  cm: (val: number) => number;
+  lang: string;
+  isSelected: boolean;
+  viewOnly?: boolean;
+  hitPad: number;
+  onSelect: () => void;
+  pushHistory: () => void;
+  setOpenings: React.Dispatch<React.SetStateAction<Opening[]>>;
+  fitsAt: (prev: Opening[], moved: Opening) => boolean;
+  /** Whether it can be built where it is now: only then is a drag held to that. */
+  buildable: boolean;
+}) {
+  const geo = roofWindowGeometry(o, corners, wallSlopes, ceilingHeight);
+  const seg = resolveWallSegment(corners, o.wall);
+  const slope = wallSlopes[String(o.wall)];
+  if (!geo || !seg || !slope) return null;
+  const dx = seg.b.x - seg.a.x;
+  const dy = seg.b.y - seg.a.y;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return null;
+  const u = { x: dx / len, y: dy / len };
+  const n = inwardNormal(corners, seg.a, seg.b);
+  const cx = geo.footprint.reduce((sum, p) => sum + p.x, 0) / 4;
+  const cy = geo.footprint.reduce((sum, p) => sum + p.y, 0) / 4;
+  const depth = geo.highOff - geo.lowOff;
+  const thetaDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const frame = o.color || "rgb(14, 165, 233)";
+  const rise = ceilingHeight - slope.kneeHeight;
+
+  const onDown = (e: React.PointerEvent) => {
+    if (viewOnly) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect();
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic pointers (tests) can't be captured; real ones always can.
+    }
+    pushHistory();
+    const stageEl = document.getElementById("tour-canvas");
+    if (!stageEl) return;
+    const rect = stageEl.getBoundingClientRect();
+    const startX = (e.clientX - rect.left) / scale;
+    const startY = (e.clientY - rect.top) / scale;
+    const startPos = o.position;
+    const startLowOff = geo.lowOff;
+
+    const move = (ev: PointerEvent) => {
+      const pdx = (ev.clientX - rect.left) / scale - startX;
+      const pdy = (ev.clientY - rect.top) / scale - startY;
+      const along = Math.round(startPos + pdx * u.x + pdy * u.y);
+      // Distance into the room on the plan becomes height up the slope.
+      const lowOff = startLowOff + pdx * n.x + pdy * n.y;
+      const sill = Math.round(slope.kneeHeight + (rise * lowOff) / slope.run);
+      setOpenings((prev) => {
+        const current = prev.find((x) => x.id === o.id) ?? o;
+        const tries = [
+          { ...current, position: along, sill },
+          { ...current, position: along },
+          { ...current, sill },
+        ];
+        const moved = buildable ? tries.find((c) => fitsAt(prev, c)) : tries[0];
+        if (!moved) return prev;
+        return prev.map((x) => (x.id === o.id ? moved : x));
+      });
+    };
+    const up = (ev: PointerEvent) => {
+      try {
+        target.releasePointerCapture(ev.pointerId);
+      } catch {
+        // Only throws once the pointer is no longer active -- no capture left to release.
+      }
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  const strings = STRINGS[lang === "de" ? "de" : "en"];
+  const size = `${Math.round(o.width)} × ${Math.round(roofWindowLength(o))} cm`;
+  return (
+    <HoverTooltip
+      content={`${strings.roofWindow} (${size}) — ${strings.roofWindowTop(Math.round(geo.high))} — ${lang === "de" ? "ziehen zum Bewegen" : "drag to move"}`}
+    >
+      <div
+        role="button"
+        aria-label={`${strings.roofWindow} ${size}`}
+        onPointerDown={onDown}
+        style={{
+          position: "absolute",
+          left: cm(cx),
+          top: cm(cy),
+          width: cm(o.width) + 2 * hitPad,
+          height: cm(depth) + 2 * hitPad,
+          transform: `translate(-50%, -50%) rotate(${thetaDeg}deg)`,
+          cursor: "move",
+          touchAction: "none",
+          zIndex: isSelected ? 12 : 5,
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: hitPad,
+            background: "rgba(56, 189, 248, 0.22)",
+            border: `1.5px dashed ${frame}`,
+            borderRadius: 2,
+            outline: isSelected ? "2px solid var(--primary)" : undefined,
+            outlineOffset: isSelected ? 2 : undefined,
+          }}
+        >
+          {/* The sash bar across the middle, as on the wall windows. */}
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: "50%",
+              height: 1,
+              background: frame,
+              opacity: 0.7,
+            }}
+          />
+        </div>
+      </div>
+    </HoverTooltip>
   );
 }

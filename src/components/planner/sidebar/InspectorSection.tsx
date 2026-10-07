@@ -25,7 +25,14 @@ import {
   ArrowUpDown,
   Columns2,
 } from "lucide-react";
-import type { CatalogSaveDraft, Item, Opening, Point, RoomFlooring } from "@/types/planner";
+import type {
+  CatalogSaveDraft,
+  Item,
+  Opening,
+  Point,
+  RoofActions,
+  RoomFlooring,
+} from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { NAMED_WALLS, wallColorKey, wallLabel } from "@/lib/hallway-shapes";
@@ -38,6 +45,9 @@ import { FloorSwatchPreview } from "@/lib/floor-pattern-svg";
 import { PRESET_BY_KEY, getDefaultHeight, resolveEffectiveElevation } from "@/lib/planner-presets";
 import { SWATCHES } from "@/lib/swatches";
 import { LayoutGrid } from "lucide-react";
+import { NumberField } from "@/components/ui/number-field";
+import { ROOF_WINDOW_SIZES, openingKindLabel } from "@/lib/openings";
+import { roofWindowGeometry, roofWindowLength, roofWindowSill } from "@/lib/roof-windows";
 import { RoomPlanSvg } from "@/components/planner/RoomPlanSvg";
 import {
   CompareMaterialsDialog,
@@ -77,6 +87,7 @@ interface InspectorSectionProps {
   setCeilingHeight: (h: number) => void;
   wallSlopes: WallSlopeMap;
   setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
+  roofActions: RoofActions;
   corners: Point[];
   items: Item[];
   updateItem: (id: string, patch: Partial<Item>, options?: { history?: boolean }) => void;
@@ -120,6 +131,7 @@ export function InspectorSection({
   setCeilingHeight,
   wallSlopes,
   setWallSlopes,
+  roofActions,
   flooring,
   setFlooring,
   corners,
@@ -302,9 +314,13 @@ export function InspectorSection({
                 ? lang === "de"
                   ? "Tür-Details"
                   : "Door Details"
-                : lang === "de"
-                  ? "Fenster-Details"
-                  : "Window Details"
+                : selectedOpening.kind === "roof-window"
+                  ? lang === "de"
+                    ? "Dachfenster-Details"
+                    : "Roof Window Details"
+                  : lang === "de"
+                    ? "Fenster-Details"
+                    : "Window Details"
               : selectedItem
                 ? lang === "de"
                   ? "Möbel-Details"
@@ -376,7 +392,7 @@ export function InspectorSection({
               <div className="flex items-center gap-2">
                 <div className="relative flex items-center rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary transition-all flex-1 h-8 px-2 text-xs font-semibold select-none capitalize">
                   <Sliders className="h-3.5 w-3.5 mr-1.5 text-muted-foreground/75 shrink-0" />
-                  {selectedOpening.kind === "door" ? t.door : t.window} ·{" "}
+                  {openingKindLabel(selectedOpening, t)} ·{" "}
                   {wallLabel(selectedOpening.wall, t, lang)}
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -490,6 +506,77 @@ export function InspectorSection({
                   </div>
                 </div>
               </div>
+
+              {/* Where a roof window sits up its slope, and the common sizes. */}
+              {selectedOpening.kind === "roof-window" && (
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {t.roofWindow}
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">{t.roofWindowSill}</span>
+                      <NumberField
+                        min={0}
+                        max={ceilingHeight}
+                        value={Math.round(roofWindowSill(selectedOpening))}
+                        onCommit={(v) => updateOpening(selectedOpening.id, { sill: v })}
+                        disabled={threeDActive}
+                        aria-label={t.roofWindowSill}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground">
+                        {t.roofWindowLength}
+                      </span>
+                      <NumberField
+                        min={10}
+                        max={1000}
+                        value={Math.round(roofWindowLength(selectedOpening))}
+                        onCommit={(v) => updateOpening(selectedOpening.id, { slopeLength: v })}
+                        disabled={threeDActive}
+                        aria-label={t.roofWindowLength}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {ROOF_WINDOW_SIZES.map(([w, l]) => {
+                      const current =
+                        Math.round(selectedOpening.width) === w &&
+                        Math.round(roofWindowLength(selectedOpening)) === l;
+                      return (
+                        <Button
+                          key={`${w}x${l}`}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-pressed={current}
+                          disabled={threeDActive}
+                          onClick={() =>
+                            updateOpening(selectedOpening.id, { width: w, slopeLength: l })
+                          }
+                          className={`h-6 px-1.5 text-[10px] ${current ? "border-primary text-primary" : ""}`}
+                        >
+                          {w} × {l}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const geo = roofWindowGeometry(
+                      selectedOpening,
+                      corners,
+                      wallSlopes,
+                      ceilingHeight,
+                    );
+                    return geo ? (
+                      <p className="text-[10px] text-muted-foreground">
+                        {t.roofWindowTop(Math.round(geo.high))} · {Math.round(geo.pitch)}°
+                      </p>
+                    ) : null;
+                  })()}
+                </div>
+              )}
 
               {/* Hinge & Swing for Doors only */}
               {selectedOpening.kind === "door" && (
@@ -1078,8 +1165,8 @@ export function InspectorSection({
                   setCeilingHeight={setCeilingHeight}
                   wallSlopes={wallSlopes}
                   setWallSlopes={setWallSlopes}
+                  roofActions={roofActions}
                   openings={openings}
-                  removeOpening={removeOpening}
                   disabled={threeDActive}
                 />
               </InspectorGroup>

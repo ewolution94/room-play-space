@@ -262,7 +262,7 @@ Design written up in **`docs/SLOPED-WALLS-PROPOSAL.md`** -- read that first. Sum
 - The point of the whole feature is answering "how tall can something be here?" -- so `checkItemFitsUnderSlopes()` returns the shortfall in cm, not just a boolean.
 - [x] **Prerequisite found: rooms have no height at all today.** `ThreeDView.tsx:780` hardcodes `const wallHeight = 240`, and the `roomHeight: "Wall Height (cm)"` translation string is wired to nothing. Slopes can't be expressed against a constant -- giving `RoomLayout` a real `ceilingHeight` is Phase 0 and is worth doing regardless. Done the same day: see "Sloped ceilings: Phases 0-3 shipped" below.
 - [x] Phases 2-5 (2D slope band + standing-height line, Inspector editing, furniture fit toast, 3D geometry, wizard step) -- see the proposal's phasing table. Phases 0-3 deliver the whole planning value without touching the 3D renderer. Phases 2-4 shipped 2026-07-31 (the two "Sloped ceilings" sections below).
-- [ ] Phase 5: a slope step in the room wizard. Waiting on the user's call (the proposal's "Things I'd still want your call on", item 3). Roof windows are tracked further down; dormers are out of scope (decided).
+- [ ] Phase 5: a slope step in the room wizard. Decided 2026-10-07 (the user): slopes and the ceiling height, as an optional step after dimensions. Roof windows and box dormers are done (see "Sloped ceilings: Phase 5" below).
 - [x] Six open questions for the user in the proposal: block vs. warn on too-tall furniture; whether single/gable is enough (dormers scoped out); per-room vs. per-floor roofs; where slope editing lives; ceiling default on/off; per-room vs. per-floor ceiling height. All decided 2026-07-31: see the proposal's "Decided" section. Three smaller calls remain there (contour heights, how loud the too-tall marker is, the wizard step).
 
 **Extended 2026-07-31 with configurable wall height + a real ceiling** (user request). Findings that changed the plan:
@@ -903,9 +903,11 @@ Four things off the back of Phase 1.
         window sits up on its sill. Dialog checked end to end -- picking
         2 leaves swaps the presets 80/90/100 → 160/180/200 and sets the
         width to 180. 690 tests (13 new), tsc clean, lint 18/19 (baseline).
-- [ ] Not done: terrace doors are refused on sloped walls like every other
+- [x] Not done: terrace doors are refused on sloped walls like every other
       opening, and their height isn't validated against a low ceiling --
-      same open item as the one below.
+      same open item as the one below. Done 2026-10-07: on a sloped wall any
+      door or window, terrace doors included, goes in a dormer and is
+      measured against the dormer's height (lib/roof-windows.ts).
 
 ### Fixed: you could see straight through the walls when looking in through glass (2026-08-04)
 
@@ -1170,8 +1172,18 @@ handover said.
       convention is browser/scene-graph verification for this file, lib
       unit tests for `lib/*.ts`).
 
+### Sloped ceilings: Phase 5 -- roof windows and box dormers (2026-10-07)
+
+Decided with the user before building: roof windows as Velux-style openings, box dormers (flat ceiling) rather than gabled ones.
+
+- [x] **The rules live in one place**, `lib/roof-windows.ts`: `openingProblem` (on the wall, clear of the others, no taller than its wall or dormer, a roof window inside its own slope -- not below the knee wall, not past the flat ceiling, not where another wall's slope is lower, not across a dormer) and `dormerProblem` (on the wall, at least 50cm, higher than the knee wall, clear of other dormers and roof windows, not rising through another slope). `newRoomProblem` compares before and after, so an edit is refused only for a problem it introduces -- an imported room with an old problem isn't locked -- and reports the problem about the thing being edited. Adding, editing and dragging openings, slope and ceiling edits and every dormer change go through it; addOpening/updateOpening lost their two copies of the old checks.
+- [x] **Dormers** are `WallSlope.dormers` (`{ id, position, width, height? }`, absent height = full room height). `availableHeightAt` raises the wall's slope to the dormer's height across its stretch, so fit warnings, the live readout and the Elements list count it with no wiring. Added from the Inspector (centred in the first free stretch, a 100cm window in its front when one fits), moved and resized there or dragged along the wall on the plan; its doors and windows move with it. The 2D band is masked out over it, with a dashed outline and "Dormer · 240 cm".
+- [x] **Roof windows** are `kind: "roof-window"` openings with `sill` (lower edge) and `slopeLength`; Velux sizes as one-tap presets in the dialog and the Inspector, with the top edge and pitch read out. On the plan a dashed glass rectangle in the band, dragged along the wall and up or down the slope at once (sliding along whatever stops it). No floor clearance, no gap in the wall.
+- [x] **3D**: `buildCeilingSurface` cuts dormers and roof windows out of the roof plane exactly (convex clipping before subdivision, `cutOutConvex`), each dormer gets its own flat ceiling and two triangular side walls (fading with their wall), the knee wall rises to the dormer's height along it, and a roof window is glass in a frame lying in the slope. Roof-window glass stays glass in the ceiling fade.
+- [x] Verified in a real Chrome (DevTools MCP; the browser pane was hidden): add, edit, move, drag and delete both; every refusal and its message; undo/redo; reload; export and import of a home holding both; 2D and 3D at 1280 and 390 (3D needs landscape on a phone), light and dark; 120 fps orbiting with a 4x slowed CPU. 37 new tests (`tests/roof-features.test.ts`).
+
 ### Still open
-- [ ] Roof windows (*Dachfenster*) -- openings on a sloped wall remain unsupported entirely, now enforced on both the add and the edit path rather than just the add.
+- [x] Roof windows (*Dachfenster*) -- openings on a sloped wall remain unsupported entirely, now enforced on both the add and the edit path rather than just the add. Done 2026-10-07, see "Sloped ceilings: Phase 5" above.
 - [ ] Lighting with the ceiling on is a flat ambient boost, not a real relight. Fine as a toggle; worth revisiting if the ceiling ever becomes the default.
 - [ ] **Product call on the tour's auto-open**: every dashboard creation path marks `TOUR_KEY` seen at creation time (deliberately -- it used to ambush freshly-created rooms), so a brand-new user who creates a room from the dashboard now *never* sees the tour automatically. It only auto-fires for someone who reaches a room without creating it. Reachable on demand from the Header's More menu and both Settings dialogs. Worth deciding whether new users should get it another way -- e.g. offering it once on the dashboard itself rather than inside a room.
 - [x] The canvas's floating Room Inspector can overlap the bottom-left back pill at shorter viewport heights (~720px). Pre-existing on both room routes -- not introduced by any recent change, but now more visible since the back pill is a single room's main way out. Already fixed by `6086f74` (2026-08-03, three days after this note): the Inspector's max-height is derived from its own y and keeps clear of a 64px strip along the stage's bottom edge (`STAGE_BOTTOM_SAFE_ZONE`, `lib/canvas-layout.ts`), and dragging is clamped the same way. Re-checked 2026-10-04 at 1280x720 with every group expanded: the panel ends at 639px, the pill starts at 657px.

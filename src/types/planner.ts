@@ -1,7 +1,7 @@
 import type React from "react";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import type { WallOpenInterval } from "@/lib/room-adjacency";
-import type { WallSlopeMap } from "@/lib/wall-slopes";
+import type { Dormer, WallSlope, WallSlopeMap } from "@/lib/wall-slopes";
 import type { PlacementIssues } from "@/lib/clearance";
 
 export type Lang = "en" | "de";
@@ -411,9 +411,14 @@ export interface UseSettingsReturn {
  * separates it from a window is that it's *bodentief*: it starts at the
  * floor instead of on a 90cm sill, and you walk through it, so it swings and
  * eats floor space like a door. See lib/openings.ts, which is where the
- * dimensional difference between the three actually lives.
+ * dimensional difference between them actually lives.
+ *
+ * "roof-window" (Dachfenster) is the odd one out: it sits in a sloped
+ * ceiling rather than in a wall, so it only goes on a wall that carries a
+ * Dachschräge, and `sill`/`slopeLength` place it up the slope (see
+ * lib/roof-windows.ts).
  */
-export type OpeningKind = "door" | "window" | "terrace-door";
+export type OpeningKind = "door" | "window" | "terrace-door" | "roof-window";
 
 export interface Opening {
   id: string;
@@ -429,6 +434,34 @@ export interface Opening {
    * leaf half the total width. */
   leaves?: 1 | 2;
   color?: string;
+  /** Roof windows only: height of the lower edge above the floor, cm. */
+  sill?: number;
+  /** Roof windows only: length measured up the slope, cm (the second number
+   * of a size like Velux's 78 x 118). */
+  slopeLength?: number;
+}
+
+/**
+ * Slope edits that change openings too, each one undo step and each refused
+ * (with the reason) when it would leave something that can't be built --
+ * see use-room-planner.ts and lib/roof-windows.ts.
+ */
+export interface RoofActions {
+  /** Gives a wall a slope, or takes it away (null). Either way the openings
+   * on that wall are removed; the caller asks first. */
+  setWallSlope: (wallKey: string, slope: WallSlope | null) => void;
+  /** A dormer in the first free stretch of the slope, with a window when one fits. */
+  addDormer: (wallKey: string) => void;
+  /** Moves or resizes a dormer; its doors and windows move with it.
+   * \`height: undefined\` means the room's full height. */
+  updateDormer: (
+    wallKey: string,
+    id: string,
+    patch: Partial<Omit<Dormer, "id">>,
+    options?: { quiet?: boolean; history?: boolean },
+  ) => void;
+  /** Removes a dormer and the doors and windows in its front. */
+  removeDormer: (wallKey: string, id: string) => void;
 }
 
 export interface Snapshot {
@@ -661,6 +694,11 @@ export interface SidebarProps {
   setOPos: (pos: number) => void;
   oWidth: number;
   setOWidth: (width: number) => void;
+  /** Roof windows only: a new one's length up the slope. */
+  oSlopeLength: number;
+  setOSlopeLength: (length: number) => void;
+  /** Wall keys (wallColorKey) carrying a slope a roof window can sit in. */
+  slopedWallKeys: string[];
   roomW: number;
   roomL: number;
   addPreset: (preset: Preset) => void;
@@ -758,6 +796,7 @@ export interface CanvasAreaProps {
   setCeilingHeight: React.Dispatch<React.SetStateAction<number>>;
   wallSlopes: WallSlopeMap;
   setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
+  roofActions: RoofActions;
   slopeIssues: Map<string, SlopeFitIssue>;
   /** Overlaps and blocked doors/windows (lib/clearance.ts). */
   placementIssues: PlacementIssues;
@@ -912,6 +951,8 @@ export interface UseRoomPlannerReturn {
   setOPos: React.Dispatch<React.SetStateAction<number>>;
   oWidth: number;
   setOWidth: React.Dispatch<React.SetStateAction<number>>;
+  oSlopeLength: number;
+  setOSlopeLength: React.Dispatch<React.SetStateAction<number>>;
 
   // Refs
   stageRef: React.RefObject<HTMLDivElement | null>;
@@ -959,6 +1000,7 @@ export interface UseRoomPlannerReturn {
   setCeilingHeight: React.Dispatch<React.SetStateAction<number>>;
   wallSlopes: WallSlopeMap;
   setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
+  roofActions: RoofActions;
   slopeIssues: Map<string, SlopeFitIssue>;
   /** Overlaps and blocked doors/windows (lib/clearance.ts). */
   placementIssues: PlacementIssues;

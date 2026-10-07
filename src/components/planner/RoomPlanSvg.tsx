@@ -9,9 +9,15 @@ import {
 import { resolveFlooring } from "@/lib/floor-materials";
 import { FloorPatternDef } from "@/lib/floor-pattern-svg";
 import { DEFAULT_WALL_COLOR } from "@/lib/material-compare";
-import { inwardNormal } from "@/lib/wall-slopes";
+import {
+  DEFAULT_CEILING_HEIGHT,
+  dormerFootprints,
+  inwardNormal,
+  type WallSlopeMap,
+} from "@/lib/wall-slopes";
+import { roofWindowGeometry } from "@/lib/roof-windows";
 import { openingClearance } from "@/lib/clearance";
-import { isSwingingOpening } from "@/lib/openings";
+import { isSwingingOpening, isWallOpening } from "@/lib/openings";
 import { readableText } from "@/lib/planner-math";
 
 interface RoomPlanSvgProps {
@@ -33,6 +39,10 @@ interface RoomPlanSvgProps {
    * thumbnail size; on the outside so it never covers the floor or the furniture.
    */
   wallColors?: Record<string, string>;
+  /** With the room's slopes, roof windows and dormers are drawn where they
+   * sit, dashed, the way a plan shows what's overhead. */
+  wallSlopes?: WallSlopeMap;
+  ceilingHeight?: number;
 }
 
 const WALL_CM = 6;
@@ -58,6 +68,8 @@ export function RoomPlanSvg({
   dimensions,
   flooring,
   wallColors,
+  wallSlopes,
+  ceilingHeight = DEFAULT_CEILING_HEIGHT,
 }: RoomPlanSvgProps) {
   const patternId = `plan-floor-${useId().replace(/[^\w-]/g, "")}`;
   const bb = polygonBoundingBox(corners);
@@ -73,24 +85,27 @@ export function RoomPlanSvg({
   // Where the wall's body lies across its line: centred on it, or (painted) all outside it.
   const wallBody = wallColors ? paint + rim : WALL_CM;
   const wallCentre = wallColors ? wallBody / 2 : 0;
-  const cuts = openings.flatMap((o) => {
-    const seg = resolveWallSegment(corners, o.wall);
-    if (!seg) return [];
-    const len = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
-    if (len === 0) return [];
-    const ux = (seg.b.x - seg.a.x) / len;
-    const uy = (seg.b.y - seg.a.y) / len;
-    const into = inwardNormal(corners, seg.a, seg.b);
-    // A point `along` the wall from its start, `out` beyond its line.
-    const at = (along: number, out: number) => ({
-      x: seg.a.x + ux * along - into.x * out,
-      y: seg.a.y + uy * along - into.y * out,
+  // A roof window isn't a gap in the wall: it's drawn overhead, below.
+  const cuts = openings
+    .filter((o) => isWallOpening(o.kind))
+    .flatMap((o) => {
+      const seg = resolveWallSegment(corners, o.wall);
+      if (!seg) return [];
+      const len = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
+      if (len === 0) return [];
+      const ux = (seg.b.x - seg.a.x) / len;
+      const uy = (seg.b.y - seg.a.y) / len;
+      const into = inwardNormal(corners, seg.a, seg.b);
+      // A point `along` the wall from its start, `out` beyond its line.
+      const at = (along: number, out: number) => ({
+        x: seg.a.x + ux * along - into.x * out,
+        y: seg.a.y + uy * along - into.y * out,
+      });
+      const p0 = at(o.position, wallCentre);
+      const p1 = at(o.position + o.width, wallCentre);
+      const swing = isSwingingOpening(o.kind) ? openingClearance(o, corners) : null;
+      return [{ o, p0, p1, swing }];
     });
-    const p0 = at(o.position, wallCentre);
-    const p1 = at(o.position + o.width, wallCentre);
-    const swing = isSwingingOpening(o.kind) ? openingClearance(o, corners) : null;
-    return [{ o, p0, p1, swing }];
-  });
 
   return (
     <svg viewBox={viewBox} className={className} role="img" aria-label={title}>
@@ -223,6 +238,34 @@ export function RoomPlanSvg({
             ))}
         </g>
       ))}
+      {wallSlopes && (
+        <g strokeDasharray="6 4" strokeWidth={1.5}>
+          {dormerFootprints(corners, wallSlopes, ceilingHeight).map((fp) => (
+            <polygon
+              key={fp.dormer.id}
+              points={fp.outline.map((p) => `${p.x},${p.y}`).join(" ")}
+              fill="none"
+              stroke="currentColor"
+              strokeOpacity={0.6}
+            />
+          ))}
+          {openings
+            .filter((o) => !isWallOpening(o.kind))
+            .map((o) => {
+              const geo = roofWindowGeometry(o, corners, wallSlopes, ceilingHeight);
+              if (!geo) return null;
+              return (
+                <polygon
+                  key={o.id}
+                  points={geo.footprint.map((p) => `${p.x},${p.y}`).join(" ")}
+                  fill="#0ea5e9"
+                  fillOpacity={0.15}
+                  stroke="#0ea5e9"
+                />
+              );
+            })}
+        </g>
+      )}
       {dimensions && (
         <g fill="currentColor" stroke="currentColor" fontSize={textSize}>
           <line x1={bb.minX} y1={bb.minY - 30} x2={bb.maxX} y2={bb.minY - 30} strokeWidth={1} />

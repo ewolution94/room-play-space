@@ -167,7 +167,8 @@ export const STRINGS = {
     measurementsColName: "Name",
     measurementsColDims: "L × W × H (cm)",
     measurementsColCount: "Count",
-    openingOnSlopedWall: "Doors and windows aren't supported on a sloped wall.",
+    openingOnSlopedWall:
+      "On a sloped wall, a door or window goes in a dormer — or use a roof window.",
     // An opening is a hole in a wall, so one that doesn't fit can't be
     // built -- unlike furniture, which only warns. The numbers are in the
     // message because "it doesn't fit" alone doesn't say what to change.
@@ -177,7 +178,38 @@ export const STRINGS = {
       `Walls can't be shorter than ${needed} cm while a door or window that tall is in them.`,
     slopeRemovesOpeningsTitle: "Remove doors and windows on this wall?",
     slopeRemovesOpeningsBody:
-      "Doors and windows aren't supported on a sloped wall yet. Adding a slope here will permanently delete the openings already on this wall.",
+      "A sloped wall is a knee wall: doors and windows only go in a dormer there. Adding a slope here will permanently delete the openings already on this wall.",
+    // Roof windows and dormers (lib/roof-windows.ts).
+    roofWindow: "Roof window",
+    dormer: "Dormer",
+    dormers: "Dormers",
+    addDormer: "Add dormer",
+    removeDormer: "Remove dormer",
+    dormerHeight: "Height (cm)",
+    dormerFullHeight: "Full room height",
+    roofWindowSill: "Lower edge (cm)",
+    roofWindowLength: "Length up the slope (cm)",
+    roofWindowTop: (height: number) => `Top edge at ${height} cm`,
+    openingTooTallForDormer: (what: string, needed: number, available: number) =>
+      `${what} needs ${needed} cm of wall — this dormer is ${available} cm high.`,
+    roofWindowNeedsSlope: "A roof window goes in a sloped ceiling: give this wall a slope first.",
+    roofWindowBelowKnee: (knee: number) =>
+      `The lower edge can't be below the knee wall (${knee} cm).`,
+    roofWindowAboveSlope: (ceiling: number) =>
+      `It runs past the top of the slope (${ceiling} cm): lower it or pick a shorter one.`,
+    roofWindowInDormer: "A roof window can't go across a dormer.",
+    roofWindowOverlap: "Overlaps another roof window.",
+    underOtherSlope: "Another wall's slope comes down lower there.",
+    dormerOutOfBounds: "The dormer doesn't fit on that wall.",
+    dormerTooNarrow: (min: number) => `A dormer needs at least ${min} cm of wall.`,
+    dormerTooLow: (knee: number) => `A dormer has to be higher than the knee wall (${knee} cm).`,
+    dormerOverlap: "Overlaps another dormer.",
+    dormerRoofWindow: "A roof window is in the way.",
+    dormerNoRoom: "No free stretch of this wall is wide enough for a dormer.",
+    dormerOpeningsOutside: "A door or window in this dormer would end up outside it.",
+    slopeRemoveTitle: "Remove the slope and what's in it?",
+    slopeRemoveBody:
+      "Without the slope there's nothing for them to sit in: removing it also deletes the dormers, roof windows and dormer windows on this wall.",
     categories: {
       seating: "Seating",
       sleeping: "Bedroom",
@@ -374,14 +406,46 @@ export const STRINGS = {
     measurementsColName: "Name",
     measurementsColDims: "L × B × H (cm)",
     measurementsColCount: "Anzahl",
-    openingOnSlopedWall: "Türen und Fenster werden an einer Schräge nicht unterstützt.",
+    openingOnSlopedWall:
+      "An einer Schräge sitzen Türen und Fenster in einer Gaube — oder nimm ein Dachfenster.",
     openingTooTall: (what: string, needed: number, available: number) =>
       `${what} braucht ${needed} cm Wandhöhe — diese Wände sind ${available} cm hoch. Erhöhe zuerst die Wandhöhe.`,
     ceilingBelowOpenings: (needed: number) =>
       `Die Wände können nicht niedriger als ${needed} cm sein, solange eine so hohe Tür oder ein so hohes Fenster darin sitzt.`,
     slopeRemovesOpeningsTitle: "Türen und Fenster an dieser Wand entfernen?",
     slopeRemovesOpeningsBody:
-      "Türen und Fenster werden an einer Schräge noch nicht unterstützt. Wenn du hier eine Schräge hinzufügst, werden die vorhandenen Öffnungen dieser Wand dauerhaft gelöscht.",
+      "Eine Wand mit Schräge ist ein Kniestock: Türen und Fenster sitzen dort nur in einer Gaube. Wenn du hier eine Schräge hinzufügst, werden die vorhandenen Öffnungen dieser Wand dauerhaft gelöscht.",
+    roofWindow: "Dachfenster",
+    dormer: "Gaube",
+    dormers: "Gauben",
+    addDormer: "Gaube hinzufügen",
+    removeDormer: "Gaube entfernen",
+    dormerHeight: "Höhe (cm)",
+    dormerFullHeight: "Volle Raumhöhe",
+    roofWindowSill: "Unterkante (cm)",
+    roofWindowLength: "Länge entlang der Schräge (cm)",
+    roofWindowTop: (height: number) => `Oberkante bei ${height} cm`,
+    openingTooTallForDormer: (what: string, needed: number, available: number) =>
+      `${what} braucht ${needed} cm Wandhöhe — diese Gaube ist ${available} cm hoch.`,
+    roofWindowNeedsSlope:
+      "Ein Dachfenster sitzt in einer Dachschräge: Gib dieser Wand zuerst eine Schräge.",
+    roofWindowBelowKnee: (knee: number) =>
+      `Die Unterkante kann nicht unter dem Kniestock liegen (${knee} cm).`,
+    roofWindowAboveSlope: (ceiling: number) =>
+      `Es reicht über das Ende der Schräge hinaus (${ceiling} cm): tiefer setzen oder ein kürzeres wählen.`,
+    roofWindowInDormer: "Ein Dachfenster kann nicht über einer Gaube liegen.",
+    roofWindowOverlap: "Überschneidet ein anderes Dachfenster.",
+    underOtherSlope: "Dort kommt die Schräge einer anderen Wand tiefer herunter.",
+    dormerOutOfBounds: "Die Gaube passt nicht auf diese Wand.",
+    dormerTooNarrow: (min: number) => `Eine Gaube braucht mindestens ${min} cm Wand.`,
+    dormerTooLow: (knee: number) => `Eine Gaube muss höher als der Kniestock sein (${knee} cm).`,
+    dormerOverlap: "Überschneidet eine andere Gaube.",
+    dormerRoofWindow: "Ein Dachfenster ist im Weg.",
+    dormerNoRoom: "Auf dieser Wand ist kein freies Stück breit genug für eine Gaube.",
+    dormerOpeningsOutside: "Eine Tür oder ein Fenster in dieser Gaube läge danach außerhalb.",
+    slopeRemoveTitle: "Schräge mit allem darin entfernen?",
+    slopeRemoveBody:
+      "Ohne die Schräge haben sie keinen Platz mehr: Das Entfernen löscht auch die Gauben, Dachfenster und Gaubenfenster an dieser Wand.",
     categories: {
       seating: "Sitzmöbel",
       sleeping: "Schlafzimmer",

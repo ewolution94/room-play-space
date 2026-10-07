@@ -11,14 +11,17 @@ import { resolveRenderMode, computeModelScale, KIT_MODEL_UNIT_SCALE } from "@/li
 import { generateProceduralParts, type ProceduralPart } from "@/lib/procedural-models";
 import { wallSegments } from "@/lib/hallway-shapes";
 import { isTranslucent, setMaterialTransparency, settleOpacity } from "@/lib/three-materials";
-import { OPENING_GEOMETRY, isGlazedOpening, openingLeaves } from "@/lib/openings";
+import { OPENING_GEOMETRY, isGlazedOpening, isWallOpening, openingLeaves } from "@/lib/openings";
 import {
   DEFAULT_CEILING_HEIGHT,
   buildCeilingSurface,
   ceilingProfileAlongWall,
+  dormerFootprints,
+  dormerShell,
   profileIsFlatAtCeiling,
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
+import { roofWindowGeometry, roofWindowLength, type RoofWindowGeometry } from "@/lib/roof-windows";
 import { getFloorTexture } from "@/lib/floor-textures";
 import { mulberry32 } from "@/lib/floor-materials";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
@@ -32,6 +35,63 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
+
+/**
+ * A roof window in the slanted ceiling: glass in a frame, lying in the
+ * slope's own plane over the hole buildCeilingSurface cut for it (both come
+ * from roofWindowGeometry, so they meet exactly). Built in room cm --
+ * (x, height, y) -- and moved into place by the caller.
+ */
+function buildRoofWindow(
+  o: Opening,
+  geo: RoofWindowGeometry,
+  glassMat: THREE.MeshPhysicalMaterial,
+): THREE.Group {
+  const [lowStart, lowEnd, highEnd, highStart] = geo.footprint;
+  const at = (pt: Point, h: number) => new THREE.Vector3(pt.x, h, pt.y);
+  const a = at(lowStart, geo.low);
+  const b = at(lowEnd, geo.low);
+  const c = at(highEnd, geo.high);
+  const d = at(highStart, geo.high);
+  const along = new THREE.Vector3().subVectors(b, a).normalize();
+  const up = new THREE.Vector3().subVectors(d, a).normalize();
+  const normal = new THREE.Vector3().crossVectors(along, up).normalize();
+  const width = a.distanceTo(b);
+  const length = roofWindowLength(o);
+
+  const group = new THREE.Group();
+  group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, up, normal));
+  group.position.copy(a).add(b).add(c).add(d).multiplyScalar(0.25);
+
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: o.color || "#475569",
+    roughness: 0.7,
+    metalness: 0.15,
+  });
+  const border = 5;
+  const depth = 8;
+  const rails: [number, number, number, number][] = [
+    // [width, height, x, y] in the window's own plane
+    [width, border, 0, length / 2 - border / 2],
+    [width, border, 0, -length / 2 + border / 2],
+    [border, length - 2 * border, -width / 2 + border / 2, 0],
+    [border, length - 2 * border, width / 2 - border / 2, 0],
+  ];
+  for (const [w, h, x, y] of rails) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(w, h, depth), frameMat);
+    rail.position.set(x, y, 0);
+    rail.castShadow = true;
+    group.add(rail);
+  }
+  const glass = new THREE.Mesh(
+    new THREE.BoxGeometry(Math.max(1, width - 2 * border), Math.max(1, length - 2 * border), 2),
+    glassMat.clone(),
+  );
+  // Fades like glass in the ceiling loop, not like the ceiling around it.
+  glass.userData.isGlassPane = true;
+  group.add(glass);
+  return group;
+}
 
 // Module-level (not per-component-instance) cache of parsed Kenney Furniture
 // Kit models, keyed by filename -- shared across every ThreeDView mount and
@@ -1001,6 +1061,13 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
       // This is the piece that makes a slope legible in 3D. Without it a
       // Dachschräge reads as "one wall is oddly short" rather than a roof.
       if (showCeiling) {
+        // Roof windows are holes in the roof plane (cut exactly, like the
+        // dormers buildCeilingSurface cuts itself), glazed below.
+        const roofWindows = room.openings.flatMap((o) => {
+          if (isWallOpening(o.kind)) return [];
+          const geo = roofWindowGeometry(o, room.corners, room.wallSlopes, wallHeight);
+          return geo ? [{ o, geo }] : [];
+        });
         const ceilingVerts = buildCeilingSurface(
           room.corners,
           room.wallSlopes,
@@ -1031,6 +1098,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             geo.dispose();
             return tris;
           },
+          { cutouts: roofWindows.map((r) => r.geo.footprint) },
         );
 
         const ceilGeo = new THREE.BufferGeometry();
@@ -1052,6 +1120,25 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         ceilMesh.position.set(room.x - centerX, 0, room.y - centerZ);
         const ceilGroup = new THREE.Group();
         ceilGroup.add(ceilMesh);
+
+        // Each dormer's own flat ceiling, over the stretch the roof plane
+        // was cut away for. Same material, so it fades with the rest.
+        for (const fp of dormerFootprints(room.corners, room.wallSlopes, wallHeight)) {
+          const { ceiling } = dormerShell(fp);
+          if (ceiling.length === 0) continue;
+          const dormerGeo = new THREE.BufferGeometry();
+          dormerGeo.setAttribute("position", new THREE.Float32BufferAttribute(ceiling, 3));
+          dormerGeo.computeVertexNormals();
+          const dormerMesh = new THREE.Mesh(dormerGeo, ceilMat);
+          dormerMesh.position.set(room.x - centerX, 0, room.y - centerZ);
+          ceilGroup.add(dormerMesh);
+        }
+
+        for (const { o, geo } of roofWindows) {
+          const win = buildRoofWindow(o, geo, glassMat);
+          win.position.add(new THREE.Vector3(room.x - centerX, 0, room.y - centerZ));
+          ceilGroup.add(win);
+        }
         scene.add(ceilGroup);
         // Registered for the camera fade below on its own list: a wall
         // fades on a horizontal dot-product test, whereas a ceiling's only
@@ -1249,8 +1336,27 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         // no isReversedNamedWall-style flip.
         const wallOpenSpans = room.openWalls.get(colorKey) ?? [];
 
+        // A dormer raises this knee wall to its own height across its
+        // stretch (in this builder's ptA-relative frame, flipped like the
+        // openings below), and that's where its doors and windows go.
+        const wallDormers = carriesSlope
+          ? dormerFootprints(room.corners, room.wallSlopes, wallHeight).filter(
+              (fp) => fp.wallKey === colorKey,
+            )
+          : [];
+        const dormerSpans = wallDormers.map((fp) => {
+          const start = isReversedNamedWall
+            ? length - fp.dormer.position - fp.dormer.width
+            : fp.dormer.position;
+          return { start, end: start + fp.dormer.width, height: fp.height };
+        });
+        const heightOver = (start: number, end: number) =>
+          dormerSpans.find((d) => start >= d.start - 0.01 && end <= d.end + 0.01)?.height ??
+          segmentHeight;
+
         const wallOpenings = room.openings
-          .filter((o) => o.wall === wallSide)
+          // A roof window sits in the ceiling, not in this wall.
+          .filter((o) => o.wall === wallSide && isWallOpening(o.kind))
           .map((o) => {
             if (isReversedNamedWall) {
               return {
@@ -1292,14 +1398,16 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           // the two numbers below express, so the whole glazed branch is
           // shared rather than copied.
           const { sill: sillHeight, height: nominalPaneHeight } = OPENING_GEOMETRY[o.kind];
+          // In a dormer's front, the dormer's height is this opening's wall.
+          const openingWallHeight = heightOver(opStart, opEnd);
           // Clamped to what the wall can actually contain. The editor
           // refuses to create or keep an opening taller than its wall (see
           // openingFitsWall in lib/openings.ts), but an imported file has
           // no such guarantee -- and an unclamped pane renders as glazing
           // floating above the wall with no lintel over it, which reads as
           // a rendering bug rather than as bad data.
-          const paneHeight = Math.min(nominalPaneHeight, segmentHeight - sillHeight);
-          const doorHeight = Math.min(OPENING_GEOMETRY.door.height, segmentHeight);
+          const paneHeight = Math.min(nominalPaneHeight, openingWallHeight - sillHeight);
+          const doorHeight = Math.min(OPENING_GEOMETRY.door.height, openingWallHeight);
 
           if (isGlazedOpening(o.kind)) {
             // Only a window has wall under it. A terrace door's sill is 0,
@@ -1325,11 +1433,11 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
               lintelMesh.receiveShadow = true;
               wallGroup.add(lintelMesh);
             } else if (!wallNeedsProfile) {
-              const lintelH = segmentHeight - (sillHeight + paneHeight);
+              const lintelH = openingWallHeight - (sillHeight + paneHeight);
               if (lintelH > 0) {
                 const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
                 const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-                lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
+                lintelMesh.position.set(opCenterLocal, openingWallHeight - lintelH / 2, 0);
                 lintelMesh.castShadow = true;
                 lintelMesh.receiveShadow = true;
                 wallGroup.add(lintelMesh);
@@ -1428,11 +1536,11 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
               lintelMesh.receiveShadow = true;
               wallGroup.add(lintelMesh);
             } else if (!wallNeedsProfile) {
-              const lintelH = segmentHeight - doorHeight;
+              const lintelH = openingWallHeight - doorHeight;
               if (lintelH > 0) {
                 const lintelGeo = new THREE.BoxGeometry(o.width, lintelH, wallThickness);
                 const lintelMesh = new THREE.Mesh(lintelGeo, localWallMat);
-                lintelMesh.position.set(opCenterLocal, segmentHeight - lintelH / 2, 0);
+                lintelMesh.position.set(opCenterLocal, openingWallHeight - lintelH / 2, 0);
                 lintelMesh.castShadow = true;
                 lintelMesh.receiveShadow = true;
                 wallGroup.add(lintelMesh);
@@ -1504,13 +1612,27 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
             wallGroup.add(segMesh);
             continue;
           }
-          const segGeo = new THREE.BoxGeometry(segLen, segmentHeight, wallThickness);
-          const segMesh = new THREE.Mesh(segGeo, localWallMat);
-          const localCenter = (seg.start + seg.end) / 2 - length / 2;
-          segMesh.position.set(localCenter, segmentHeight / 2, 0);
-          segMesh.castShadow = true;
-          segMesh.receiveShadow = true;
-          wallGroup.add(segMesh);
+          // Split where a dormer starts or ends: knee height outside it,
+          // the dormer's height inside.
+          const cuts = [
+            seg.start,
+            ...dormerSpans
+              .flatMap((d) => [d.start, d.end])
+              .filter((x) => x > seg.start && x < seg.end),
+            seg.end,
+          ].sort((a, b) => a - b);
+          for (let ci = 0; ci + 1 < cuts.length; ci++) {
+            const pieceLen = cuts[ci + 1] - cuts[ci];
+            if (pieceLen <= 0.1) continue;
+            const pieceHeight = heightOver(cuts[ci], cuts[ci + 1]);
+            const segGeo = new THREE.BoxGeometry(pieceLen, pieceHeight, wallThickness);
+            const segMesh = new THREE.Mesh(segGeo, localWallMat);
+            const localCenter = (cuts[ci] + cuts[ci + 1]) / 2 - length / 2;
+            segMesh.position.set(localCenter, pieceHeight / 2, 0);
+            segMesh.castShadow = true;
+            segMesh.receiveShadow = true;
+            wallGroup.add(segMesh);
+          }
         }
 
         scene.add(wallGroup);
@@ -1531,6 +1653,35 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
           fadeThreshold: Math.max(room.width, room.length) * 0.1,
           isBlockingState: false,
         });
+
+        // A dormer's side walls: a triangle each, from the knee wall up to
+        // the dormer ceiling and back down the slope. They belong to this
+        // wall, so they fade with it.
+        if (wallDormers.length > 0) {
+          const cheekGroup = new THREE.Group();
+          const cheekMat = localWallMat.clone();
+          cheekMat.side = THREE.DoubleSide;
+          for (const fp of wallDormers) {
+            const { cheeks } = dormerShell(fp);
+            if (cheeks.length === 0) continue;
+            const cheekGeo = new THREE.BufferGeometry();
+            cheekGeo.setAttribute("position", new THREE.Float32BufferAttribute(cheeks, 3));
+            cheekGeo.computeVertexNormals();
+            const cheekMesh = new THREE.Mesh(cheekGeo, cheekMat);
+            cheekMesh.position.set(room.x - centerX, 0, room.y - centerZ);
+            cheekMesh.receiveShadow = true;
+            cheekGroup.add(cheekMesh);
+          }
+          scene.add(cheekGroup);
+          walls.push({
+            group: cheekGroup,
+            currentOpacity: 1.0,
+            normal,
+            mid: { x: wallCenterX, z: wallCenterZ },
+            fadeThreshold: Math.max(room.width, room.length) * 0.1,
+            isBlockingState: false,
+          });
+        }
       };
 
       // Every wall is always built now -- buildWallSegments itself carves out
@@ -1989,6 +2140,7 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
     // Captured once, before anything can mutate it, so the fade loop below
     // has the glass's original "not faded" transmission to scale down from.
     const baseGlassTransmission = glassMat.transmission;
+    const glassOpacity = glassMat.opacity;
     let animationFrameId: number;
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
@@ -2037,16 +2189,22 @@ export function ThreeDView({ t, lang, rooms, selectedIds, isDark = false }: Thre
         );
         c.group.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
+            // A roof window's glass is glass whatever the ceiling's doing,
+            // exactly as in the wall loop below.
+            const isGlass = child.userData.isGlassPane === true;
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach((m) => {
               // Only transparent while actually translucent -- see the wall
               // loop below for why a permanently-transparent surface is
               // invisible through any glass in the scene.
-              setMaterialTransparency(m, isTranslucent(c.currentOpacity));
-              m.opacity = c.currentOpacity;
+              setMaterialTransparency(m, isGlass || isTranslucent(c.currentOpacity));
+              m.opacity = isGlass ? glassOpacity * c.currentOpacity : c.currentOpacity;
               // Writing depth while translucent makes the furniture behind
               // it vanish rather than show through.
-              m.depthWrite = c.currentOpacity > 0.95;
+              if (!isGlass) m.depthWrite = c.currentOpacity > 0.95;
+              if (isGlass && m instanceof THREE.MeshPhysicalMaterial) {
+                m.transmission = baseGlassTransmission * c.currentOpacity;
+              }
             });
           }
         });

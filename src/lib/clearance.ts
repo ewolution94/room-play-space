@@ -2,7 +2,7 @@ import type { Item, Opening, Point } from "@/types/planner";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
 import { inwardNormal } from "@/lib/wall-slopes";
 import { collidesWithOthers, obbCorners, rotatedAABB } from "@/lib/planner-math";
-import { OPENING_GEOMETRY, isSwingingOpening, openingLeaves } from "@/lib/openings";
+import { OPENING_GEOMETRY, isSwingingOpening, isWallOpening, openingLeaves } from "@/lib/openings";
 
 /**
  * Placement problems worth flagging on the plan: items overlapping each other (possible with
@@ -96,6 +96,8 @@ export function openingClearance(
   o: Opening,
   corners: Point[],
 ): { zones: Point[][]; bottom: number; top: number } | null {
+  // A roof window is overhead, in the slope: nothing on the floor is in its way.
+  if (!isWallOpening(o.kind)) return null;
   const seg = resolveWallSegment(corners, o.wall);
   if (!seg) return null;
   const len = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);

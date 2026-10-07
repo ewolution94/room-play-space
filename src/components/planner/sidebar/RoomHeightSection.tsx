@@ -14,15 +14,15 @@ import {
 import { NumberField } from "@/components/ui/number-field";
 import { NAMED_WALLS, wallColorKey, wallLabel } from "@/lib/hallway-shapes";
 import {
-  DEFAULT_CEILING_HEIGHT,
   STANDING_HEIGHT,
   distanceToClearHeight,
   pitchFromRun,
+  type WallSlope,
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
-import type { Opening, Point } from "@/types/planner";
+import type { Opening, Point, RoofActions } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
-import { ArrowUpFromLine, Plus, TriangleRight, X } from "lucide-react";
+import { ArrowUpFromLine, Plus, Trash2, TriangleRight, X } from "lucide-react";
 
 interface RoomHeightSectionProps {
   t: TranslationStrings;
@@ -32,10 +32,10 @@ interface RoomHeightSectionProps {
   setCeilingHeight: (h: number) => void;
   wallSlopes: WallSlopeMap;
   setWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>>;
-  /** Needed so adding a slope can clear the doors/windows already on that
-   * wall -- openings and slopes can't coexist yet. */
+  /** Adding or removing a slope and the dormers on it (use-room-planner.ts). */
+  roofActions: RoofActions;
+  /** To ask before a slope change deletes the openings on its wall. */
   openings: Opening[];
-  removeOpening: (id: string) => void;
   disabled?: boolean;
 }
 
@@ -63,11 +63,12 @@ export function RoomHeightSection({
   setCeilingHeight,
   wallSlopes,
   setWallSlopes,
+  roofActions,
   openings,
-  removeOpening,
   disabled,
 }: RoomHeightSectionProps) {
-  const [pendingSlopeWall, setPendingSlopeWall] = useState<string | null>(null);
+  // A slope change that would delete openings (or dormers) waits here for a yes.
+  const [pending, setPending] = useState<{ key: string; slope: WallSlope | null } | null>(null);
   const openingsOnWall = (key: string) => openings.filter((o) => String(o.wall) === key);
   const setSlope = (key: string, patch: Partial<{ kneeHeight: number; run: number }>) => {
     setWallSlopes((prev) => ({
@@ -76,31 +77,24 @@ export function RoomHeightSection({
     }));
   };
 
-  /** Openings aren't supported on a sloped wall (see addOpening in
-   * use-room-planner.ts). Adding a slope to a wall that already has some is
-   * therefore destructive, so it asks first rather than silently deleting
-   * doors and windows the user placed. */
-  const addSlope = (key: string) => {
-    if (openingsOnWall(key).length > 0) {
-      setPendingSlopeWall(key);
+  /** A knee wall only holds doors and windows inside a dormer, and a roof
+   * window has nothing to sit in once its slope goes, so adding or removing a
+   * slope deletes the openings on that wall (use-room-planner.ts's
+   * setWallSlope). That's destructive, so it asks first. */
+  const changeSlope = (key: string, slope: WallSlope | null) => {
+    const losesSomething =
+      openingsOnWall(key).length > 0 || (!slope && (wallSlopes[key]?.dormers?.length ?? 0) > 0);
+    if (losesSomething) {
+      setPending({ key, slope });
       return;
     }
-    setSlope(key, NEW_SLOPE);
+    roofActions.setWallSlope(key, slope);
   };
 
-  const confirmAddSlope = () => {
-    if (!pendingSlopeWall) return;
-    openingsOnWall(pendingSlopeWall).forEach((o) => removeOpening(o.id));
-    setSlope(pendingSlopeWall, NEW_SLOPE);
-    setPendingSlopeWall(null);
-  };
-
-  const removeSlope = (key: string) => {
-    setWallSlopes((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
+  const confirmPending = () => {
+    if (!pending) return;
+    roofActions.setWallSlope(pending.key, pending.slope);
+    setPending(null);
   };
 
   return (
@@ -139,7 +133,7 @@ export function RoomHeightSection({
                   size="sm"
                   type="button"
                   disabled={disabled}
-                  onClick={() => addSlope(key)}
+                  onClick={() => changeSlope(key, NEW_SLOPE)}
                   className="h-7 w-full justify-start gap-1.5 text-[11px] font-normal text-muted-foreground"
                 >
                   <Plus className="h-3 w-3" />
@@ -162,7 +156,7 @@ export function RoomHeightSection({
                     size="sm"
                     type="button"
                     disabled={disabled}
-                    onClick={() => removeSlope(key)}
+                    onClick={() => changeSlope(key, null)}
                     aria-label={lang === "de" ? "Schräge entfernen" : "Remove slope"}
                     className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                   >
@@ -204,24 +198,119 @@ export function RoomHeightSection({
                       ? `Aufrecht stehen ab ${Math.round(standFrom)} cm · ${Math.round(pitch)}° Neigung`
                       : `Stand upright from ${Math.round(standFrom)} cm in · ${Math.round(pitch)}° pitch`}
                 </p>
+
+                <div className="mt-2 space-y-1.5 border-t border-border/50 pt-2">
+                  {(slope.dormers ?? []).map((dormer, di) => (
+                    <div
+                      key={dormer.id}
+                      className="rounded border border-border/50 bg-background/60 p-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-medium">
+                          {t.dormer} {di + 1}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => roofActions.removeDormer(key, dormer.id)}
+                          aria-label={`${t.removeDormer} ${di + 1}`}
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="mt-1 grid grid-cols-3 gap-1.5">
+                        <div className="space-y-1">
+                          <span className="block text-[10px] text-muted-foreground">
+                            {lang === "de" ? "Position" : "Position"}
+                          </span>
+                          <NumberField
+                            min={0}
+                            max={10000}
+                            value={Math.round(dormer.position)}
+                            onCommit={(v) =>
+                              roofActions.updateDormer(key, dormer.id, { position: v })
+                            }
+                            disabled={disabled}
+                            aria-label={`${t.dormer} ${di + 1}: Position`}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <span className="block text-[10px] text-muted-foreground">
+                            {lang === "de" ? "Breite" : "Width"}
+                          </span>
+                          <NumberField
+                            min={1}
+                            max={10000}
+                            value={Math.round(dormer.width)}
+                            onCommit={(v) => roofActions.updateDormer(key, dormer.id, { width: v })}
+                            disabled={disabled}
+                            aria-label={`${t.dormer} ${di + 1}: ${lang === "de" ? "Breite" : "Width"}`}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <span className="block text-[10px] text-muted-foreground">
+                            {t.dormerHeight}
+                          </span>
+                          {/* At or above the room's height means "full height",
+                              stored as no height at all so it follows the
+                              ceiling if that changes. */}
+                          <NumberField
+                            min={1}
+                            max={ceilingHeight}
+                            value={Math.round(
+                              Math.min(dormer.height ?? ceilingHeight, ceilingHeight),
+                            )}
+                            onCommit={(v) =>
+                              roofActions.updateDormer(key, dormer.id, {
+                                height: v >= ceilingHeight ? undefined : v,
+                              })
+                            }
+                            disabled={disabled}
+                            aria-label={`${t.dormer} ${di + 1}: ${t.dormerHeight}`}
+                          />
+                        </div>
+                      </div>
+                      {dormer.height === undefined && (
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          {t.dormerFullHeight}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => roofActions.addDormer(key)}
+                    className="h-7 w-full justify-start gap-1.5 text-[11px] font-normal text-muted-foreground"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {t.addDormer}
+                  </Button>
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
-      <AlertDialog
-        open={pendingSlopeWall !== null}
-        onOpenChange={(o) => !o && setPendingSlopeWall(null)}
-      >
+      <AlertDialog open={pending !== null} onOpenChange={(o) => !o && setPending(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t.slopeRemovesOpeningsTitle}</AlertDialogTitle>
-            <AlertDialogDescription>{t.slopeRemovesOpeningsBody}</AlertDialogDescription>
+            <AlertDialogTitle>
+              {pending?.slope ? t.slopeRemovesOpeningsTitle : t.slopeRemoveTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pending?.slope ? t.slopeRemovesOpeningsBody : t.slopeRemoveBody}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{lang === "de" ? "Abbrechen" : "Cancel"}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAddSlope}>
+            <AlertDialogAction onClick={confirmPending}>
               {lang === "de" ? "Entfernen" : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>

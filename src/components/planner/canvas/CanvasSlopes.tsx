@@ -1,12 +1,15 @@
+import type React from "react";
 import { resolveWallSegment } from "@/lib/hallway-shapes";
 import {
   STANDING_HEIGHT,
   distanceToClearHeight,
+  dormerFootprints,
   inwardNormal,
   parseWallKey,
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
 import type { Point } from "@/types/planner";
+import { STRINGS } from "@/lib/planner-translations";
 
 interface CanvasSlopesProps {
   corners: Point[];
@@ -17,6 +20,14 @@ interface CanvasSlopesProps {
   /** Disambiguates this render's SVG <defs> ids from any other instance's. */
   idKey: string;
   lang: string;
+  /** Dragging a dormer along its wall (absent: dormers are only drawn).
+   * \`move\` gets the wanted position and is refused quietly when it can't be
+   * built there; \`start\` opens the drag's one undo step. */
+  dormerDrag?: {
+    scale: number;
+    start: () => void;
+    move: (wallKey: string, id: string, position: number) => void;
+  };
 }
 
 /**
@@ -48,11 +59,17 @@ export function CanvasSlopes({
   cm,
   idKey,
   lang,
+  dormerDrag,
 }: CanvasSlopesProps) {
   const entries = Object.entries(wallSlopes);
   if (entries.length === 0 || corners.length < 3) return null;
 
   const roomPoints = corners.map((c) => `${cm(c.x)},${cm(c.y)}`).join(" ");
+  // A dormer raises the roof over its stretch: the band, its contours and
+  // labels stop there (masked out) and the dormer is drawn on its own.
+  const dormers = dormerFootprints(corners, wallSlopes, ceilingHeight).filter((d) => d.depth > 0);
+  const toPoints = (pts: Point[]) => pts.map((p) => `${cm(p.x)},${cm(p.y)}`).join(" ");
+  const strings = STRINGS[lang === "de" ? "de" : "en"];
 
   // Heights worth marking. Filtered per slope to those it actually crosses,
   // so a shallow slope doesn't draw four lines on top of each other.
@@ -64,9 +81,18 @@ export function CanvasSlopes({
         <clipPath id={`slopeRoomClip-${idKey}`}>
           <polygon points={roomPoints} />
         </clipPath>
+        <mask id={`slopeDormerMask-${idKey}`}>
+          <polygon points={roomPoints} fill="white" />
+          {dormers.map((d) => (
+            <polygon key={d.dormer.id} points={toPoints(d.outline)} fill="black" />
+          ))}
+        </mask>
       </defs>
 
-      <g clipPath={`url(#slopeRoomClip-${idKey})`}>
+      <g
+        clipPath={`url(#slopeRoomClip-${idKey})`}
+        mask={dormers.length ? `url(#slopeDormerMask-${idKey})` : undefined}
+      >
         {entries.map(([wallKey, slope]) => {
           if (slope.run <= 0 || slope.kneeHeight >= ceilingHeight) return null;
           const seg = resolveWallSegment(corners, parseWallKey(wallKey));
@@ -197,6 +223,74 @@ export function CanvasSlopes({
           );
         })}
       </g>
+
+      {dormers.map((d) => {
+        const [w0, w1, d1, d0] = d.outline;
+        const label = `${strings.dormer} · ${Math.round(d.height)} cm`;
+        const onDown = (e: React.PointerEvent<SVGPolygonElement>) => {
+          if (!dormerDrag) return;
+          // Keep the stage's pan out of it.
+          e.stopPropagation();
+          e.preventDefault();
+          const target = e.currentTarget;
+          try {
+            target.setPointerCapture(e.pointerId);
+          } catch {
+            // Synthetic pointers (tests) can't be captured; real ones always can.
+          }
+          dormerDrag.start();
+          const len = Math.hypot(w1.x - w0.x, w1.y - w0.y) || 1;
+          const ux = (w1.x - w0.x) / len;
+          const uy = (w1.y - w0.y) / len;
+          const startX = e.clientX;
+          const startY = e.clientY;
+          const startPos = d.dormer.position;
+          const move = (ev: PointerEvent) => {
+            const dx = (ev.clientX - startX) / dormerDrag.scale;
+            const dy = (ev.clientY - startY) / dormerDrag.scale;
+            dormerDrag.move(d.wallKey, d.dormer.id, Math.round(startPos + dx * ux + dy * uy));
+          };
+          const up = (ev: PointerEvent) => {
+            try {
+              target.releasePointerCapture(ev.pointerId);
+            } catch {
+              // Only throws once the pointer is no longer active -- no capture left to release.
+            }
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+          };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+        };
+        return (
+          <g key={`dormer-${d.dormer.id}`}>
+            <polygon
+              points={toPoints(d.outline)}
+              className="fill-amber-500/5 stroke-amber-600/70"
+              strokeWidth={1.5}
+              strokeDasharray="6 3"
+              style={{
+                pointerEvents: dormerDrag ? "all" : "none",
+                cursor: dormerDrag ? "move" : undefined,
+                touchAction: "none",
+              }}
+              onPointerDown={onDown}
+            >
+              <title>{label}</title>
+            </polygon>
+            <text
+              x={cm((w0.x + w1.x + d1.x + d0.x) / 4)}
+              y={cm((w0.y + w1.y + d1.y + d0.y) / 4)}
+              textAnchor="middle"
+              dominantBaseline="central"
+              className="fill-amber-700 dark:fill-amber-400"
+              style={{ fontSize: 10, fontWeight: 700 }}
+            >
+              {label}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }

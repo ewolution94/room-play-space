@@ -33,6 +33,9 @@ export function Sidebar({
   setOKind,
   oLeaves,
   setOLeaves,
+  oSlopeLength,
+  setOSlopeLength,
+  slopedWallKeys,
   oWall,
   setOWall,
   oPos,
@@ -223,6 +226,9 @@ export function Sidebar({
                 setOKind={setOKind}
                 oLeaves={oLeaves}
                 setOLeaves={setOLeaves}
+                oSlopeLength={oSlopeLength}
+                setOSlopeLength={setOSlopeLength}
+                slopedWallKeys={slopedWallKeys}
                 oWall={oWall}
                 setOWall={setOWall}
                 oPos={oPos}

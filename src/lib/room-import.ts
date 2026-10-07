@@ -69,6 +69,13 @@ export function importedRoomContents(
           }
         : {}),
       ...(o.kind === "terrace-door" && o.leaves ? { leaves: o.leaves } : {}),
+      // Where a roof window sits up its slope (lib/roof-windows.ts).
+      ...(o.kind === "roof-window"
+        ? {
+            ...(o.sill !== undefined ? { sill: o.sill } : {}),
+            ...(o.slopeLength !== undefined ? { slopeLength: o.slopeLength } : {}),
+          }
+        : {}),
       color: o.color,
     })),
     items: data.items.map((i) => ({

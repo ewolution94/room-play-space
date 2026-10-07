@@ -40,8 +40,25 @@ import { findSingleRoom, updateSingleRoom } from "@/lib/single-rooms";
 import {
   DEFAULT_CEILING_HEIGHT,
   checkItemFitsUnderSlopes,
+  type Dormer,
+  type WallSlope,
   type WallSlopeMap,
 } from "@/lib/wall-slopes";
+import {
+  MIN_DORMER_WIDTH,
+  NEW_DORMER_WIDTH,
+  defaultRoofWindowSill,
+  dormerWindowSpan,
+  freeDormerPosition,
+  insideDormer,
+  newRoomProblem,
+  openingProblem,
+  roomProblemMessage,
+  wallForKey,
+  wallLength,
+  type RoomProblem,
+  type RoomShell,
+} from "@/lib/roof-windows";
 import { DEFAULT_FLOORING } from "@/lib/floor-materials";
 import { startsNewStep, type CoalesceRun } from "@/lib/history-coalesce";
 import { buildExportFilename } from "@/lib/export-filename";
@@ -50,13 +67,11 @@ import {
   resolveEffectiveOpenIntervals,
   type WallOpenInterval,
 } from "@/lib/room-adjacency";
-import { resolveWallSegment } from "@/lib/hallway-shapes";
 import {
+  OPENING_GEOMETRY,
   defaultOpeningWidth,
   isSwingingOpening,
-  openingFitsWall,
-  openingKindLabel,
-  openingTopHeight,
+  isWallOpening,
   requiredWallHeight,
 } from "@/lib/openings";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
@@ -618,6 +633,8 @@ export function useRoomPlanner(
   const [oWall, setOWall] = useState<Opening["wall"]>("top");
   const [oPos, setOPos] = useState(50);
   const [oWidth, setOWidth] = useState(defaultOpeningWidth("door"));
+  // Roof windows only: how long a new one is up the slope.
+  const [oSlopeLength, setOSlopeLength] = useState(OPENING_GEOMETRY["roof-window"].height);
 
   const stageRef = useRef<HTMLDivElement>(null);
   // 600x400 is only ever a placeholder for the very first render, before
@@ -943,65 +960,63 @@ export function useRoomPlanner(
     setItems((p) => p.map((i) => (i.id === id ? candidate : i)));
   };
 
+  // The room as the opening and dormer rules see it (lib/roof-windows.ts).
+  const roomShell = (patch: Partial<RoomShell> = {}): RoomShell => ({
+    corners,
+    wallSlopes,
+    ceilingHeight,
+    openings,
+    ...patch,
+  });
+
+  /**
+   * Refuses an edit, with the reason, when it would leave a door, window,
+   * roof window or dormer that can't be built: off its wall, overlapping,
+   * taller than the wall or dormer it's in, out of its slope. Only problems
+   * the edit introduces count, so a room imported with one isn't locked.
+   */
+  const refusesEdit = (
+    after: Partial<RoomShell>,
+    messageFor?: (p: RoomProblem) => string | undefined,
+    quiet = false,
+    about?: (p: RoomProblem) => boolean,
+  ): boolean => {
+    const problem = newRoomProblem(roomShell(), roomShell(after), about);
+    if (!problem) return false;
+    if (!quiet) toast.error(messageFor?.(problem) ?? roomProblemMessage(problem, t));
+    return true;
+  };
+
   const addOpening = () => {
-    // Reject placements that don't actually fit on the chosen wall, or that
-    // overlap an opening already there -- previously neither was checked,
-    // so a door/window could be placed hanging off the end of a short wall
-    // or stacked directly on top of another door with no feedback at all.
-    // A sloped wall is a knee wall of varying headroom -- an opening in it
-    // would need its own height validation against kneeHeight and, in the
-    // slope itself, is really a roof window. Neither is supported, so the
-    // combination is refused outright rather than half-modelled.
-    if (wallSlopes[String(oWall)]) {
-      toast.error(t.openingOnSlopedWall);
-      return;
-    }
-    // An opening is a hole in a wall, so one that is taller than the wall
-    // simply can't be built -- it renders as glazing floating above the
-    // wall with no lintel over it. Blocked rather than warned (which is
-    // what too-tall *furniture* gets) for the same reason the
-    // out-of-bounds check blocks: it isn't a judgement call.
-    if (!openingFitsWall(oKind, ceilingHeight)) {
-      toast.error(
-        t.openingTooTall(
-          openingKindLabel({ kind: oKind, leaves: oLeaves }, t),
-          openingTopHeight(oKind),
-          Math.round(ceilingHeight),
-        ),
-      );
-      return;
-    }
-    const seg = resolveWallSegment(corners, oWall);
-    const wallLength = seg ? Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y) : Infinity;
-    if (oPos < 0 || oWidth <= 0 || oPos + oWidth > wallLength + 0.01) {
-      toast.error(t.openingOutOfBounds);
-      return;
-    }
-    const overlapsExisting = openings.some(
-      (o) =>
-        String(o.wall) === String(oWall) &&
-        oPos < o.position + o.width &&
-        o.position < oPos + oWidth,
-    );
-    if (overlapsExisting) {
-      toast.error(t.openingOverlap);
+    const isRoofWindow = oKind === "roof-window";
+    const slope = wallSlopes[String(oWall)];
+    // A roof window starts 100cm up the slope (or at the knee wall), moved
+    // down if it would run past the flat ceiling.
+    const sill =
+      (isRoofWindow && slope && defaultRoofWindowSill(slope, oSlopeLength, ceilingHeight)) ||
+      OPENING_GEOMETRY["roof-window"].sill;
+    const candidate: Opening = {
+      id: crypto.randomUUID(),
+      kind: oKind,
+      wall: oWall,
+      position: oPos,
+      width: oWidth,
+      // Anything you walk through gets hinges; a terrace door is a door
+      // that happens to be glazed (see isSwingingOpening).
+      ...(isSwingingOpening(oKind) ? { hinge: "start" as const, swing: "in" as const } : {}),
+      ...(oKind === "terrace-door" ? { leaves: oLeaves } : {}),
+      ...(isRoofWindow ? { sill, slopeLength: oSlopeLength } : {}),
+    };
+    // Every rule an opening has to keep -- on its wall, clear of the others,
+    // no taller than its wall (or dormer), a roof window inside its slope --
+    // lives in openingProblem, shared with editing and the slope edits.
+    const problem = openingProblem(candidate, roomShell({ openings: [...openings, candidate] }));
+    if (problem) {
+      toast.error(roomProblemMessage({ key: "", problem, opening: candidate }, t));
       return;
     }
     pushHistory();
-    setOpenings((p) => [
-      ...p,
-      {
-        id: crypto.randomUUID(),
-        kind: oKind,
-        wall: oWall,
-        position: oPos,
-        width: oWidth,
-        // Anything you walk through gets hinges; a terrace door is a door
-        // that happens to be glazed (see isSwingingOpening).
-        ...(isSwingingOpening(oKind) ? { hinge: "start" as const, swing: "in" as const } : {}),
-        ...(oKind === "terrace-door" ? { leaves: oLeaves } : {}),
-      },
-    ]);
+    setOpenings((p) => [...p, candidate]);
   };
   /**
    * The wall-height field, guarded: shortening the walls below an opening
@@ -1020,6 +1035,9 @@ export function useRoomPlanner(
       toast.error(t.ceilingBelowOpenings(needed));
       return;
     }
+    // Roof windows and dormers depend on it too: the slope's pitch changes
+    // with the ceiling it rises to.
+    if (refusesEdit({ ceilingHeight: next })) return;
     pushHistoryFor("ceilingHeight");
     setCeilingHeight(next);
   };
@@ -1035,8 +1053,12 @@ export function useRoomPlanner(
     setFlooring(value);
   };
   const applyWallSlopes: React.Dispatch<React.SetStateAction<WallSlopeMap>> = (value) => {
+    const next = typeof value === "function" ? value(wallSlopes) : value;
+    // A knee wall raised above a roof window, a run shortened past a dormer:
+    // refused like any other edit that leaves something unbuildable.
+    if (refusesEdit({ wallSlopes: next })) return;
     pushHistoryFor("wallSlopes");
-    setWallSlopes(value);
+    setWallSlopes(next);
   };
 
   const removeOpening = (id: string) => {
@@ -1049,56 +1071,120 @@ export function useRoomPlanner(
     const merged = { ...current, ...patch };
     // Only re-validate when the edit actually touches placement -- a color
     // or hinge/swing change can't push a door/window out of bounds or into
-    // an overlap, so it skips straight to committing (same reasoning as the
-    // position/width fields being the only inspector inputs that can
-    // reintroduce the addOpening bug this mirrors).
-    if (
-      patch.position !== undefined ||
-      patch.width !== undefined ||
-      patch.wall !== undefined ||
-      patch.kind !== undefined
-    ) {
-      // Moving an opening onto a sloped wall was the way round addOpening's
-      // refusal: that check only ran at creation, so the wall picker could
-      // put a door on a knee wall afterwards. Same rule, same message.
-      if (patch.wall !== undefined && wallSlopes[String(merged.wall)]) {
-        toast.error(t.openingOnSlopedWall);
-        return;
-      }
-      if (!openingFitsWall(merged.kind, ceilingHeight)) {
-        toast.error(
-          t.openingTooTall(
-            openingKindLabel(merged, t),
-            openingTopHeight(merged.kind),
-            Math.round(ceilingHeight),
-          ),
-        );
-        return;
-      }
-      const seg = resolveWallSegment(corners, merged.wall);
-      const wallLength = seg ? Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y) : Infinity;
-      if (
-        merged.position < 0 ||
-        merged.width <= 0 ||
-        merged.position + merged.width > wallLength + 0.01
-      ) {
-        toast.error(t.openingOutOfBounds);
-        return;
-      }
-      const overlapsExisting = openings.some(
-        (o) =>
-          o.id !== id &&
-          String(o.wall) === String(merged.wall) &&
-          merged.position < o.position + o.width &&
-          o.position < merged.position + merged.width,
+    // an overlap, so it skips straight to committing.
+    const placement = (
+      ["position", "width", "wall", "kind", "leaves", "sill", "slopeLength"] as const
+    ).some((key) => patch[key] !== undefined);
+    const refused =
+      placement &&
+      refusesEdit(
+        { openings: openings.map((o) => (o.id === id ? merged : o)) },
+        undefined,
+        false,
+        (p) => p.opening?.id === id,
       );
-      if (overlapsExisting) {
-        toast.error(t.openingOverlap);
-        return;
-      }
-    }
+    if (refused) return;
     pushHistory();
     setOpenings((p) => p.map((o) => (o.id === id ? merged : o)));
+  };
+
+  // -------- Slopes, dormers --------
+  // Each of these changes the slopes and the openings together, as one undo
+  // step, and refuses (with the reason) anything that can't be built.
+
+  /** Gives a wall a slope, or takes it away. Either way the openings on that
+   * wall go: a knee wall only holds them inside a dormer, and a roof window
+   * has nothing to sit in without the slope. The Inspector asks first. */
+  const setWallSlope = (wallKey: string, slope: WallSlope | null) => {
+    const nextSlopes = { ...wallSlopes };
+    if (slope) nextSlopes[wallKey] = slope;
+    else delete nextSlopes[wallKey];
+    pushHistory();
+    setWallSlopes(nextSlopes);
+    setOpenings((p) => p.filter((o) => String(o.wall) !== wallKey));
+  };
+
+  /** A new dormer, in the first free stretch of the slope, with a window in
+   * its front when one fits. */
+  const addDormer = (wallKey: string) => {
+    const slope = wallSlopes[wallKey];
+    const wall = wallForKey(wallKey);
+    if (!slope || wall === null) return;
+    const len = wallLength(corners, wall);
+    const width = Math.max(MIN_DORMER_WIDTH, Math.min(NEW_DORMER_WIDTH, Math.floor(len - 20)));
+    const position = freeDormerPosition(wallKey, width, roomShell());
+    if (position === null) {
+      toast.error(t.dormerNoRoom);
+      return;
+    }
+    const dormer: Dormer = { id: crypto.randomUUID(), position, width };
+    const nextSlopes = {
+      ...wallSlopes,
+      [wallKey]: { ...slope, dormers: [...(slope.dormers ?? []), dormer] },
+    };
+    const span = dormerWindowSpan(dormer, ceilingHeight);
+    const nextOpenings: Opening[] = span
+      ? [...openings, { id: crypto.randomUUID(), kind: "window", wall, ...span }]
+      : openings;
+    if (refusesEdit({ wallSlopes: nextSlopes, openings: nextOpenings })) return;
+    pushHistory();
+    setWallSlopes(nextSlopes);
+    setOpenings(nextOpenings);
+  };
+
+  /** Moves or resizes a dormer. Its doors and windows move with it. A drag
+   * on the plan passes \`quiet\` (a refused step just doesn't move it) and
+   * \`history: false\` (it took its one undo step when it started). */
+  const updateDormer = (
+    wallKey: string,
+    id: string,
+    patch: Partial<Omit<Dormer, "id">>,
+    options: { quiet?: boolean; history?: boolean } = {},
+  ) => {
+    const slope = wallSlopes[wallKey];
+    const dormer = slope?.dormers?.find((d) => d.id === id);
+    if (!slope || !dormer) return;
+    const next: Dormer = { ...dormer, ...patch };
+    if (patch.height === undefined && "height" in patch) delete next.height;
+    const shift = next.position - dormer.position;
+    const nextOpenings = shift
+      ? openings.map((o) =>
+          String(o.wall) === wallKey && isWallOpening(o.kind) && insideDormer(o, dormer)
+            ? { ...o, position: o.position + shift }
+            : o,
+        )
+      : openings;
+    const nextSlopes = {
+      ...wallSlopes,
+      [wallKey]: { ...slope, dormers: (slope.dormers ?? []).map((d) => (d.id === id ? next : d)) },
+    };
+    const refused = refusesEdit(
+      { wallSlopes: nextSlopes, openings: nextOpenings },
+      (p) => (p.opening && p.problem.code === "sloped-wall" ? t.dormerOpeningsOutside : undefined),
+      options.quiet,
+      (p) => p.dormer?.id === id,
+    );
+    if (refused) return;
+    if (options.history !== false) pushHistoryFor(`dormer:${id}`);
+    setWallSlopes(nextSlopes);
+    if (shift) setOpenings(nextOpenings);
+  };
+
+  /** Takes a dormer away, and the doors and windows in its front with it. */
+  const removeDormer = (wallKey: string, id: string) => {
+    const slope = wallSlopes[wallKey];
+    const dormer = slope?.dormers?.find((d) => d.id === id);
+    if (!slope || !dormer) return;
+    pushHistory();
+    setWallSlopes({
+      ...wallSlopes,
+      [wallKey]: { ...slope, dormers: (slope.dormers ?? []).filter((d) => d.id !== id) },
+    });
+    setOpenings((p) =>
+      p.filter(
+        (o) => !(String(o.wall) === wallKey && isWallOpening(o.kind) && insideDormer(o, dormer)),
+      ),
+    );
   };
 
   // -------- Reset --------
@@ -1762,6 +1848,8 @@ export function useRoomPlanner(
     setOPos,
     oWidth,
     setOWidth,
+    oSlopeLength,
+    setOSlopeLength,
 
     // Refs
     stageRef,
@@ -1804,6 +1892,7 @@ export function useRoomPlanner(
     setCeilingHeight: applyCeilingHeight,
     wallSlopes,
     setWallSlopes: applyWallSlopes,
+    roofActions: { setWallSlope, addDormer, updateDormer, removeDormer },
     slopeIssues,
     placementIssues,
     selectedOpeningId,

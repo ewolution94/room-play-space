@@ -1,5 +1,6 @@
 import React from "react";
 import type { Item, Lang, Opening, Point } from "@/types/planner";
+import type { WallSlopeMap } from "@/lib/wall-slopes";
 import type { TranslationStrings } from "@/lib/planner-translations";
 import { RoomPlanSvg } from "@/components/planner/RoomPlanSvg";
 import { blueprintNumbers, floorAreaM2 } from "@/lib/blueprint";
@@ -15,6 +16,7 @@ interface RoomBlueprintProps {
   openings: Opening[];
   items: Item[];
   ceilingHeight: number;
+  wallSlopes: WallSlopeMap;
 }
 
 const round = (n: number) => Math.round(n);
@@ -32,6 +34,7 @@ export function RoomBlueprint({
   openings,
   items,
   ceilingHeight,
+  wallSlopes,
 }: RoomBlueprintProps) {
   const numbers = blueprintNumbers(items);
   const labels = new Map([...numbers].map(([id, n]) => [id, String(n)]));
@@ -68,6 +71,8 @@ export function RoomBlueprint({
         labels={labels}
         title={name}
         dimensions
+        wallSlopes={wallSlopes}
+        ceilingHeight={ceilingHeight}
         className="mx-auto block max-h-[150mm] w-full text-black"
       />
 

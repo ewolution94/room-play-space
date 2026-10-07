@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/dialog";
 import type { Opening, OpeningKind, Point } from "@/types/planner";
 import type { TranslationStrings } from "@/lib/planner-translations";
-import { defaultOpeningWidth, openingWidthPresets } from "@/lib/openings";
+import { ROOF_WINDOW_SIZES, defaultOpeningWidth, openingWidthPresets } from "@/lib/openings";
 import { wallSegments, wallColorKey } from "@/lib/hallway-shapes";
 import { closedSubIntervals, type WallOpenInterval } from "@/lib/room-adjacency";
+import { wallForKey } from "@/lib/roof-windows";
 
 interface OpeningsDialogProps {
   t: TranslationStrings;
@@ -35,6 +36,12 @@ interface OpeningsDialogProps {
   setOPos: (pos: number) => void;
   oWidth: number;
   setOWidth: (width: number) => void;
+  /** Roof windows only: length up the slope. */
+  oSlopeLength: number;
+  setOSlopeLength: (length: number) => void;
+  /** Walls with a slope (wallColorKey keys): the only ones a roof window can
+   * go on, and the kind is only offered when there is one. */
+  slopedWallKeys: string[];
   addOpening: () => void;
   /** Wall count of the room currently being edited -- 4 for a plain
    * rectangular room (named wall picker, unchanged), anything else for a
@@ -66,6 +73,9 @@ export function OpeningsDialog({
   setOPos,
   oWidth,
   setOWidth,
+  oSlopeLength,
+  setOSlopeLength,
+  slopedWallKeys,
   addOpening,
   cornersCount,
   corners,
@@ -76,12 +86,15 @@ export function OpeningsDialog({
   const wallSegs = wallSegments(corners);
   const isWallFullyOpen = (key: string, length: number) =>
     closedSubIntervals(length, openWalls.get(key) ?? []).length === 0;
+  // A roof window goes in a slope, so for one only the sloped walls are offered.
+  const roofWindow = oKind === "roof-window";
   const availableNamedWalls = NAMED_WALLS.filter((w, idx) => {
     const seg = wallSegs[idx];
-    return !!seg && !isWallFullyOpen(w, seg.length);
+    return !!seg && !isWallFullyOpen(w, seg.length) && (!roofWindow || slopedWallKeys.includes(w));
   });
   const availableWallIndices = wallSegs
     .filter((seg) => !isWallFullyOpen(wallColorKey(seg.index, corners.length), seg.length))
+    .filter((seg) => !roofWindow || slopedWallKeys.includes(String(seg.index)))
     .map((seg) => seg.index);
   const isCurrentWallFullyOpen = (() => {
     const key = typeof oWall === "string" ? oWall : String(oWall);
@@ -160,6 +173,13 @@ export function OpeningsDialog({
                     // follows the choice instead of leaving a 90cm window
                     // or a 120cm door behind. See lib/openings.ts.
                     setOWidth(defaultOpeningWidth(kind, oLeaves));
+                    // A roof window needs a sloped wall: move to one.
+                    const key = typeof oWall === "string" ? oWall : String(oWall);
+                    const sloped = slopedWallKeys[0];
+                    const wall = sloped === undefined ? null : wallForKey(sloped);
+                    if (kind === "roof-window" && !slopedWallKeys.includes(key) && wall !== null) {
+                      setOWall(wall);
+                    }
                   }}
                 >
                   <option value="door" className="bg-background">
@@ -171,6 +191,11 @@ export function OpeningsDialog({
                   <option value="terrace-door" className="bg-background">
                     {t.terraceDoor}
                   </option>
+                  {slopedWallKeys.length > 0 && (
+                    <option value="roof-window" className="bg-background">
+                      {t.roofWindow}
+                    </option>
+                  )}
                 </select>
               </div>
             </div>
@@ -301,25 +326,68 @@ export function OpeningsDialog({
             </div>
           </div>
 
+          {roofWindow && (
+            <div className="space-y-1">
+              <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {t.roofWindowLength}
+              </Label>
+              <NumberField
+                min={10}
+                max={1000}
+                value={oSlopeLength}
+                onCommit={setOSlopeLength}
+                aria-label={t.roofWindowLength}
+                className="h-8 text-xs"
+              />
+            </div>
+          )}
+
           {/* The sizes these things are actually sold in, so the common
-              case is one click rather than a number you have to know. */}
-          <div className="flex flex-wrap gap-1.5">
-            {openingWidthPresets(oKind, oLeaves).map((w) => (
-              <button
-                aria-pressed={oWidth === w}
-                key={w}
-                type="button"
-                onClick={() => setOWidth(w)}
-                className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                  oWidth === w
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                {w} cm
-              </button>
-            ))}
-          </div>
+              case is one click rather than a number you have to know. A
+              roof window's are whole Velux sizes, width by length. */}
+          {roofWindow ? (
+            <div className="flex flex-wrap gap-1.5">
+              {ROOF_WINDOW_SIZES.map(([w, l]) => {
+                const current = oWidth === w && oSlopeLength === l;
+                return (
+                  <button
+                    aria-pressed={current}
+                    key={`${w}x${l}`}
+                    type="button"
+                    onClick={() => {
+                      setOWidth(w);
+                      setOSlopeLength(l);
+                    }}
+                    className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                      current
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                    }`}
+                  >
+                    {w} × {l} cm
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {openingWidthPresets(oKind, oLeaves).map((w) => (
+                <button
+                  aria-pressed={oWidth === w}
+                  key={w}
+                  type="button"
+                  onClick={() => setOWidth(w)}
+                  className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                    oWidth === w
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  {w} cm
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter>

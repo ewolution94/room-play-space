@@ -20,7 +20,9 @@ browser.
   ("Kniestock") and a horizontal run into the room. Two numbers you can take
   with a tape measure. PLANUM then flags every placed item that no longer
   fits under the resulting ceiling — the thing a flat 2D floor plan can
-  never tell you.
+  never tell you. Box dormers ("Gauben") raise the roof over a stretch of a
+  sloped wall, with a window in their front, and roof windows
+  ("Dachfenster") sit in the slope itself, in Velux sizes.
 - **The same room in 2D and 3D** — a top-down canvas for precise placement,
   and a Three.js walkthrough for what it will actually feel like. One
   layout, two views, no separate "3D mode" file.
@@ -113,6 +115,15 @@ furniture clamping all stay exactly as they are for a plain rectangular
 room. What the slope changes is the *available height* at a given point,
 which is what `checkItemFitsUnderSlopes` uses to tell you that a 200 cm
 wardrobe cannot stand where the ceiling is 120 cm.
+
+A dormer belongs to its slope (`WallSlope.dormers`): across its stretch of
+the wall the ceiling is flat at the dormer's height out to where the slope
+reaches it, so the fit checks and the 2D band count it with no extra wiring.
+A knee wall only holds doors and windows inside a dormer. A roof window is an
+opening of its own kind on a sloped wall, placed by its lower edge's height
+and its length up the slope; in 3D it is cut out of the slanted ceiling and
+glazed. `src/lib/roof-windows.ts` holds every rule an opening or dormer has
+to keep, and an edit that would break one is refused with the reason.
 
 `src/lib/wall-slopes.ts` has the full reasoning; `docs/LEARNINGS.md` covers
 how it interacts with the canvas and the 3D renderer.

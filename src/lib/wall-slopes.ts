@@ -28,10 +28,13 @@ import { obbCorners, pointInPolygon } from "@/lib/planner-math";
  *   minimum, so where two slopes overlap the lower one wins automatically.
  * - It degrades: a room with no slopes is a plain box, exactly as now.
  *
- * What it deliberately cannot express (and shouldn't, at this stage):
- * dormers ("Gauben"), hipped ends over a non-parallel wall, curved or
- * multi-pitch roofs. Those want real roof geometry; this wants to answer
- * one question well -- "how tall can something be at this spot?"
+ * Dormers ("Gauben") ride on a slope as a second, positive volume carved
+ * back out of it: a stretch of the wall where the roof is raised to a flat
+ * dormer ceiling (see Dormer). Roof windows sit in the slope itself and are
+ * openings (lib/roof-windows.ts). What it still deliberately cannot express:
+ * hipped ends over a non-parallel wall, curved or multi-pitch roofs, gabled
+ * dormers. Those want real roof geometry; this wants to answer one question
+ * well -- "how tall can something be at this spot?"
  */
 
 /** Fallback when a room carries no explicit ceiling height. Matches the
@@ -44,6 +47,23 @@ export const DEFAULT_CEILING_HEIGHT = 240;
  * plan, so it's a named constant rather than a magic number in a component. */
 export const STANDING_HEIGHT = 190;
 
+/**
+ * A box dormer ("Schleppgaube" with a flat ceiling): a stretch of a sloped
+ * wall where the roof is raised. Inside it the ceiling is flat at `height`
+ * from the wall out to where the slope itself reaches that height, with
+ * vertical side walls ("Gaubenwangen") and the wall raised to `height` along
+ * its front, so a window or door can go there. Measured like an opening:
+ * `position` is cm along the wall from resolveWallSegment's `a`.
+ */
+export interface Dormer {
+  id: string;
+  position: number;
+  width: number;
+  /** Ceiling height inside the dormer, cm. Absent: the room's full ceiling
+   * height, which is also the most it can be. */
+  height?: number;
+}
+
 export interface WallSlope {
   /** Ceiling height in cm where this wall meets the floor -- the knee wall
    * ("Kniestock"). 0 means the roof meets the floor at this wall. */
@@ -52,6 +72,13 @@ export interface WallSlope {
    * which the ceiling rises from `kneeHeight` to the room's full ceiling
    * height. Past this distance the ceiling is flat. */
   run: number;
+  /** Box dormers in this slope; they go when the slope goes. */
+  dormers?: Dormer[];
+}
+
+/** A dormer's ceiling height in a room of `ceilingHeight`: never above it. */
+export function dormerHeight(dormer: Pick<Dormer, "height">, ceilingHeight: number): number {
+  return Math.min(dormer.height ?? ceilingHeight, ceilingHeight);
 }
 
 /** Keyed exactly like `wallColors` -- see wallColorKey() in
@@ -103,6 +130,22 @@ export function inwardNormal(corners: Point[], a: Point, b: Point): Point {
   return pointInPolygon(probe, corners) ? { x: -out.x, y: -out.y } : out;
 }
 
+/**
+ * Where a point sits relative to a wall: `along`, cm along the wall's line
+ * from `a` towards `b` (an opening's or dormer's `position` measures the
+ * same way), and `off`, its distance from that line (signless).
+ */
+export function wallCoordinates(p: Point, a: Point, b: Point): { along: number; off: number } {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return { along: 0, off: Infinity };
+  return {
+    along: (dx * (p.x - a.x) + dy * (p.y - a.y)) / len,
+    off: Math.abs(dx * (p.y - a.y) - dy * (p.x - a.x)) / len,
+  };
+}
+
 /** Perpendicular distance from a point to the infinite line through a
  * wall's endpoints. Distance to the LINE, not the segment: the slope plane
  * continues across the room's full width, so a point past a wall's end is
@@ -118,14 +161,21 @@ function distanceToWallLine(p: Point, a: Point, b: Point): number {
 /**
  * Usable ceiling height (cm) at one point on the floor. The minimum over
  * every sloped wall, so overlapping slopes compose correctly.
+ *
+ * A dormer raises its own wall's slope to the dormer's height across its
+ * stretch of the wall (the max of the two: past the dormer's depth the slope
+ * is higher anyway). `dormers: false` gives the bare roof plane instead,
+ * which is what the 3D ceiling samples once the dormers are cut out of it.
  */
 export function availableHeightAt(
   point: Point,
   corners: Point[],
   slopes: WallSlopeMap | undefined,
   ceilingHeight: number = DEFAULT_CEILING_HEIGHT,
+  options: { dormers?: boolean } = {},
 ): number {
   if (!slopes) return ceilingHeight;
+  const withDormers = options.dormers ?? true;
 
   let lowest = ceilingHeight;
   for (const [wallKey, slope] of Object.entries(slopes)) {
@@ -133,13 +183,73 @@ export function availableHeightAt(
     const seg = resolveWallSegment(corners, parseWallKey(wallKey));
     if (!seg) continue;
 
-    const d = distanceToWallLine(point, seg.a, seg.b);
+    const { along, off: d } = wallCoordinates(point, seg.a, seg.b);
     if (d >= slope.run) continue;
 
-    const h = slope.kneeHeight + ((ceilingHeight - slope.kneeHeight) * d) / slope.run;
+    let h = slope.kneeHeight + ((ceilingHeight - slope.kneeHeight) * d) / slope.run;
+    if (withDormers) {
+      for (const dormer of slope.dormers ?? []) {
+        if (along >= dormer.position && along <= dormer.position + dormer.width) {
+          h = Math.max(h, dormerHeight(dormer, ceilingHeight));
+        }
+      }
+    }
     if (h < lowest) lowest = h;
   }
   return lowest;
+}
+
+/** One dormer on the floor plan. */
+export interface DormerFootprint {
+  wallKey: string;
+  dormer: Dormer;
+  /** The two ends on the wall line, then the two at `depth`, in that order. */
+  outline: [Point, Point, Point, Point];
+  /** How far into the room its flat ceiling reaches: where the slope rises
+   * to `height` (0 for a dormer no higher than the knee wall). */
+  depth: number;
+  height: number;
+  /** The wall's knee height, where the dormer's side walls start. */
+  kneeHeight: number;
+}
+
+/**
+ * Every dormer in a room, placed on the floor plan. Dormers on an
+ * ineffective slope, or on a wall that no longer resolves, are left out.
+ */
+export function dormerFootprints(
+  corners: Point[],
+  slopes: WallSlopeMap | undefined,
+  ceilingHeight: number = DEFAULT_CEILING_HEIGHT,
+): DormerFootprint[] {
+  const out: DormerFootprint[] = [];
+  for (const [wallKey, slope] of Object.entries(slopes ?? {})) {
+    if (!slope.dormers?.length || !isEffective(slope, ceilingHeight)) continue;
+    const seg = resolveWallSegment(corners, parseWallKey(wallKey));
+    if (!seg) continue;
+    const len = Math.hypot(seg.b.x - seg.a.x, seg.b.y - seg.a.y);
+    if (len === 0) continue;
+    const u = { x: (seg.b.x - seg.a.x) / len, y: (seg.b.y - seg.a.y) / len };
+    const n = inwardNormal(corners, seg.a, seg.b);
+    const at = (along: number, off: number): Point => ({
+      x: seg.a.x + u.x * along + n.x * off,
+      y: seg.a.y + u.y * along + n.y * off,
+    });
+    for (const dormer of slope.dormers) {
+      const height = dormerHeight(dormer, ceilingHeight);
+      const depth = distanceToClearHeight(slope, height, ceilingHeight);
+      const end = dormer.position + dormer.width;
+      out.push({
+        wallKey,
+        dormer,
+        outline: [at(dormer.position, 0), at(end, 0), at(end, depth), at(dormer.position, depth)],
+        depth,
+        height,
+        kneeHeight: slope.kneeHeight,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -227,9 +337,19 @@ export function buildCeilingSurface(
   slopes: WallSlopeMap | undefined,
   ceilingHeight: number,
   triangulate2D: (corners: Point[]) => [Point, Point, Point][],
-  maxEdgeCm = 15,
+  options: { maxEdgeCm?: number; cutouts?: Point[][] } = {},
 ): number[] {
-  let tris = triangulate2D(corners);
+  const maxEdgeCm = options.maxEdgeCm ?? 15;
+  // Dormers and roof windows are holes in the roof plane: each dormer gets
+  // its own flat ceiling and side walls (dormerShell), a roof window its
+  // glass. Cut exactly, before subdividing, so the holes keep straight edges.
+  const holes = [
+    ...dormerFootprints(corners, slopes, ceilingHeight)
+      .filter((d) => d.depth > 0)
+      .map((d) => d.outline),
+    ...(options.cutouts ?? []),
+  ];
+  let tris = cutOutConvex(triangulate2D(corners), holes);
   const hasSlopes = !!slopes && Object.keys(slopes).length > 0;
 
   if (hasSlopes) {
@@ -270,10 +390,104 @@ export function buildCeilingSurface(
     // first showed up.)
     if (!tri.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) continue;
     for (const p of tri) {
-      out.push(p.x, availableHeightAt(p, corners, slopes, ceilingHeight), p.y);
+      out.push(p.x, availableHeightAt(p, corners, slopes, ceilingHeight, { dormers: false }), p.y);
     }
   }
   return out;
+}
+
+type Tri = [Point, Point, Point];
+
+/** Twice the signed area of a polygon (its sign is its winding). */
+function signedArea2(poly: Point[]): number {
+  let sum = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return sum;
+}
+
+/** The part of a convex polygon on one side of the line p->q: `side` +1 keeps
+ * points left of it (cross product >= 0), -1 the right. Sutherland-Hodgman. */
+function clipToSide(poly: Point[], p: Point, q: Point, side: 1 | -1): Point[] {
+  const dx = q.x - p.x;
+  const dy = q.y - p.y;
+  const score = (v: Point) => side * (dx * (v.y - p.y) - dy * (v.x - p.x));
+  const out: Point[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const cur = poly[i];
+    const next = poly[(i + 1) % poly.length];
+    const sc = score(cur);
+    const sn = score(next);
+    if (sc >= 0) out.push(cur);
+    if (sc >= 0 !== sn >= 0) {
+      const t = sc / (sc - sn);
+      out.push({ x: cur.x + (next.x - cur.x) * t, y: cur.y + (next.y - cur.y) * t });
+    }
+  }
+  return out;
+}
+
+/**
+ * Triangles minus convex holes, exactly: every piece is split along each
+ * hole edge, the parts outside a hole are kept and the part inside all of
+ * its edges is dropped. Pieces stay convex, so each is fanned back into
+ * triangles; slivers with no area are discarded. Exported for its tests.
+ */
+export function cutOutConvex(tris: Tri[], holes: Point[][]): Tri[] {
+  let pieces: Point[][] = tris.map((t) => [...t]);
+  for (const hole of holes) {
+    const area = signedArea2(hole);
+    if (hole.length < 3 || Math.abs(area) < 1e-9) continue;
+    const inward: 1 | -1 = area > 0 ? 1 : -1;
+    const next: Point[][] = [];
+    for (const piece of pieces) {
+      let inside = piece;
+      for (let i = 0; i < hole.length && inside.length >= 3; i++) {
+        const p = hole[i];
+        const q = hole[(i + 1) % hole.length];
+        const outside = clipToSide(inside, p, q, inward === 1 ? -1 : 1);
+        if (outside.length >= 3) next.push(outside);
+        inside = clipToSide(inside, p, q, inward);
+      }
+    }
+    pieces = next;
+  }
+  const out: Tri[] = [];
+  for (const piece of pieces) {
+    for (let i = 1; i + 1 < piece.length; i++) {
+      const tri: Tri = [piece[0], piece[i], piece[i + 1]];
+      if (Math.abs(signedArea2(tri)) > 1e-6) out.push(tri);
+    }
+  }
+  return out;
+}
+
+/**
+ * What a dormer adds to the 3D shell, as [x, height, y] triangle triples in
+ * room cm (like buildCeilingSurface): its flat ceiling, and its two side
+ * walls, each a triangle from the knee wall up to the dormer ceiling and
+ * back down the slope to where they meet. The raised front wall is the wall
+ * builder's job, since doors and windows go into it.
+ */
+export function dormerShell(fp: DormerFootprint): { ceiling: number[]; cheeks: number[] } {
+  const [w0, w1, d1, d0] = fp.outline;
+  const h = fp.height;
+  const v = (p: Point, y: number) => [p.x, y, p.y];
+  if (fp.depth <= 0) return { ceiling: [], cheeks: [] };
+  return {
+    ceiling: [...v(w0, h), ...v(w1, h), ...v(d1, h), ...v(w0, h), ...v(d1, h), ...v(d0, h)],
+    cheeks: [
+      ...v(w0, fp.kneeHeight),
+      ...v(w0, h),
+      ...v(d0, h),
+      ...v(w1, fp.kneeHeight),
+      ...v(w1, h),
+      ...v(d1, h),
+    ],
+  };
 }
 
 /**

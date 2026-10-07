@@ -147,6 +147,8 @@ function ShareRoute() {
               corners={state.room.corners}
               openings={state.room.openings}
               items={state.room.items}
+              wallSlopes={state.room.wallSlopes}
+              ceilingHeight={state.room.ceilingHeight}
               title={state.name ?? t.sharedRoom}
               className="w-full max-h-[60vh] rounded-lg border bg-muted/30 text-foreground"
             />

@@ -3,8 +3,8 @@
 Written 2026-07-31.
 
 **Status: Phases 0-4 are built and verified; Phase 4 (the 3D ceiling and
-slopes) shipped the same day as 0-3. Phase 5 (wizard step, roof windows,
-dormers) is not started.** So the model, the Inspector editing, the 2D
+slopes) shipped the same day as 0-3. Phase 5: roof windows and box dormers
+are built (2026-10-07); the wizard step is next.** So the model, the Inspector editing, the 2D
 overlay, the furniture-fit feedback and the 3D sections below all describe
 shipped code. See `todo.md` for the build notes and what each phase actually
 touched.
@@ -317,6 +317,11 @@ Two things worth noting about this ordering:
 - **Slope editing lives in the Inspector**, next to wall colours, reusing the
   existing wall-picker pattern.
 - **Dormers, hipped ends and multi-pitch roofs stay out of scope.**
+  *Revisited 2026-10-07, when the user asked for them:* box dormers (a flat
+  dormer ceiling, full room height or lower) and Velux-style roof windows are
+  in; gabled dormers, hipped ends and multi-pitch roofs stay out.
+- **The wizard gets a slope step** (2026-10-07): slopes and the ceiling height,
+  optional, after dimensions; dormers and roof windows stay in the editor.
 
 ## Things I'd still want your call on
 

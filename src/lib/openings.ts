@@ -19,12 +19,24 @@ import type { TranslationStrings } from "@/lib/planner-translations";
  *   terrace-door   0 -> 210   (floor-length glazing; German terrace doors
  *                              are commonly 200-210, and 210 keeps a
  *                              little lintel under a 240 ceiling)
+ *
+ * A roof window sits in the slope, not in a wall, so its numbers are only
+ * the defaults for a new one: the lower edge 100cm up (Velux suggests 90-120
+ * for a view out sitting or standing) and 118cm along the slope. Each roof
+ * window carries its own (`sill`, `slopeLength`), and nothing that asks how
+ * tall a WALL must be counts it (isWallOpening).
  */
 export const OPENING_GEOMETRY: Record<OpeningKind, { sill: number; height: number }> = {
   window: { sill: 90, height: 120 },
   door: { sill: 0, height: 200 },
   "terrace-door": { sill: 0, height: 210 },
+  "roof-window": { sill: 100, height: 118 },
 };
+
+/** Is this a hole in a wall (everything but a roof window, which sits in the slope)? */
+export function isWallOpening(kind: OpeningKind): boolean {
+  return kind !== "roof-window";
+}
 
 /** Height of the opening's top edge above the floor. */
 export function openingTopHeight(kind: OpeningKind): number {
@@ -56,7 +68,9 @@ export function openingFitsWall(kind: OpeningKind, wallHeight: number): boolean 
  * no openings, which is then free to have any ceiling height at all.
  */
 export function requiredWallHeight(openings: Pick<Opening, "kind">[]): number {
-  return openings.reduce((tallest, o) => Math.max(tallest, openingTopHeight(o.kind)), 0);
+  return openings
+    .filter((o) => isWallOpening(o.kind))
+    .reduce((tallest, o) => Math.max(tallest, openingTopHeight(o.kind)), 0);
 }
 
 /** Does this kind swing on hinges (leaf + arc in plan, floor space eaten)? */
@@ -66,7 +80,7 @@ export function isSwingingOpening(kind: OpeningKind): boolean {
 
 /** Is this kind glazed (drawn with a glass tint, fades like glass in 3D)? */
 export function isGlazedOpening(kind: OpeningKind): boolean {
-  return kind === "window" || kind === "terrace-door";
+  return kind === "window" || kind === "terrace-door" || kind === "roof-window";
 }
 
 /** Terrace doors come in one- and two-leaf ("einflügelig"/"zweiflügelig")
@@ -85,7 +99,22 @@ export const OPENING_WIDTH_PRESETS: Record<OpeningKind, number[]> = {
   door: [70, 80, 90, 100],
   window: [60, 90, 120, 160],
   "terrace-door": [80, 90, 100],
+  // Velux's frame widths (C/F/M/P/S/U): 55 to 134cm.
+  "roof-window": [55, 66, 78, 94, 114, 134],
 };
+
+/** Velux's frame lengths along the slope (04/06/08/10): 98 to 160cm, plus the short 78. */
+export const ROOF_WINDOW_LENGTH_PRESETS = [78, 98, 118, 140, 160];
+
+/** Common whole Velux sizes, width x length (CK04, FK06, MK04, MK06, MK08, SK06). */
+export const ROOF_WINDOW_SIZES: [number, number][] = [
+  [55, 98],
+  [66, 118],
+  [78, 98],
+  [78, 118],
+  [78, 140],
+  [114, 118],
+];
 
 /** Two-leaf terrace doors get their own presets -- a 90cm one would be a
  * single leaf, so offering it under "2 leaves" would be nonsense. */
@@ -94,6 +123,7 @@ export const TERRACE_DOOR_2_WIDTH_PRESETS = [160, 180, 200];
 export function defaultOpeningWidth(kind: OpeningKind, leaves: 1 | 2 = 1): number {
   if (kind === "terrace-door") return leaves === 2 ? 180 : 90;
   if (kind === "window") return 120;
+  if (kind === "roof-window") return 78;
   return 90;
 }
 
@@ -114,5 +144,6 @@ export function openingKindLabel(
 ): string {
   if (o.kind === "door") return t.door;
   if (o.kind === "window") return t.window;
+  if (o.kind === "roof-window") return t.roofWindow;
   return `${t.terraceDoor} (${openingLeaves(o) === 1 ? t.oneLeaf : t.twoLeaves})`;
 }

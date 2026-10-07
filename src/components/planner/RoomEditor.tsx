@@ -305,6 +305,11 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
               oKind={planner.oKind}
               oLeaves={planner.oLeaves}
               setOLeaves={planner.setOLeaves}
+              oSlopeLength={planner.oSlopeLength}
+              setOSlopeLength={planner.setOSlopeLength}
+              slopedWallKeys={Object.entries(planner.wallSlopes)
+                .filter(([, s]) => s.run > 0 && s.kneeHeight < planner.ceilingHeight)
+                .map(([key]) => key)}
               setOKind={planner.setOKind}
               oWall={planner.oWall}
               setOWall={planner.setOWall}
@@ -403,6 +408,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
             setCeilingHeight={planner.setCeilingHeight}
             wallSlopes={planner.wallSlopes}
             setWallSlopes={planner.setWallSlopes}
+            roofActions={planner.roofActions}
             slopeIssues={planner.slopeIssues}
             placementIssues={planner.placementIssues}
             backUrl={backUrl}
@@ -420,6 +426,7 @@ export function RoomEditor({ roomId, source, homeId }: RoomEditorProps) {
           openings={planner.openings}
           items={planner.items}
           ceilingHeight={planner.ceilingHeight}
+          wallSlopes={planner.wallSlopes}
         />
       )}
     </>

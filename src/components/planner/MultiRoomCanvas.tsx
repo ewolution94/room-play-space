@@ -51,7 +51,7 @@ import { CanvasLoadingOverlay } from "./canvas/CanvasLoadingOverlay";
 import { useMobileViewOnly } from "@/hooks/use-mobile-view-only";
 import { useCtrlHeld } from "@/hooks/use-ctrl-held";
 import { FloorPatternDef } from "@/lib/floor-pattern-svg";
-import { isGlazedOpening } from "@/lib/openings";
+import { isGlazedOpening, isWallOpening } from "@/lib/openings";
 import { resolveFlooring } from "@/lib/floor-materials";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { clampInspectorPos, inspectorMaxHeight, nudgeInspectorPos } from "@/lib/canvas-layout";
@@ -1938,6 +1938,9 @@ export function MultiRoomCanvas({
                           in a closed sub-run of a partially-open wall
                           keeps rendering normally. */}
                         {room.openings.map((op) => {
+                          // A roof window is in the ceiling, not a gap in the
+                          // wall; the overview only draws the walls.
+                          if (!isWallOpening(op.kind)) return null;
                           const wallKey = typeof op.wall === "string" ? op.wall : String(op.wall);
                           const openIntervals = effectiveOpenWalls.get(wallKey) ?? [];
                           const opStart = op.position;
