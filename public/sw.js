@@ -195,6 +195,8 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   // Census's beacon (census.js): always from the network, never into a cache.
   if (url.pathname === "/_e.js" || url.pathname === "/_e") return;
+  // The iOS launch images: iOS keeps its own copy from when the app was added to the home screen.
+  if (url.pathname.startsWith("/splash/")) return;
 
   if (request.mode === "navigate") {
     // Fetched by URL rather than by passing the request on: a navigation

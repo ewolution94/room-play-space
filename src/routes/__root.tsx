@@ -15,6 +15,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { THEME_COLOR } from "@/hooks/use-theme";
 import { isRedirectGate, loadCensus } from "@/lib/census";
+import { SPLASH_BOOT, SPLASH_CSS, SPLASH_LINKS, SPLASH_MARKUP } from "@/lib/splash";
 
 function NotFoundComponent() {
   return (
@@ -129,6 +130,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
+      // The iOS launch images for the installed app (lib/splash.ts).
+      ...SPLASH_LINKS,
     ],
   }),
   shellComponent: RootShell,
@@ -159,8 +162,14 @@ function RootShell({ children }: { children: React.ReactNode }) {
         `,
           }}
         />
+        {/* The splash screen for the installed app (lib/splash.ts, written by
+            development/plans/splash-rollout): its look, and its switch, which only
+            touches <html> before hydration and never removes #splash. */}
+        <style dangerouslySetInnerHTML={{ __html: SPLASH_CSS }} />
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT }} />
       </head>
       <body>
+        <div id="splash" aria-hidden="true" dangerouslySetInnerHTML={{ __html: SPLASH_MARKUP }} />
         {children}
         <Scripts />
       </body>
@@ -189,8 +198,11 @@ function RootComponent() {
 
   // Visit counting, once the first real page is showing -- see lib/census.ts.
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // The splash screen lifts on the same page, a frame after it shows (lib/splash.ts).
   useEffect(() => {
-    if (!isRedirectGate(pathname)) loadCensus();
+    if (isRedirectGate(pathname)) return;
+    loadCensus();
+    requestAnimationFrame(() => window.dispatchEvent(new Event("splash:ready")));
   }, [pathname]);
 
   return (
