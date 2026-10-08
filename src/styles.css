@@ -7,6 +7,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Two quick taps on a control must not zoom the page: iOS Safari's double-tap zoom also made
+   sticky headers look stuck mid-page (learnings/ios-and-webkit.md, 2026-10-08). On the controls,
+   not <html>, which Safari ignores once it has an overflow. In the base layer, so a utility like
+   touch-none still wins. */
+@layer base {
+  :where(button, a, label, summary, input, select, textarea, [role="button"], [role="radio"]) {
+    touch-action: manipulation;
+  }
+}
+
 /* `tablet:` -- where the editor's sidebar-beside-canvas layout starts. Matches PHONE_SHORT_SIDE
    in src/lib/viewport.ts: anything that isn't a phone is at least this wide, and a phone, even in
    landscape, gets the view-only layout from JS instead, whatever its width. */
