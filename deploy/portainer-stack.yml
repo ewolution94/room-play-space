@@ -8,6 +8,12 @@ services:
     image: ghcr.io/ewolution94/room-play-space:latest
     container_name: room-planner
     restart: unless-stopped
+    healthcheck:
+      # Every ~10 minutes, each container on its own interval so they never line up (plans/nas-load.md).
+      interval: 698s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     ports:
       - "3000:3000" # Maps port 3000 on your NAS to port 3000 in the container
     environment:
