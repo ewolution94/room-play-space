@@ -75,6 +75,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The release notes below read the last 30 commits.
+          fetch-depth: 30
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -113,6 +116,19 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The deploy message on Telegram (census/server/src/announce.ts) quotes what changed: the
+      # `Release-note:` trailers of the last 30 commits, as a label on the image. A failure here
+      # costs the message its notes, never the deploy.
+      - name: Release notes for the deploy message
+        id: notes
+        if: steps.newest.outputs.publish == 'true'
+        continue-on-error: true
+        run: |
+          notes=$(git log -30 --format='%H%x1f%ct%x1f%(trailers:key=Release-note,valueonly,separator=%x1d)%x1e' |
+            jq -Rsc 'split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
+              | {sha: .[0], at: (.[1] | tonumber), notes: (.[2] // "" | split("\u001d") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)))})')
+          echo "label=cloud.ewolution.changes=$(printf '%s' "$notes" | base64 -w0)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         if: steps.newest.outputs.publish == 'true'
         uses: docker/build-push-action@v6
@@ -121,6 +137,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            ${{ steps.notes.outputs.label }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
